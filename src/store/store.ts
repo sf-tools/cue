@@ -1,12 +1,13 @@
 import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
+import type { HistoryEntry } from '@/types';
 import type { AgentState } from './types';
 
 export type AgentStore = ReturnType<typeof createAgentStore>;
 
-function hasVisibleContent(lines: string[]) {
-  return lines.some(line => line.trim().length > 0);
+function hasVisibleContent(text: string) {
+  return text.trim().length > 0;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -73,8 +74,8 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
-    pushHistory(lines: string[]) {
-      if (hasVisibleContent(lines)) state.historyBlocks.push([...lines, '']);
+    pushHistoryEntry(entry: HistoryEntry) {
+      if (hasVisibleContent(entry.text)) state.historyEntries.push(entry);
       return state;
     },
 

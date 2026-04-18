@@ -1,4 +1,4 @@
-import type { EntryKind, ShellResult } from '@/agent/types';
+import type { EntryKind, ShellResult } from '@/types';
 
 export type ToolFactoryOptions = {
   persistEntry: (kind: EntryKind, text: string) => void;

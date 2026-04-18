@@ -1,8 +1,8 @@
 import { tool } from 'ai';
 import { z } from 'zod';
 
-import { plain } from '@/agent/text';
-import { EntryKind } from '@/agent/types';
+import { plain } from '@/text';
+import { EntryKind } from '@/types';
 import type { ToolFactoryOptions } from './types';
 
 export function createBashTool({ persistEntry, runUserShell }: ToolFactoryOptions) {

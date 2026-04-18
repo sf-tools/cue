@@ -1,35 +1,41 @@
-import { streamText, stepCountIs } from 'ai';
-import { openai } from '@ai-sdk/openai';
-import { calcPrice } from '@pydantic/genai-prices';
-import { readFile } from 'node:fs/promises';
-import { emitKeypressEvents } from 'node:readline';
-import { createLogUpdate } from 'log-update';
 import ora from 'ora';
+import { openai } from '@ai-sdk/openai';
+import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { streamText, stepCountIs } from 'ai';
+import { createLogUpdate } from 'log-update';
+import { calcPrice } from '@pydantic/genai-prices';
+import { emitKeypressEvents } from 'node:readline';
 
-import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './composer';
 import { MODEL } from '@/config';
-import { frameWidth, renderComposer, renderEntry, renderFooter, renderHeader, renderOutputPreview, renderSuggestions } from './render';
+import { createTheme } from '@/theme';
+import { createTools } from '@/tools';
 import { runUserShell } from './shell';
 import { createAgentStore } from '@/store';
-import { plain, installSegmentContainingPolyfill, wrapText } from './text';
-import { createTheme } from './theme';
-import { createTools } from '@/tools';
-import { EntryKind, type Keypress, type LogUpdate } from './types';
+import { plain, installSegmentContainingPolyfill } from '@/text';
+import { EntryKind, type Keypress, type LogUpdate } from '@/types';
+import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './mentions';
+import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
 
 export class AgentApp {
   private readonly store = createAgentStore();
   private readonly theme = createTheme();
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
+
   private readonly log = createLogUpdate(process.stdout, {
     showCursor: false,
     defaultWidth: 100,
     defaultHeight: 30
   }) as LogUpdate;
+
   private readonly tools = createTools({
     persistEntry: (kind, text) => this.persistEntry(kind, text),
     runUserShell
   });
+
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
+  private readonly sessionId = randomUUID();
+  private previousFrame: Frame | null = null;
 
   private get state() {
     return this.store.getState();
@@ -68,6 +74,14 @@ export class AgentApp {
     process.stdin.pause();
     this.log.clear();
     this.log.done();
+
+    if (code === 0) {
+      const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
+      const header = serializeBlock(renderHeader(ctx)).join('\n');
+      // TODO: wire this in
+      process.stdout.write(`${header}\n To resume this session: cue --resume=${this.sessionId}\n\n`);
+    }
+
     process.exit(code);
   }
 
@@ -97,39 +111,31 @@ export class AgentApp {
     if (this.state.closed) return;
 
     const suggestions = this.normalizeSuggestions();
-    const header = renderHeader(this.theme);
-    const transcript = this.state.historyBlocks.flat();
-    const preview = renderOutputPreview(this.state, this.theme);
-    const composer = renderComposer(this.state, this.theme);
-    const suggestionLines = renderSuggestions(this.theme, suggestions, this.state.selectedSuggestion);
-    const footer = renderFooter(this.state, this.theme, this.spinner.frame().trim());
-    const rows = process.stdout.rows || 30;
-    const reserved = header.length + composer.length + suggestionLines.length + footer.length;
-    const available = Math.max(0, rows - reserved);
-    const body = [...transcript, ...preview].slice(-available);
+    const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
+    const { frame, diff, nextScrollOffset } = renderScreen(this.state, ctx, suggestions, this.previousFrame);
 
-    this.log([...header, ...body, ...composer, ...suggestionLines, ...footer].join('\n'));
+    if (nextScrollOffset !== this.state.scrollOffset) this.store.setScrollOffset(nextScrollOffset);
+    if (!diff.changed) return;
+
+    this.log(frame.lines.join('\n'));
+    this.previousFrame = frame;
   };
-
-  private pushHistory(lines: string[]) {
-    this.store.pushHistory(lines);
-  }
 
   private persistEntry(kind: EntryKind, text: string) {
     if (!text.trim()) return;
-    this.pushHistory(renderEntry(kind, text, this.theme, frameWidth()));
+    this.store.pushHistoryEntry({ type: 'entry', kind, text });
     this.render();
   }
 
   private persistPlain(text: string) {
     if (!text.trim()) return;
-    this.pushHistory(wrapText(text, frameWidth()).map(line => ` ${line}`));
+    this.store.pushHistoryEntry({ type: 'plain', text });
     this.render();
   }
 
   private persistAnsi(text: string) {
     if (!text.trim()) return;
-    this.pushHistory(text.split('\n').map(line => ` ${line}`));
+    this.store.pushHistoryEntry({ type: 'ansi', text });
     this.render();
   }
 
@@ -200,7 +206,7 @@ export class AgentApp {
         messages: this.state.messages,
         tools: this.tools,
         stopWhen: stepCountIs(20),
-        abortSignal: this.state.abortController.signal
+        abortSignal: this.state.abortController?.signal
       });
 
       for await (const chunk of result.textStream) {
@@ -234,7 +240,6 @@ export class AgentApp {
 
   private insertText(text: string) {
     if (!text || this.state.busy) return;
-
     this.store.insertText(text);
 
     if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {

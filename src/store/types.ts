@@ -1,9 +1,10 @@
 import type { ModelMessage } from 'ai';
+import type { HistoryEntry } from '@/types';
 
 export type AgentState = {
   messages: ModelMessage[];
   inputChars: string[];
-  historyBlocks: string[][];
+  historyEntries: HistoryEntry[];
   cursor: number;
   scrollOffset: number;
   busy: boolean;

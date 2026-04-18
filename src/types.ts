@@ -7,6 +7,11 @@ export enum EntryKind {
   Meta = 'meta'
 }
 
+export type HistoryEntry =
+  | { type: 'entry'; kind: EntryKind; text: string }
+  | { type: 'plain'; text: string }
+  | { type: 'ansi'; text: string };
+
 export type LogUpdate = ((...text: string[]) => void) & {
   clear(): void;
   done(): void;

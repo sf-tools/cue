@@ -1,6 +1,6 @@
 import { USER_SHELL } from '@/config';
-import { normalizePtyOutput } from './text';
-import type { ShellResult } from './types';
+import { normalizePtyOutput } from '@/text';
+import type { ShellResult } from '@/types';
 
 export async function runUserShell(cmd: string): Promise<ShellResult> {
   const chunks: string[] = [];

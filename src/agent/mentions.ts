@@ -1,7 +1,7 @@
 import { readdirSync } from 'node:fs';
 import type { AgentStore } from '@/store';
 
-export function currentMentionMatch(inputChars: string[], cursor: number) {
+function currentMentionMatch(inputChars: string[], cursor: number) {
   const beforeCursor = inputChars.slice(0, cursor).join('');
   return beforeCursor.match(/(?:^|\s)@([^\s]*)$/);
 }

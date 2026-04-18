@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 
-import { EntryKind } from '@/agent/types';
+import { EntryKind } from '@/types';
 import type { ToolFactoryOptions } from './types';
 
 export function createWriteTool({ persistEntry }: ToolFactoryOptions) {

@@ -4,7 +4,7 @@ import { createInitialMessages } from '@/config';
 export const createInitialState = (): AgentState => ({
   messages: createInitialMessages(),
   inputChars: [],
-  historyBlocks: [],
+  historyEntries: [],
   cursor: 0,
   scrollOffset: 0,
   busy: false,

@@ -1,0 +1,46 @@
+import type { ThemePalette } from '../theme';
+
+export type Style = (text: string) => string;
+
+export type Segment = {
+  text: string;
+  style?: Style;
+};
+
+export type StyledLine = {
+  type: 'styled';
+  segments: Segment[];
+};
+
+export type RawLine = {
+  type: 'raw';
+  text: string;
+};
+
+export type Line = StyledLine | RawLine;
+export type Block = Line[];
+
+export type Frame = {
+  lines: string[];
+};
+
+export type FrameDiff = {
+  changed: boolean;
+  changedRows: number[];
+  changedRanges: Array<{ start: number; end: number }>;
+  previousLineCount: number;
+  nextLineCount: number;
+};
+
+export type RenderContext = {
+  width: number;
+  height: number;
+  cwd: string;
+  spinnerFrame: string;
+  theme: ThemePalette;
+};
+
+export type ComposerRenderResult = {
+  block: Block;
+  nextScrollOffset: number;
+};
