@@ -4,6 +4,7 @@ import { createInitialMessages } from '@/config';
 export const createInitialState = (): AgentState => ({
   messages: createInitialMessages(),
   inputChars: [],
+  pasteRanges: [],
   historyEntries: [],
   queuedSubmissions: [],
   cursor: 0,

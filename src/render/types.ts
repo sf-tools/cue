@@ -26,7 +26,6 @@ export type Frame = {
 
 export type FrameDiff = {
   changed: boolean;
-  changedRows: number[];
   changedRanges: Array<{ start: number; end: number }>;
   previousLineCount: number;
   nextLineCount: number;

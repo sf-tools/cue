@@ -52,6 +52,7 @@ export function renderScreen(
   const preview = renderOutputPreview(state.liveAssistantText, ctx, state.pendingApproval);
   const composer = renderComposer({
     inputChars: state.inputChars,
+    pasteRanges: state.pasteRanges,
     cursor: state.cursor,
     scrollOffset: state.scrollOffset,
     slashCommandLength,

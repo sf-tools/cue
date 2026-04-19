@@ -8,6 +8,7 @@ import type { ComposerRenderResult, RenderContext, StyledLine } from '../types';
 
 type ComposerState = {
   inputChars: string[];
+  pasteRanges: Array<{ start: number; end: number }>;
   cursor: number;
   scrollOffset: number;
   slashCommandLength?: number;
@@ -22,6 +23,7 @@ function renderInputLines(state: ComposerState, viewWidth: number, charStyleAt?:
   const lines: StyledLine[] = [];
   let segments: StyledLine['segments'] = [];
   let currentWidth = 0;
+  const pasteRanges = [...state.pasteRanges].sort((left, right) => left.start - right.start || left.end - right.end);
 
   const flushLine = (allowEmpty = false) => {
     if (segments.length === 0 && !allowEmpty) return;
@@ -39,7 +41,22 @@ function renderInputLines(state: ComposerState, viewWidth: number, charStyleAt?:
     currentWidth += width;
   };
 
+  let pasteIndex = 0;
+  let pasteCount = 0;
+
   for (let index = 0; index < state.inputChars.length; index += 1) {
+    const range = pasteRanges[pasteIndex];
+
+    if (range && index === range.start) {
+      pasteCount += 1;
+      const extraLines = state.inputChars.slice(range.start, range.end).filter(ch => ch === '\n').length;
+      const label = `[paste #${pasteCount} +${extraLines} lines]`;
+      pushChar(label, state.cursor >= range.start && state.cursor < range.end ? chalk.inverse : undefined);
+      index = range.end - 1;
+      pasteIndex += 1;
+      continue;
+    }
+
     const ch = state.inputChars[index];
 
     if (index === state.cursor && ch === '\n') {
@@ -143,7 +160,15 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   }
 
   const inputState = shellMode || slashMode
-    ? { ...state, inputChars: state.inputChars.slice(1), cursor: Math.max(0, state.cursor - 1) }
+    ? {
+        ...state,
+        inputChars: state.inputChars.slice(1),
+        pasteRanges: state.pasteRanges.flatMap(range => {
+          if (range.end <= 1) return [];
+          return [{ start: Math.max(0, range.start - 1), end: range.end - 1 }];
+        }),
+        cursor: Math.max(0, state.cursor - 1)
+      }
     : state;
   const inputLines = renderInputLines(
     inputState,

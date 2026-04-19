@@ -8,6 +8,9 @@ import { renderHistoryEntry } from './entry';
 
 import type { Block, RenderContext } from '../types';
 
+const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
+const transcriptBlockCache = new WeakMap<HistoryEntry, Map<number, Block>>();
+
 function clipPreviewText(text: string, ctx: RenderContext, maxLines: number) {
   const maxChars = Math.max(2_000, ctx.width * maxLines * 8);
   if (text.length <= maxChars) return text;
@@ -17,6 +20,25 @@ function clipPreviewText(text: string, ctx: RenderContext, maxLines: number) {
 function renderAbortedMetaLine(ctx: RenderContext) {
   const text = '(aborted)';
   return line(span(LEFT_MARGIN), span(repeat(' ', Math.max(0, ctx.width - widthOf(text)))), span(text, ctx.theme.dimmed));
+}
+
+function isDynamicHistoryEntry(entry: HistoryEntry) {
+  if (entry.type === 'tool') return entry.status === 'running';
+  return entry.type === 'entry' && entry.kind === EntryKind.Assistant && RAINBOW_PHRASE_PATTERN.test(entry.text);
+}
+
+function renderCachedHistoryEntry(entry: HistoryEntry, ctx: RenderContext) {
+  if (isDynamicHistoryEntry(entry)) return renderHistoryEntry(entry, ctx);
+
+  const cachedByWidth = transcriptBlockCache.get(entry);
+  const cached = cachedByWidth?.get(ctx.width);
+  if (cached) return cached;
+
+  const block = renderHistoryEntry(entry, ctx);
+  const nextCachedByWidth = cachedByWidth ?? new Map<number, Block>();
+  nextCachedByWidth.set(ctx.width, block);
+  if (!cachedByWidth) transcriptBlockCache.set(entry, nextCachedByWidth);
+  return block;
 }
 
 function renderTranscriptBlocks(entries: HistoryEntry[], ctx: RenderContext): Block[] {
@@ -33,30 +55,43 @@ function renderTranscriptBlocks(entries: HistoryEntry[], ctx: RenderContext): Bl
       next.kind === EntryKind.Meta &&
       next.text === '(aborted)'
     ) {
-      blocks.push([...renderHistoryEntry(entry, ctx), renderAbortedMetaLine(ctx)]);
+      blocks.push([...renderCachedHistoryEntry(entry, ctx), renderAbortedMetaLine(ctx)]);
       index += 1;
       continue;
     }
 
-    blocks.push(renderHistoryEntry(entry, ctx));
+    blocks.push(renderCachedHistoryEntry(entry, ctx));
   }
 
   return blocks;
 }
 
 export function renderTranscript(entries: HistoryEntry[], ctx: RenderContext, maxLines = Number.POSITIVE_INFINITY): Block {
-  const blocks = renderTranscriptBlocks(entries, ctx);
-
-  if (!Number.isFinite(maxLines)) return blocks.flatMap(block => [...block, blankLine()]);
+  if (!Number.isFinite(maxLines)) return renderTranscriptBlocks(entries, ctx).flatMap(block => [...block, blankLine()]);
   if (maxLines <= 0) return [];
 
   const visible: Block[] = [];
   let used = 0;
 
-  for (let index = blocks.length - 1; index >= 0 && used < maxLines; index -= 1) {
-    const block = [...blocks[index], blankLine()];
-    visible.push(block);
-    used += block.length;
+  for (let index = entries.length - 1; index >= 0 && used < maxLines; index -= 1) {
+    const entry = entries[index];
+    const previous = entries[index - 1];
+
+    let block: Block;
+
+    if (
+      entry.type === 'entry' &&
+      entry.kind === EntryKind.Meta &&
+      entry.text === '(aborted)' &&
+      previous?.type === 'entry' &&
+      previous.kind === EntryKind.Assistant
+    ) {
+      block = [...renderCachedHistoryEntry(previous, ctx), renderAbortedMetaLine(ctx)];
+      index -= 1;
+    } else block = renderCachedHistoryEntry(entry, ctx);
+
+    visible.push([...block, blankLine()]);
+    used += block.length + 1;
   }
 
   return visible.reverse().flat();

@@ -1,9 +1,15 @@
 import type { ModelMessage } from 'ai';
 import type { ApprovalRequest, HistoryEntry } from '@/types';
 
+export type ComposerPasteRange = {
+  start: number;
+  end: number;
+};
+
 export type AgentState = {
   messages: ModelMessage[];
   inputChars: string[];
+  pasteRanges: ComposerPasteRange[];
   historyEntries: HistoryEntry[];
   queuedSubmissions: string[];
   cursor: number;

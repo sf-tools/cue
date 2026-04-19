@@ -9,11 +9,10 @@ import { refreshGitBranch } from '@/git';
 import { createAgentStore } from '@/store';
 import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs } from 'ai';
-import { createLogUpdate } from 'log-update';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
-import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type LogUpdate } from '@/types';
-import { plain, installSegmentContainingPolyfill } from '@/text';
+import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope } from '@/types';
+import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
 import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
@@ -22,6 +21,18 @@ import { createRenderContext, renderHeader, renderScreen, serializeBlock, type F
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
 
 const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
+const BRACKETED_PASTE_START = '\u001b[200~';
+const BRACKETED_PASTE_END = '\u001b[201~';
+
+function bracketedPasteSuffixLength(text: string) {
+  const maxLength = Math.min(text.length, BRACKETED_PASTE_START.length - 1);
+
+  for (let length = maxLength; length > 0; length -= 1) {
+    if (BRACKETED_PASTE_START.startsWith(text.slice(-length))) return length;
+  }
+
+  return 0;
+}
 
 export class AgentApp {
   private readonly store = createAgentStore();
@@ -29,11 +40,7 @@ export class AgentApp {
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
   private readonly commandSpinner = ora({ spinner: 'dots3', color: 'yellow', isEnabled: false });
 
-  private readonly log = createLogUpdate(process.stdout, {
-    showCursor: false,
-    defaultWidth: 100,
-    defaultHeight: 30
-  }) as LogUpdate;
+  private renderedLineCount = 0;
 
   private readonly tools = createTools({
     runUserShell,
@@ -53,6 +60,78 @@ export class AgentApp {
   private historyNavigationIndex: number | null = null;
   private historyNavigationDraft = '';
   private pendingApprovalResolver: ((decision: ApprovalDecision) => void) | null = null;
+  private bracketedPasteActive = false;
+  private bracketedPasteBuffer = '';
+  private stdinBuffer = '';
+
+  private paintFrame(frame: Frame, changedRanges: Array<{ start: number; end: number }>) {
+    if (!process.stdout.isTTY) {
+      process.stdout.write(frame.lines.join('\n'));
+      this.renderedLineCount = frame.lines.length;
+      return;
+    }
+
+    if (!this.previousFrame || this.renderedLineCount === 0) {
+      process.stdout.write('\u001b[?25l');
+      process.stdout.write(frame.lines.join('\n'));
+      this.renderedLineCount = frame.lines.length;
+      return;
+    }
+
+    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
+    else process.stdout.write('\r');
+
+    let currentRow = 0;
+
+    for (const range of changedRanges) {
+      const down = range.start - currentRow;
+      if (down > 0) process.stdout.write(`\u001b[${down}E`);
+      else if (down < 0) process.stdout.write(`\u001b[${-down}F`);
+
+      currentRow = range.start;
+
+      for (let row = range.start; row <= range.end; row += 1) {
+        process.stdout.write('\u001b[2K\r');
+        const line = frame.lines[row] ?? '';
+        if (line) process.stdout.write(line);
+
+        if (row < range.end) {
+          process.stdout.write('\u001b[E');
+          currentRow = row + 1;
+        } else {
+          currentRow = row;
+        }
+      }
+    }
+
+    if (frame.lines.length > 0) {
+      const lastRow = frame.lines.length - 1;
+      const delta = lastRow - currentRow;
+      if (delta > 0) process.stdout.write(`\u001b[${delta}E`);
+      else if (delta < 0) process.stdout.write(`\u001b[${-delta}F`);
+      process.stdout.write('\r');
+    }
+
+    this.renderedLineCount = frame.lines.length;
+  }
+
+  private clearRenderedFrame() {
+    if (!process.stdout.isTTY || this.renderedLineCount <= 0) {
+      this.renderedLineCount = 0;
+      return;
+    }
+
+    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
+    else process.stdout.write('\r');
+
+    for (let index = 0; index < this.renderedLineCount; index += 1) {
+      process.stdout.write('\u001b[2K\r');
+      if (index < this.renderedLineCount - 1) process.stdout.write('\u001b[E');
+    }
+
+    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
+    this.renderedLineCount = 0;
+  }
 
   private get state() {
     return this.store.getState();
@@ -79,6 +158,7 @@ export class AgentApp {
     await refreshGitBranch(process.cwd());
 
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
+    if (process.stdout.isTTY) process.stdout.write('\u001b[?2004h');
     process.stdin.resume();
     process.stdin.on('data', this.onStdinData);
     process.stdout.on('resize', this.render);
@@ -99,8 +179,8 @@ export class AgentApp {
 
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
-    this.log.clear();
-    this.log.done();
+    this.clearRenderedFrame();
+    if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 
     if (code === 0) {
       const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
@@ -112,7 +192,8 @@ export class AgentApp {
   }
 
   handleFatalError(error: unknown, code = 1) {
-    this.log.clear();
+    this.clearRenderedFrame();
+    if (process.stdout.isTTY) process.stdout.write('\u001b[?25h');
     process.stderr.write(`${plain(error instanceof Error ? error.stack || error.message : String(error))}\n`);
     this.cleanup(code);
   }
@@ -155,7 +236,7 @@ export class AgentApp {
     if (nextScrollOffset !== this.state.scrollOffset) this.store.setScrollOffset(nextScrollOffset);
     if (!diff.changed) return;
 
-    this.log(frame.lines.join('\n'));
+    this.paintFrame(frame, diff.changedRanges);
     this.previousFrame = frame;
     this.lastRenderAt = Date.now();
   };
@@ -342,22 +423,6 @@ export class AgentApp {
     this.render();
 
     try {
-      const approved = await this.requestApproval({
-        scope: 'command',
-        title: 'Run command',
-        detail: trimmedCommand || cmd
-      });
-
-      if (!approved) {
-        this.store.updateLastHistoryEntry(entry =>
-          entry.type === 'entry' && entry.kind === EntryKind.Shell && entry.text === trimmedCommand
-            ? { ...entry, text: `${trimmedCommand} denied` }
-            : entry
-        );
-        this.render();
-        return;
-      }
-
       const { output, exitCode } = await runUserShell(cmd);
       const trimmed = output.trimEnd();
 
@@ -603,6 +668,18 @@ export class AgentApp {
     this.render();
   }
 
+  private insertPastedText(text: string) {
+    const normalized = normalizePtyOutput(text);
+    if (!normalized) return;
+
+    this.historyNavigationIndex = null;
+    this.store.insertPastedText(normalized);
+
+    if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
+
+    this.render();
+  }
+
   private moveSuggestionSelection(delta: number) {
     const suggestions = this.getSuggestions();
     if (suggestions.length === 0) return false;
@@ -665,8 +742,7 @@ export class AgentApp {
     this.render();
   }
 
-  private onInputBinding = async (chunk: Buffer | string) => {
-    const binding = resolveInputBinding(chunk);
+  private handleInputBinding = async (binding: ReturnType<typeof resolveInputBinding>) => {
     if (!binding) return;
 
     if (binding.type === 'interrupt') {
@@ -742,7 +818,61 @@ export class AgentApp {
     }
   };
 
+  private onInputBinding = async (chunk: Buffer | string) => {
+    await this.handleInputBinding(resolveInputBinding(chunk));
+  };
+
+  private processNonPasteInput = async (text: string) => {
+    if (!text) return;
+
+    const binding = resolveInputBinding(text);
+    if (binding) {
+      await this.handleInputBinding(binding);
+      return;
+    }
+
+    if (!text.includes('\u001b')) this.insertText(text);
+  };
+
   private onStdinData = (chunk: Buffer | string) => {
-    void this.onInputBinding(chunk);
+    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+    this.stdinBuffer += text;
+
+    void (async () => {
+      while (this.stdinBuffer.length > 0) {
+        if (this.bracketedPasteActive) {
+          const endIndex = this.stdinBuffer.indexOf(BRACKETED_PASTE_END);
+          if (endIndex === -1) {
+            this.bracketedPasteBuffer += this.stdinBuffer;
+            this.stdinBuffer = '';
+            return;
+          }
+
+          this.bracketedPasteBuffer += this.stdinBuffer.slice(0, endIndex);
+          this.stdinBuffer = this.stdinBuffer.slice(endIndex + BRACKETED_PASTE_END.length);
+          this.bracketedPasteActive = false;
+          this.insertPastedText(this.bracketedPasteBuffer);
+          this.bracketedPasteBuffer = '';
+          continue;
+        }
+
+        const startIndex = this.stdinBuffer.indexOf(BRACKETED_PASTE_START);
+        if (startIndex !== -1) {
+          const before = this.stdinBuffer.slice(0, startIndex);
+          this.stdinBuffer = this.stdinBuffer.slice(startIndex + BRACKETED_PASTE_START.length);
+          if (before) await this.processNonPasteInput(before);
+          this.bracketedPasteActive = true;
+          this.bracketedPasteBuffer = '';
+          continue;
+        }
+
+        const suffixLength = bracketedPasteSuffixLength(this.stdinBuffer);
+        const complete = this.stdinBuffer.slice(0, this.stdinBuffer.length - suffixLength);
+        this.stdinBuffer = this.stdinBuffer.slice(this.stdinBuffer.length - suffixLength);
+
+        if (complete) await this.processNonPasteInput(complete);
+        return;
+      }
+    })();
   };
 }

@@ -16,6 +16,43 @@ function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(value, max));
 }
 
+function sortPasteRanges(state: AgentState) {
+  state.pasteRanges.sort((left, right) => left.start - right.start || left.end - right.end);
+}
+
+function prunePasteRanges(state: AgentState) {
+  for (let index = state.pasteRanges.length - 1; index >= 0; index -= 1) {
+    const range = state.pasteRanges[index];
+    const segment = state.inputChars.slice(range.start, range.end);
+
+    if (range.end <= range.start || !segment.includes('\n')) state.pasteRanges.splice(index, 1);
+  }
+}
+
+function shiftPasteRangesForInsert(state: AgentState, at: number, count: number) {
+  for (const range of state.pasteRanges) {
+    if (range.start >= at) {
+      range.start += count;
+      range.end += count;
+      continue;
+    }
+
+    if (range.end > at) range.end += count;
+  }
+}
+
+function shiftPasteRangesForDelete(state: AgentState, at: number) {
+  for (const range of state.pasteRanges) {
+    if (at < range.start) {
+      range.start -= 1;
+      range.end -= 1;
+      continue;
+    }
+
+    if (at < range.end) range.end -= 1;
+  }
+}
+
 export function createAgentStore(initialState: AgentState = createInitialState()) {
   const state = initialState;
 
@@ -47,6 +84,7 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     resetComposer() {
       state.inputChars.length = 0;
+      state.pasteRanges.length = 0;
       state.cursor = 0;
       state.scrollOffset = 0;
       return state;
@@ -201,13 +239,36 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     replaceInput(text: string, cursor = text.length) {
       state.inputChars.splice(0, state.inputChars.length, ...Array.from(text));
+      state.pasteRanges.length = 0;
       state.cursor = clamp(cursor, 0, state.inputChars.length);
       return state;
     },
 
     insertText(text: string) {
       const chars = Array.from(text);
-      state.inputChars.splice(state.cursor, 0, ...chars);
+      const start = state.cursor;
+
+      shiftPasteRangesForInsert(state, start, chars.length);
+      state.inputChars.splice(start, 0, ...chars);
+      prunePasteRanges(state);
+      state.cursor += chars.length;
+      return state;
+    },
+
+    insertPastedText(text: string) {
+      const chars = Array.from(text);
+      const start = state.cursor;
+      const existingRange = state.pasteRanges.find(range => start > range.start && start < range.end);
+
+      shiftPasteRangesForInsert(state, start, chars.length);
+      state.inputChars.splice(start, 0, ...chars);
+
+      if (text.includes('\n') && !existingRange) {
+        state.pasteRanges.push({ start, end: start + chars.length });
+        sortPasteRanges(state);
+      }
+
+      prunePasteRanges(state);
       state.cursor += chars.length;
       return state;
     },
@@ -215,6 +276,8 @@ export function createAgentStore(initialState: AgentState = createInitialState()
     deleteBackward() {
       if (state.cursor <= 0) return false;
       state.inputChars.splice(state.cursor - 1, 1);
+      shiftPasteRangesForDelete(state, state.cursor - 1);
+      prunePasteRanges(state);
       state.cursor -= 1;
       return true;
     },
@@ -222,6 +285,8 @@ export function createAgentStore(initialState: AgentState = createInitialState()
     deleteForward() {
       if (state.cursor >= state.inputChars.length) return false;
       state.inputChars.splice(state.cursor, 1);
+      shiftPasteRangesForDelete(state, state.cursor);
+      prunePasteRanges(state);
       return true;
     }
   };

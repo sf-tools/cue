@@ -2,37 +2,36 @@ import type { Frame, FrameDiff } from './types';
 
 export function diffFrames(previous: Frame | null, next: Frame): FrameDiff {
   if (!previous) {
-    const changedRows = next.lines.map((_, index) => index);
     return {
       changed: next.lines.length > 0,
-      changedRows,
-      changedRanges: changedRows.length ? [{ start: 0, end: changedRows.length - 1 }] : [],
+      changedRanges: next.lines.length > 0 ? [{ start: 0, end: next.lines.length - 1 }] : [],
       previousLineCount: 0,
       nextLineCount: next.lines.length
     };
   }
 
   const maxLines = Math.max(previous.lines.length, next.lines.length);
-  const changedRows: number[] = [];
+  const changedRanges: Array<{ start: number; end: number }> = [];
+  let rangeStart = -1;
 
   for (let index = 0; index < maxLines; index += 1) {
-    if ((previous.lines[index] ?? '') !== (next.lines[index] ?? '')) changedRows.push(index);
-  }
+    const changed = (previous.lines[index] ?? '') !== (next.lines[index] ?? '');
 
-  const changedRanges = changedRows.reduce<Array<{ start: number; end: number }>>((ranges, row) => {
-    const last = ranges.at(-1);
-    if (last && row === last.end + 1) {
-      last.end = row;
-      return ranges;
+    if (changed) {
+      if (rangeStart === -1) rangeStart = index;
+      continue;
     }
 
-    ranges.push({ start: row, end: row });
-    return ranges;
-  }, []);
+    if (rangeStart !== -1) {
+      changedRanges.push({ start: rangeStart, end: index - 1 });
+      rangeStart = -1;
+    }
+  }
+
+  if (rangeStart !== -1) changedRanges.push({ start: rangeStart, end: maxLines - 1 });
 
   return {
-    changed: changedRows.length > 0,
-    changedRows,
+    changed: changedRanges.length > 0,
     changedRanges,
     previousLineCount: previous.lines.length,
     nextLineCount: next.lines.length
