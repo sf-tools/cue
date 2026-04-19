@@ -15,3 +15,40 @@ export function renderHeader(ctx: RenderContext): Block {
     blankLine(),
   ];
 }
+
+export function renderExitLogo(): Block {
+  return [
+    line(span('      :::::::: ', chalk.cyan)),
+    line(span('    :+:    :+: ', chalk.cyan)),
+    line(span('   +:+         ', chalk.cyan)),
+    line(span('  +#+          ', chalk.cyan)),
+    line(span(' +#+           ', chalk.cyan)),
+    line(span('#+#    #+#     ', chalk.cyan)),
+    line(span('########       ', chalk.cyan)),
+  ];
+}
+
+export function renderExitSummary(options: {
+  threadTitle?: string | null;
+  threadUrl?: string | null;
+  resumeCommand?: string | null;
+}): Block {
+  return [
+    line(span('      :::::::: ', chalk.cyan)),
+    line(span('    :+:    :+: ', chalk.cyan)),
+    line(
+      span('   +:+          ', chalk.cyan),
+      ...(options.threadTitle ? [span(options.threadTitle, chalk.white)] : []),
+    ),
+    line(
+      span('  +#+           ', chalk.cyan),
+      ...(options.threadUrl ? [span(options.threadUrl, chalk.blue)] : []),
+    ),
+    line(
+      span(' +#+            ', chalk.cyan),
+      ...(options.resumeCommand ? [span(options.resumeCommand, chalk.gray)] : []),
+    ),
+    line(span('#+#    #+#     ', chalk.cyan)),
+    line(span('########       ', chalk.cyan)),
+  ];
+}

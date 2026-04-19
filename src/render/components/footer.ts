@@ -226,7 +226,7 @@ function buildNoticeLine(state: AgentState, ctx: RenderContext, queued: string) 
   if (state.busy && !state.busyStatusText) {
     return line(
       span(LEFT_MARGIN),
-      span(`${ctx.spinnerFrame} Thinking...`, ctx.theme.spinnerText),
+      span(`${ctx.spinnerFrame} ${ctx.busySpinnerVerb}...`, ctx.theme.spinnerText),
       ...(queued ? [span(' · ', ctx.theme.subtle), span(queued, chalk.yellow)] : []),
     );
   }

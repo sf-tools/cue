@@ -10,6 +10,7 @@ export type CueSessionSnapshot = {
   sessionId: string;
   cwd: string;
   savedAt: string;
+  title?: string;
   state: {
     messages: AgentState['messages'];
     historyEntries: AgentState['historyEntries'];
@@ -33,12 +34,16 @@ export function createSnapshotFromState(
   sessionId: string,
   cwd: string,
   state: AgentState,
+  title?: string | null,
 ): CueSessionSnapshot {
+  const normalizedTitle = title?.trim() ? title.trim() : undefined;
+
   return {
     version: 1,
     sessionId,
     cwd,
     savedAt: new Date().toISOString(),
+    ...(normalizedTitle ? { title: normalizedTitle } : {}),
     state: {
       messages: state.messages,
       historyEntries: state.historyEntries,

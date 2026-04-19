@@ -1,5 +1,4 @@
 import ora from 'ora';
-import chalk from 'chalk';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
@@ -13,28 +12,35 @@ import { startMentionIndex } from './mention-index';
 import { PromptHistoryStore } from './prompt-history';
 import { loadCueCloudAuth } from '@/cloud/auth-storage';
 import { blankLine, vstack } from '@/render/primitives';
+import { pickSpinnerVerb } from '@/render/spinner-verbs';
 import { renderFooter } from '@/render/components/footer';
 import type { ReadStream as TtyReadStream } from 'node:tty';
 import { renderHistoryEntry } from '@/render/components/entry';
-import { streamText, stepCountIs, type ImagePart, type ModelMessage, type TextPart } from 'ai';
 import { compactMessages, canCompactMessages } from './compact';
 import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
 import { renderQueuedSubmissions } from '@/render/components/queued';
-import {
-  makeCueThreadPrivate,
-  shareCueThread,
-  syncPromptHistory,
-  syncSessionSnapshot,
-} from '@/cloud/client';
 import { loadCueCloudModel, requireCueCloudAuth } from '@/cloud/openai';
+import { IMAGE_MEDIA_TYPES, parseDroppedImagePaths } from './path-detect';
+import { readClipboardImage, clipboardHelperHint } from './clipboard-image';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
 import { createFileChange, previewFileChangesForToolCall } from '@/file-changes';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { createSnapshotFromState, saveCueSessionSnapshot } from './session-storage';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
-import { readClipboardImage, clipboardHelperHint } from './clipboard-image';
+import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
+import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
+import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
+import { createAgentStore, type AgentState, type AgentStore, type QueuedSubmission } from '@/store';
+
+import {
+  makeCueThreadPrivate,
+  shareCueThread,
+  syncPromptHistory,
+  syncSessionSnapshot,
+} from '@/cloud/client';
+
 import {
   attachFromBytes,
   attachFromPath,
@@ -45,12 +51,24 @@ import {
   summarizeAttachment,
   type Attachment,
 } from './image-attachments';
-import { IMAGE_MEDIA_TYPES, parseDroppedImagePaths } from './path-detect';
-import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
-import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@/render';
-import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
-import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
-import { createAgentStore, type AgentState, type AgentStore, type QueuedSubmission } from '@/store';
+
+import {
+  createRenderContext,
+  frameWidth,
+  renderExitSummary,
+  renderHeader,
+  serializeBlock,
+} from '@/render';
+
+import {
+  generateText,
+  streamText,
+  stepCountIs,
+  type ImagePart,
+  type ModelMessage,
+  type TextPart,
+} from 'ai';
+
 import {
   createFailedToolEntry,
   createPendingToolEntry,
@@ -115,9 +133,69 @@ function estimateMessageTokens(messages: ModelMessage[]) {
   return messages.reduce((sum, message) => sum + estimateValueTokens(message.content), 0);
 }
 
+function normalizeThreadTitle(text: string) {
+  const taggedMatch = plain(text).match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const firstLine = (taggedMatch?.[1] ?? plain(text))
+    .split('\n')
+    .map(line => line.trim())
+    .find(Boolean);
+  const normalized = firstLine
+    ? firstLine
+        .replace(/^title\s*:\s*/i, '')
+        .replace(/^['"`“”‘’]+|['"`“”‘’]+$/g, '')
+        .replace(/\s+/g, ' ')
+        .replace(/[.!?;,，。！？؛]+$/, '')
+        .trim()
+    : null;
+
+  if (!normalized) return null;
+  if (normalized.length <= 80) return normalized;
+
+  const truncated = normalized.slice(0, 80);
+  const boundary = truncated.lastIndexOf(' ');
+  return (boundary >= 24 ? truncated.slice(0, boundary) : truncated).trim();
+}
+
+function getThreadTitleContext(entries: HistoryEntry[]) {
+  const relevant = entries
+    .filter(
+      (entry): entry is Extract<HistoryEntry, { type: 'entry' }> =>
+        entry.type === 'entry' &&
+        (entry.kind === EntryKind.User || entry.kind === EntryKind.Assistant),
+    )
+    .map(entry => ({
+      speaker: entry.kind === EntryKind.User ? 'User' : 'Assistant',
+      text: plain(entry.text).replace(/\s+/g, ' ').trim(),
+    }))
+    .filter(entry => entry.text.length > 0)
+    .slice(0, 6);
+
+  const hasUser = relevant.some(entry => entry.speaker === 'User');
+  const hasAssistant = relevant.some(entry => entry.speaker === 'Assistant');
+  if (!hasUser || !hasAssistant) return null;
+
+  let total = 0;
+  const lines: string[] = [];
+
+  for (const entry of relevant) {
+    const remaining = 2400 - total;
+    if (remaining <= 0) break;
+
+    const clipped =
+      entry.text.length > remaining
+        ? `${entry.text.slice(0, Math.max(0, remaining - 1))}…`
+        : entry.text;
+    lines.push(`${entry.speaker}: ${clipped}`);
+    total += clipped.length;
+  }
+
+  return lines.length > 0 ? lines.join('\n\n') : null;
+}
+
 export type AgentAppOptions = {
   initialState?: AgentState;
   sessionId?: string;
+  threadTitle?: string;
 };
 
 export class AgentApp {
@@ -125,6 +203,7 @@ export class AgentApp {
   private readonly theme = createTheme();
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
   private readonly commandSpinner = ora({ spinner: 'dots3', color: 'yellow', isEnabled: false });
+  private busySpinnerVerb = pickSpinnerVerb();
 
   private transientLineCount = 0;
   private committedHistoryCount = 0;
@@ -164,6 +243,8 @@ export class AgentApp {
   private readonly sessionId: string;
   private readonly promptHistory = new PromptHistoryStore();
   private readonly bootFromSnapshot: boolean;
+  private threadTitle: string | null;
+  private threadTitleGeneration: Promise<void> | null = null;
   private sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private drainingQueuedSubmissions = false;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
@@ -351,10 +432,16 @@ export class AgentApp {
     return this.store.getState();
   }
 
+  private setBusy(busy: boolean) {
+    if (busy && !this.state.busy) this.busySpinnerVerb = pickSpinnerVerb();
+    this.store.setBusy(busy);
+  }
+
   constructor(options: AgentAppOptions = {}) {
     this.store = createAgentStore(options.initialState);
     this.sessionId = options.sessionId ?? randomUUID();
     this.bootFromSnapshot = Boolean(options.initialState);
+    this.threadTitle = options.threadTitle?.trim() ? options.threadTitle.trim() : null;
 
     this.spinnerTimer = setInterval(() => {
       if (!this.state.busy || this.state.closed) return;
@@ -382,6 +469,8 @@ export class AgentApp {
       this.store.setThinkingMode(preferences.reasoning);
       this.store.setAutoCompactEnabled(preferences.autoCompactEnabled);
     }
+
+    this.maybeGenerateThreadTitle();
 
     const { stream, buffer } = takeOverEarlyStdin();
     this.stdin = stream ?? process.stdin;
@@ -414,27 +503,37 @@ export class AgentApp {
     this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 
-    void this.persistSessionSnapshot();
-
-    if (code === 0) {
-      const ctx = createRenderContext(
-        this.theme,
-        this.spinner.frame().trim(),
-        this.commandSpinner.frame().trim(),
-        this.expandPreviews,
-      );
-      const header = serializeBlock(renderHeader(ctx)).join('\n');
-
-      if (process.stdout.isTTY) process.stdout.write('\u001b[3J\u001b[2J\u001b[H');
-      process.stdout.write(`${header}\n`);
-      if (this.hasResumableSession()) {
-        process.stdout.write(
-          ` ${chalk.white('To resume this session:')} ${chalk.cyan('cue --resume=')}${chalk.cyanBright(this.sessionId)}\n`,
-        );
+    void (async () => {
+      if (code === 0) {
+        this.maybeGenerateThreadTitle();
+        if (this.threadTitleGeneration) {
+          try {
+            await this.threadTitleGeneration;
+          } catch {}
+        }
       }
-    }
 
-    process.exit(code);
+      try {
+        await this.persistSessionSnapshot();
+      } catch {}
+
+      if (code === 0) {
+        const auth = await loadCueCloudAuth();
+        const threadUrl = this.getThreadUrl(auth?.baseUrl ?? null);
+        const exitLines = serializeBlock(
+          renderExitSummary({
+            threadTitle: this.threadTitle,
+            threadUrl,
+            resumeCommand: this.hasResumableSession() ? `cue --resume=${this.sessionId}` : null,
+          }),
+        );
+
+        if (process.stdout.isTTY) process.stdout.write('\u001b[3J\u001b[2J\u001b[H');
+        process.stdout.write(`${exitLines.join('\n')}\n`);
+      }
+
+      process.exit(code);
+    })();
   }
 
   handleFatalError(error: unknown, code = 1) {
@@ -503,6 +602,7 @@ export class AgentApp {
       this.theme,
       this.spinner.frame().trim(),
       this.commandSpinner.frame().trim(),
+      this.busySpinnerVerb,
       this.expandPreviews,
       columns,
       rows,
@@ -577,8 +677,62 @@ export class AgentApp {
     );
   }
 
+  private async generateThreadTitle(context: string) {
+    const model = this.state.currentModel;
+    const { text, usage } = await generateText({
+      model: await loadCueCloudModel(model),
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You create concise titles for coding assistant threads. Return exactly one short title wrapped in <title></title>. Keep it under 8 words, describe the concrete task, avoid greetings, and do not use markdown or surrounding quotes.',
+        },
+        {
+          role: 'user',
+          content: `Name this conversation based on the task being worked on.\n\nConversation:\n${context}`,
+        },
+      ],
+      providerOptions: createOpenAIProviderOptions(model, 'low'),
+    });
+
+    const title = normalizeThreadTitle(text);
+    if (!title) return null;
+
+    const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), model, {
+      providerId: 'openai',
+    });
+    if (price) this.store.addTotalCost(price.total_price);
+
+    return title;
+  }
+
+  private maybeGenerateThreadTitle() {
+    if (this.threadTitle || this.threadTitleGeneration || this.state.closed) return;
+
+    const context = getThreadTitleContext(this.state.historyEntries);
+    if (!context) return;
+
+    this.threadTitleGeneration = (async () => {
+      try {
+        const title = await this.generateThreadTitle(context);
+        if (!title || this.threadTitle || this.state.closed) return;
+        this.threadTitle = title;
+        this.scheduleSessionSnapshot();
+        this.render();
+      } catch {
+      } finally {
+        this.threadTitleGeneration = null;
+      }
+    })();
+  }
+
   private async persistSessionSnapshot() {
-    const snapshot = createSnapshotFromState(this.sessionId, process.cwd(), this.state);
+    const snapshot = createSnapshotFromState(
+      this.sessionId,
+      process.cwd(),
+      this.state,
+      this.threadTitle,
+    );
     await saveCueSessionSnapshot(snapshot);
 
     if (!this.hasThreadContent()) return;
@@ -607,8 +761,29 @@ export class AgentApp {
     return 'private' as const;
   }
 
+  private getSharedThreadUrl() {
+    for (let index = this.state.historyEntries.length - 1; index >= 0; index -= 1) {
+      const entry = this.state.historyEntries[index];
+      if (entry.type !== 'entry' || entry.kind !== EntryKind.Meta) continue;
+      if (entry.text.startsWith('shared thread: '))
+        return entry.text.slice('shared thread: '.length);
+      if (entry.text === 'thread is now private') return null;
+    }
+
+    return null;
+  }
+
+  private getThreadUrl(baseUrl: string | null) {
+    const sharedUrl = this.getSharedThreadUrl();
+    if (sharedUrl) return sharedUrl;
+    if (!baseUrl) return null;
+    return `${baseUrl.replace(/\/$/, '')}/threads/${encodeURIComponent(this.sessionId)}`;
+  }
+
   private async shareCurrentThread() {
     if (!this.hasThreadContent()) throw new Error('cannot share an empty thread');
+    this.maybeGenerateThreadTitle();
+    if (this.threadTitleGeneration) await this.threadTitleGeneration;
     await this.persistSessionSnapshot();
     const auth = await requireCueCloudAuth();
     return shareCueThread(auth, this.sessionId);
@@ -914,6 +1089,7 @@ export class AgentApp {
   private persistHistoryEntries(entries: HistoryEntry[]) {
     for (const entry of entries) this.store.pushHistoryEntry(entry);
     this.scheduleSessionSnapshot();
+    this.maybeGenerateThreadTitle();
     this.render();
   }
 
@@ -965,7 +1141,9 @@ export class AgentApp {
     return out;
   }
 
-  private async buildUserMessageContent(text: string): Promise<string | Array<TextPart | ImagePart>> {
+  private async buildUserMessageContent(
+    text: string,
+  ): Promise<string | Array<TextPart | ImagePart>> {
     const expanded = await this.expand(text);
     const tokens = extractTokens(expanded);
     if (tokens.length === 0) return expanded;
@@ -981,7 +1159,11 @@ export class AgentApp {
       if (attachment) {
         try {
           const bytes = await readFile(attachment.path);
-          parts.push({ type: 'image', image: new Uint8Array(bytes), mediaType: attachment.mediaType });
+          parts.push({
+            type: 'image',
+            image: new Uint8Array(bytes),
+            mediaType: attachment.mediaType,
+          });
         } catch {
           parts.push({ type: 'text', text: `[image unavailable: ${attachment.originalName}]` });
         }
@@ -996,7 +1178,7 @@ export class AgentApp {
   private async runShellCommand(cmd: string) {
     const trimmedCommand = cmd.trim();
     this.store.setBusyStatusText(trimmedCommand);
-    this.store.setBusy(true);
+    this.setBusy(true);
     this.render();
 
     try {
@@ -1012,7 +1194,7 @@ export class AgentApp {
         plain(error instanceof Error ? error.message : String(error)),
       );
     } finally {
-      this.store.setBusy(false);
+      this.setBusy(false);
       this.render();
       void this.drainQueuedSubmissions();
     }
@@ -1068,7 +1250,7 @@ export class AgentApp {
       }
 
       this.store.setBusyStatusText(`/${slashCommand.invocation}`);
-      this.store.setBusy(true);
+      this.setBusy(true);
       this.render();
 
       try {
@@ -1097,7 +1279,9 @@ export class AgentApp {
             insertText: text => this.insertText(text),
             attachImageFromClipboard: async () => {
               const attachment = await this.attachImageFromClipboard();
-              return attachment ? { token: attachment.token, originalName: attachment.originalName } : null;
+              return attachment
+                ? { token: attachment.token, originalName: attachment.originalName }
+                : null;
             },
           },
           {
@@ -1113,7 +1297,7 @@ export class AgentApp {
           plain(error instanceof Error ? error.message : String(error)),
         );
       } finally {
-        this.store.setBusy(false);
+        this.setBusy(false);
 
         if (
           previousPlanningMode !== undefined &&
@@ -1149,7 +1333,7 @@ export class AgentApp {
 
     const abortController = createAbortController(this.store);
 
-    this.store.setBusy(true);
+    this.setBusy(true);
     this.store.clearLiveAssistantText();
     this.store.clearLiveReasoningText();
     this.store.resetLiveUsage();
@@ -1353,7 +1537,7 @@ export class AgentApp {
       this.store.resetLiveUsage();
       this.store.setAbortController(null);
       resetAbortState(this.store);
-      this.store.setBusy(false);
+      this.setBusy(false);
 
       if (previousPlanningMode !== undefined && this.state.planningMode !== previousPlanningMode) {
         this.store.setPlanningMode(previousPlanningMode);
@@ -1506,14 +1690,18 @@ export class AgentApp {
           tokens.push(attachment.token);
           summaries.push(attachment.originalName);
         } catch (error) {
-          this.showFooterNotice(`couldn't attach ${file.absolutePath}: ${error instanceof Error ? error.message : 'error'}`);
+          this.showFooterNotice(
+            `couldn't attach ${file.absolutePath}: ${error instanceof Error ? error.message : 'error'}`,
+          );
         }
       }
       if (tokens.length === 0) return;
       this.historyNavigationIndex = null;
       this.resetPreferredComposerColumn();
       this.store.insertText(tokens.join(' '));
-      this.showFooterNotice(`attached ${summaries.length === 1 ? summaries[0] : `${summaries.length} images`}`);
+      this.showFooterNotice(
+        `attached ${summaries.length === 1 ? summaries[0] : `${summaries.length} images`}`,
+      );
       this.scheduleSessionSnapshot();
       this.render();
     })();
@@ -1536,7 +1724,10 @@ export class AgentApp {
       this.render();
       return attachment;
     } catch (error) {
-      this.showFooterNotice(`clipboard attach failed: ${error instanceof Error ? error.message : 'error'}`, 4_000);
+      this.showFooterNotice(
+        `clipboard attach failed: ${error instanceof Error ? error.message : 'error'}`,
+        4_000,
+      );
       return null;
     }
   }

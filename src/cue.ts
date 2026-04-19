@@ -38,6 +38,7 @@ const { AgentApp } = await import('@/agent/app');
 const app = new AgentApp({
   initialState,
   sessionId: resumeSnapshot?.sessionId,
+  threadTitle: resumeSnapshot?.title,
 });
 
 process.on('SIGINT', () => app.cleanup(0));

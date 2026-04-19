@@ -27,6 +27,7 @@ export type RenderContext = {
   gitBranch: string | null;
   spinnerFrame: string;
   commandSpinnerFrame: string;
+  busySpinnerVerb: string;
   theme: ThemePalette;
   expandPreviews: boolean;
 };
