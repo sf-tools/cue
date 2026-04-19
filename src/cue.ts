@@ -8,10 +8,9 @@ if (cli.kind === 'exit') process.exit(cli.code);
 
 try {
   await ensureCueCloudLogin();
-  if (cli.kind !== 'headless-json' && process.stdout.isTTY) process.stdout.write('\u001b[2J\u001b[H');
 } catch (error) {
   if (error instanceof CueLoginCancelledError) {
-    if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[2J\u001b[H');
+    if (process.stdout.isTTY) process.stdout.write('\u001b[?25h');
     process.exit(0);
   }
 

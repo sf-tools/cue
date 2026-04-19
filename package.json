@@ -1,6 +1,6 @@
 {
   "name": "@sf-tools/cue",
-  "version": "0.0.22",
+  "version": "0.0.23",
   "description": "Your next move, on cue.",
   "license": "MIT",
   "type": "module",

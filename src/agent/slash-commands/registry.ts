@@ -153,7 +153,6 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
           if (hidden) return false;
           return invocation.startsWith(normalizedQuery) || invocation.includes(normalizedQuery);
         })
-        .slice(0, 6)
         .map<SlashCommandSuggestion>(({ command, invocation, isAlias, specialHidden }) => {
           const canonicalInvocation = normalizeInvocation(command.name);
           const replacementInvocation = specialHidden ? canonicalInvocation : invocation;

@@ -503,9 +503,15 @@ export class AgentApp {
     this.footerNoticeTimer.unref?.();
   }
 
+  private hasThreadContent() {
+    return this.state.historyEntries.some(entry => entry.type === 'entry' && entry.kind !== EntryKind.Meta && entry.text.trim().length > 0);
+  }
+
   private async persistSessionSnapshot() {
     const snapshot = createSnapshotFromState(this.sessionId, process.cwd(), this.state);
     await saveCueSessionSnapshot(snapshot);
+
+    if (!this.hasThreadContent()) return;
 
     const auth = await loadCueCloudAuth();
     if (!auth) return;
@@ -521,12 +527,14 @@ export class AgentApp {
   }
 
   private async shareCurrentThread() {
+    if (!this.hasThreadContent()) throw new Error('cannot share an empty thread');
     await this.persistSessionSnapshot();
     const auth = await requireCueCloudAuth();
     return shareCueThread(auth, this.sessionId);
   }
 
   private async makeCurrentThreadPrivate() {
+    if (!this.hasThreadContent()) throw new Error('cannot change sharing for an empty thread');
     await this.persistSessionSnapshot();
     const auth = await requireCueCloudAuth();
     return makeCueThreadPrivate(auth, this.sessionId);
