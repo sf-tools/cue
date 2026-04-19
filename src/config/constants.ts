@@ -1,10 +1,10 @@
 import { calcPrice } from '@pydantic/genai-prices';
 import { BUILD_VERSION } from './version';
 
-export const APP_NAME = 'Cue';
+export const APP_NAME = 'Cue Control';
 export const MODEL = 'gpt-5.4';
 
-export const APP_VERSION = BUILD_VERSION;
+export const APP_VERSION = `v${BUILD_VERSION}`;
 export const USER_SHELL = process.env.SHELL || '/bin/sh';
 
 // TODO: dont fallback when no window. throw error instead

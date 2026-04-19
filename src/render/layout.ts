@@ -14,6 +14,12 @@ type PanelOptions = {
   width: number;
 };
 
+function panelBodyLine(entry: Line, { bg, width }: PanelOptions) {
+  const content = serializeLine(entry);
+  const fill = repeat(' ', Math.max(0, width - widthOf(content) - 2));
+  return rawLine(`${LEFT_MARGIN}${chalk.bgHex(bg)(` ${content}${fill} `)}`);
+}
+
 function cloneSegment(segment: Segment): Segment {
   return { text: segment.text, style: segment.style };
 }
@@ -41,12 +47,17 @@ export function indent(block: Block, firstPrefix: PrefixValue, restPrefix: Prefi
   });
 }
 
-export function panelize(block: Block, { bg, width }: PanelOptions): Block {
-  return block.map(entry => {
-    const content = serializeLine(entry);
-    const fill = repeat(' ', Math.max(0, width - widthOf(content) - 2));
-    return rawLine(`${LEFT_MARGIN}${chalk.bgHex(bg)(` ${content}${fill} `)}`);
-  });
+export function panelize(block: Block, options: PanelOptions): Block {
+  return block.map(entry => panelBodyLine(entry, options));
+}
+
+export function thinPanelize(block: Block, { bg, width }: PanelOptions): Block {
+  const border = chalk.hex(bg);
+  return [
+    rawLine(`${LEFT_MARGIN}${border(repeat('▄', width))}`),
+    ...block.map(entry => panelBodyLine(entry, { bg, width })),
+    rawLine(`${LEFT_MARGIN}${border(repeat('▀', width))}`)
+  ];
 }
 
 export function wrapTextBlock(text: string, width: number, style?: Style): StyledLine[] {

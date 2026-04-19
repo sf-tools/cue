@@ -56,7 +56,7 @@ export class AgentApp {
   }
 
   async start() {
-    this.theme.sync();
+    await this.theme.sync();
 
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
     process.stdin.resume();

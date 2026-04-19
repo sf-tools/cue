@@ -1,14 +1,14 @@
 import chalk from 'chalk';
 
 import { EntryKind, type HistoryEntry } from '@/types';
-import { LEFT_MARGIN, indent, panelize, wrapTextBlock } from '../layout';
+import { LEFT_MARGIN, indent, thinPanelize, wrapTextBlock } from '../layout';
 import { rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
 import type { Block, RenderContext } from '../types';
 
 function renderUserEntry(text: string, ctx: RenderContext): Block {
-  return panelize(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), {
+  return thinPanelize(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), {
     bg: ctx.theme.panelBg(),
     width: ctx.width
   });

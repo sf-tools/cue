@@ -9,7 +9,7 @@ import type { Block, RenderContext } from '../types';
 export function renderHeader(ctx: RenderContext): Block {
   return [
     blankLine(),
-    line(span(LEFT_MARGIN), span(chalk.bold(APP_NAME), ctx.theme.foreground)),
+    line(span(LEFT_MARGIN), span(APP_NAME, ctx.theme.foreground)),
     line(span(LEFT_MARGIN), span(APP_VERSION, ctx.theme.dimmed)),
     blankLine()
   ];

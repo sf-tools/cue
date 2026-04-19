@@ -1,10 +1,10 @@
 import chalk from 'chalk';
 
 import { repeat, widthOf } from '@/text';
-import { panelize } from '../layout';
+import { thinPanelize } from '../layout';
 import { line, span } from '../primitives';
 
-import type { ComposerRenderResult, RenderContext } from '../types';
+import type { ComposerRenderResult, RenderContext, StyledLine } from '../types';
 
 type ComposerState = {
   inputChars: string[];
@@ -16,47 +16,49 @@ function charWidth(ch: string) {
   return Math.max(1, widthOf(ch));
 }
 
-function normalizeScroll({ inputChars, cursor, scrollOffset }: ComposerState, viewWidth: number) {
-  let nextScrollOffset = Math.max(0, scrollOffset);
+function renderInputLines(state: ComposerState, viewWidth: number) {
+  const lines: StyledLine[] = [];
+  let segments: StyledLine['segments'] = [];
+  let currentWidth = 0;
 
-  if (cursor < nextScrollOffset) nextScrollOffset = cursor;
-
-  let used = 0;
-  for (let index = cursor - 1; index >= nextScrollOffset; index -= 1) used += charWidth(inputChars[index]);
-
-  while (used > viewWidth && nextScrollOffset < cursor) {
-    used -= charWidth(inputChars[nextScrollOffset]);
-    nextScrollOffset += 1;
-  }
-
-  return nextScrollOffset;
-}
-
-function renderInputContent(state: ComposerState, viewWidth: number) {
-  const nextScrollOffset = normalizeScroll(state, viewWidth);
-
-  let used = 0;
-  let end = nextScrollOffset;
-
-  while (end < state.inputChars.length) {
-    const width = charWidth(state.inputChars[end]);
-    if (used + width > viewWidth) break;
-    used += width;
-    end += 1;
-  }
-
-  const visibleChars = state.inputChars.slice(nextScrollOffset, end);
-  const cursorIndex = Math.max(0, Math.min(visibleChars.length, state.cursor - nextScrollOffset));
-  const activeChar = visibleChars[cursorIndex] ?? ' ';
-  const before = visibleChars.slice(0, cursorIndex).join('');
-  const after = visibleChars.slice(cursorIndex + (cursorIndex < visibleChars.length ? 1 : 0)).join('');
-  const visibleWidth = widthOf(visibleChars.join('')) + (cursorIndex >= visibleChars.length ? 1 : 0);
-
-  return {
-    nextScrollOffset,
-    segments: [span(before), span(activeChar, chalk.inverse), span(after)],
-    fill: repeat(' ', Math.max(0, viewWidth - visibleWidth))
+  const flushLine = (allowEmpty = false) => {
+    if (segments.length === 0 && !allowEmpty) return;
+    lines.push(line(...segments));
+    segments = [];
+    currentWidth = 0;
   };
+
+  const pushChar = (text: string, style?: (text: string) => string) => {
+    const width = charWidth(text);
+
+    if (segments.length > 0 && currentWidth + width > viewWidth) flushLine();
+
+    segments.push(span(text, style));
+    currentWidth += width;
+  };
+
+  for (let index = 0; index < state.inputChars.length; index += 1) {
+    const ch = state.inputChars[index];
+
+    if (index === state.cursor && ch === '\n') {
+      pushChar(' ', chalk.inverse);
+      flushLine(true);
+      continue;
+    }
+
+    if (ch === '\n') {
+      flushLine(true);
+      continue;
+    }
+
+    pushChar(ch, index === state.cursor ? chalk.inverse : undefined);
+  }
+
+  if (state.cursor >= state.inputChars.length) pushChar(' ', chalk.inverse);
+  if (segments.length === 0) segments.push(span(' ', chalk.inverse));
+
+  flushLine();
+  return lines;
 }
 
 export function renderComposer(state: ComposerState, ctx: RenderContext): ComposerRenderResult {
@@ -69,17 +71,18 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
 
     return {
       nextScrollOffset: state.scrollOffset,
-      block: panelize([line(prompt, span(' '), span('P', chalk.inverse), span(label.slice(1), ctx.theme.dimmed), span(fill))], {
+      block: thinPanelize([line(prompt, span(' '), span('P', chalk.inverse), span(label.slice(1), ctx.theme.dimmed), span(fill))], {
         bg: ctx.theme.composerBg(),
         width: ctx.width
       })
     };
   }
 
-  const { nextScrollOffset, segments, fill } = renderInputContent(state, contentWidth);
+  const inputLines = renderInputLines(state, contentWidth);
+  const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
 
   return {
-    nextScrollOffset,
-    block: panelize([line(prompt, span(' '), ...segments, span(fill))], { bg: ctx.theme.composerBg(), width: ctx.width })
+    nextScrollOffset: 0,
+    block: thinPanelize(block, { bg: ctx.theme.composerBg(), width: ctx.width })
   };
 }
