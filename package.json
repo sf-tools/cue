@@ -1,7 +1,7 @@
 {
   "name": "@sf-tools/cue",
-  "version": "0.0.19",
-  "description": "Cue CLI",
+  "version": "0.0.20",
+  "description": "Your next move, on cue.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cue.js",
