@@ -1,5 +1,23 @@
 import chalk from 'chalk';
 import MarkdownIt from 'markdown-it';
+import Prism from 'prismjs';
+
+import 'prismjs/components/prism-markup';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-jsx';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/components/prism-tsx';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-bash';
+import 'prismjs/components/prism-diff';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-rust';
+import 'prismjs/components/prism-yaml';
+import 'prismjs/components/prism-toml';
+import 'prismjs/components/prism-sql';
+import 'prismjs/components/prism-markdown';
 
 import { repeat, widthOf } from '@/text';
 import { indent, prefixWidth } from './layout';
@@ -10,7 +28,26 @@ const md = new MarkdownIt({
   linkify: true
 });
 
+const CODE_LANGUAGE_ALIASES: Record<string, string> = {
+  cjs: 'javascript',
+  console: 'bash',
+  html: 'markup',
+  htm: 'markup',
+  js: 'javascript',
+  mjs: 'javascript',
+  rs: 'rust',
+  py: 'python',
+  shell: 'bash',
+  sh: 'bash',
+  text: 'plain',
+  plaintext: 'plain',
+  ts: 'typescript',
+  yml: 'yaml',
+  zsh: 'bash'
+};
+
 type MarkdownToken = ReturnType<MarkdownIt['parse']>[number];
+type PrismTokenStream = string | Prism.Token | PrismTokenStream[];
 type InlinePiece = { type: 'segment'; segment: Segment } | { type: 'break' };
 
 type RenderEnv = {
@@ -40,6 +77,21 @@ function appendBreak(pieces: InlinePiece[]) {
   const last = pieces[pieces.length - 1];
   if (last?.type === 'break') return;
   pieces.push({ type: 'break' });
+}
+
+function appendText(pieces: InlinePiece[], text: string, style?: Style) {
+  const parts = text.split('\n');
+
+  parts.forEach((part, index) => {
+    appendSegment(pieces, part, style);
+    if (index < parts.length - 1) appendBreak(pieces);
+  });
+}
+
+function textToBlock(text: string, width: number, style?: Style) {
+  const pieces: InlinePiece[] = [];
+  appendText(pieces, text, style);
+  return wrapInlinePieces(pieces, width);
 }
 
 function getAttr(token: MarkdownToken, name: string) {
@@ -91,6 +143,70 @@ function wrapInlinePieces(pieces: InlinePiece[], width: number): StyledLine[] {
   return lines;
 }
 
+function normalizeCodeLanguage(language: string | null) {
+  if (!language) return null;
+
+  const normalized = language.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const resolved = CODE_LANGUAGE_ALIASES[normalized] ?? normalized;
+  if (resolved === 'plain') return null;
+
+  return (Prism.languages as Record<string, unknown>)[resolved] ? resolved : null;
+}
+
+function hasCodeType(types: string[], ...candidates: string[]) {
+  return candidates.some(candidate => types.includes(candidate));
+}
+
+function codeTokenStyle(types: string[], ctx: RenderContext): Style | undefined {
+  const styles: Style[] = [];
+
+  if (hasCodeType(types, 'comment', 'prolog', 'doctype', 'cdata')) styles.push(ctx.theme.dimmed);
+  if (hasCodeType(types, 'keyword', 'atrule', 'important')) styles.push(value => chalk.cyanBright(value));
+  if (hasCodeType(types, 'boolean', 'number', 'constant', 'symbol')) styles.push(value => chalk.magentaBright(value));
+  if (hasCodeType(types, 'string', 'char', 'attr-value', 'template-string')) styles.push(value => chalk.greenBright(value));
+  if (hasCodeType(types, 'regex')) styles.push(value => chalk.redBright(value));
+  if (hasCodeType(types, 'function', 'function-variable')) styles.push(value => chalk.blueBright(value));
+  if (hasCodeType(types, 'class-name', 'builtin')) styles.push(value => chalk.yellowBright(value));
+  if (hasCodeType(types, 'property', 'tag', 'selector', 'namespace', 'attr-name')) styles.push(value => chalk.cyan(value));
+  if (hasCodeType(types, 'operator', 'entity', 'url')) styles.push(value => chalk.cyanBright(value));
+  if (hasCodeType(types, 'punctuation')) styles.push(ctx.theme.subtle);
+  if (hasCodeType(types, 'deleted')) styles.push(value => chalk.red(value));
+  if (hasCodeType(types, 'inserted')) styles.push(value => chalk.green(value));
+  if (hasCodeType(types, 'italic')) styles.push(value => chalk.italic(value));
+  if (hasCodeType(types, 'bold')) styles.push(value => chalk.bold(value));
+
+  return composeStyles(...styles);
+}
+
+function appendPrismToken(pieces: InlinePiece[], token: PrismTokenStream, ctx: RenderContext, inheritedTypes: string[] = []) {
+  if (typeof token === 'string') {
+    appendText(pieces, token, codeTokenStyle(inheritedTypes, ctx));
+    return;
+  }
+
+  if (Array.isArray(token)) {
+    token.forEach(part => appendPrismToken(pieces, part, ctx, inheritedTypes));
+    return;
+  }
+
+  const aliases = token.alias ? (Array.isArray(token.alias) ? token.alias : [token.alias]) : [];
+  const types = [...inheritedTypes, token.type, ...aliases];
+  appendPrismToken(pieces, token.content as PrismTokenStream, ctx, types);
+}
+
+function highlightedCodeBlock(code: string, language: string | null, ctx: RenderContext) {
+  if (!language) return textToBlock(code, Number.POSITIVE_INFINITY);
+
+  const grammar = (Prism.languages as Record<string, Prism.Grammar | undefined>)[language];
+  if (!grammar) return textToBlock(code, Number.POSITIVE_INFINITY);
+
+  const pieces: InlinePiece[] = [];
+  appendPrismToken(pieces, Prism.tokenize(code, grammar), ctx);
+  return wrapInlinePieces(pieces, Number.POSITIVE_INFINITY);
+}
+
 function collectInlineRange(
   tokens: MarkdownToken[],
   env: RenderEnv,
@@ -107,12 +223,12 @@ function collectInlineRange(
 
     switch (token.type) {
       case 'text':
-        appendSegment(pieces, token.content, inheritedStyle);
+        appendText(pieces, token.content, inheritedStyle);
         index += 1;
         break;
 
       case 'code_inline':
-        appendSegment(
+        appendText(
           pieces,
           token.content,
           composeStyles(inheritedStyle, value => chalk.bgHex(env.ctx.theme.composerBg())(chalk.yellow(value)))
@@ -187,7 +303,7 @@ function collectInlineRange(
       case 'image': {
         const alt = token.content || getAttr(token, 'alt') || 'image';
         const src = getAttr(token, 'src');
-        appendSegment(
+        appendText(
           pieces,
           `[image: ${alt}]`,
           composeStyles(inheritedStyle, value => chalk.magenta(value))
@@ -198,12 +314,12 @@ function collectInlineRange(
       }
 
       case 'html_inline':
-        appendSegment(pieces, token.content, composeStyles(inheritedStyle, env.ctx.theme.dimmed));
+        appendText(pieces, token.content, composeStyles(inheritedStyle, env.ctx.theme.dimmed));
         index += 1;
         break;
 
       default:
-        appendSegment(pieces, token.content, inheritedStyle);
+        appendText(pieces, token.content, inheritedStyle);
         index += 1;
         break;
     }
@@ -237,16 +353,14 @@ function renderHeading(token: MarkdownToken, children: MarkdownToken[] | null | 
 }
 
 function renderCodeBlock(token: MarkdownToken, env: RenderEnv): Block {
-  const language = token.info.trim().split(/\s+/)[0] || null;
-  const codeStyle: Style = value => chalk.yellow(value);
+  const rawLanguage = token.info.trim().split(/\s+/)[0] || null;
+  const language = normalizeCodeLanguage(rawLanguage);
   const content = token.content.replace(/\n$/, '');
-  const lines = (content ? content.split('\n') : ['']).flatMap(codeLine =>
-    wrapInlinePieces([{ type: 'segment', segment: span(codeLine, codeStyle) }], Math.max(1, env.width - 2))
-  );
+  const lines = highlightedCodeBlock(content, language, env.ctx);
   const body = indent(lines, [span('│ ', env.ctx.theme.subtle)]);
 
-  if (!language) return body;
-  return [line(span(`code · ${language}`, env.ctx.theme.subtle)), ...body];
+  if (!rawLanguage) return body;
+  return [line(span(`code · ${rawLanguage}`, env.ctx.theme.subtle)), ...body];
 }
 
 function appendBlock(out: Block, block: Block, withSpacing = true) {
@@ -312,7 +426,7 @@ function renderRange(tokens: MarkdownToken[], env: RenderEnv, start = 0, endType
         break;
 
       case 'html_block':
-        appendBlock(out, wrapInlinePieces([{ type: 'segment', segment: span(token.content.trimEnd(), env.ctx.theme.dimmed) }], env.width));
+        appendBlock(out, textToBlock(token.content.trimEnd(), env.width, env.ctx.theme.dimmed));
         index += 1;
         break;
 
