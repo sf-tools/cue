@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInitialState } from '@/store/state';
 import type { AgentState } from '@/store/types';
+import type { HistoryEntry } from '@/types';
 
 export type CueSessionSnapshot = {
   version: 1;
@@ -48,6 +49,18 @@ export function createSnapshotFromState(sessionId: string, cwd: string, state: A
   };
 }
 
+function sanitizeHistoryEntriesForResume(entries: HistoryEntry[]): HistoryEntry[] {
+  return entries.map(entry => {
+    if (entry.type !== 'tool' || entry.status !== 'running') return entry;
+
+    return {
+      ...entry,
+      status: 'failed',
+      errorText: entry.errorText || 'interrupted when the session was resumed'
+    };
+  });
+}
+
 export function hydrateStateFromSnapshot(snapshot: CueSessionSnapshot): AgentState {
   const initial = createInitialState();
 
@@ -56,7 +69,7 @@ export function hydrateStateFromSnapshot(snapshot: CueSessionSnapshot): AgentSta
     autoCompactEnabled: snapshot.state.autoCompactEnabled,
     currentModel: snapshot.state.currentModel,
     cursor: snapshot.state.cursor,
-    historyEntries: snapshot.state.historyEntries,
+    historyEntries: sanitizeHistoryEntriesForResume(snapshot.state.historyEntries),
     inputChars: snapshot.state.inputChars,
     messages: snapshot.state.messages,
     planningMode: snapshot.state.planningMode,
