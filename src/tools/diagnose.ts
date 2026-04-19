@@ -123,8 +123,154 @@ async function readSnippet(filePath: string, lineNumber: number) {
 
 function extractSearchTerms(question: string) {
   const stopWords = new Set([
-    'a', 'an', 'the', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
-    'should', 'may', 'might', 'shall', 'can', 'need', 'dare', 'ought', 'used', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'between', 'out', 'off', 'over', 'under', 'again', 'further', 'then', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'each', 'every', 'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just', 'because', 'but', 'and', 'or', 'if', 'while', 'about', 'up', 'what', 'which', 'who', 'whom', 'this', 'that', 'these', 'those', 'am', 'it', 'its', 'i', 'me', 'my', 'we', 'our', 'you', 'your', 'he', 'him', 'his', 'she', 'her', 'they', 'them', 'their', 'work', 'works', 'working', 'happen', 'happens', 'happening', 'get', 'gets', 'getting', 'got', 'done', 'doing', 'make', 'makes', 'making', 'made', 'use', 'uses', 'using', 'go', 'goes', 'going', 'went', 'come', 'comes', 'coming', 'tell', 'know', 'think', 'look', 'want', 'give', 'take'
+    'a',
+    'an',
+    'the',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'do',
+    'does',
+    'did',
+    'will',
+    'would',
+    'could',
+    'should',
+    'may',
+    'might',
+    'shall',
+    'can',
+    'need',
+    'dare',
+    'ought',
+    'used',
+    'to',
+    'of',
+    'in',
+    'for',
+    'on',
+    'with',
+    'at',
+    'by',
+    'from',
+    'as',
+    'into',
+    'through',
+    'during',
+    'before',
+    'after',
+    'above',
+    'below',
+    'between',
+    'out',
+    'off',
+    'over',
+    'under',
+    'again',
+    'further',
+    'then',
+    'once',
+    'here',
+    'there',
+    'when',
+    'where',
+    'why',
+    'how',
+    'all',
+    'each',
+    'every',
+    'both',
+    'few',
+    'more',
+    'most',
+    'other',
+    'some',
+    'such',
+    'no',
+    'nor',
+    'not',
+    'only',
+    'own',
+    'same',
+    'so',
+    'than',
+    'too',
+    'very',
+    'just',
+    'because',
+    'but',
+    'and',
+    'or',
+    'if',
+    'while',
+    'about',
+    'up',
+    'what',
+    'which',
+    'who',
+    'whom',
+    'this',
+    'that',
+    'these',
+    'those',
+    'am',
+    'it',
+    'its',
+    'i',
+    'me',
+    'my',
+    'we',
+    'our',
+    'you',
+    'your',
+    'he',
+    'him',
+    'his',
+    'she',
+    'her',
+    'they',
+    'them',
+    'their',
+    'work',
+    'works',
+    'working',
+    'happen',
+    'happens',
+    'happening',
+    'get',
+    'gets',
+    'getting',
+    'got',
+    'done',
+    'doing',
+    'make',
+    'makes',
+    'making',
+    'made',
+    'use',
+    'uses',
+    'using',
+    'go',
+    'goes',
+    'going',
+    'went',
+    'come',
+    'comes',
+    'coming',
+    'tell',
+    'know',
+    'think',
+    'look',
+    'want',
+    'give',
+    'take'
   ]);
 
   const terms: string[] = [];
@@ -196,29 +342,101 @@ function buildSummary(question: string, citations: Array<{ file: string; line: n
 
   const parts = [`Found ${citations.length} relevant location(s) across ${grouped.size} file(s):\n`];
   for (const [file, fileCitations] of grouped.entries()) {
-    const refs = fileCitations.map(citation => `  - L${citation.line}: ${citation.text.slice(0, 120)}${citation.text.length > 120 ? '…' : ''}`).join('\n');
+    const refs = fileCitations
+      .map(citation => `  - L${citation.line}: ${citation.text.slice(0, 120)}${citation.text.length > 120 ? '…' : ''}`)
+      .join('\n');
     parts.push(`• ${file}\n${refs}`);
   }
   return parts.join('\n');
 }
 
 const CI_PATTERNS: Array<{ re: RegExp; classification: CiClassification; weight: number; description: string }> = [
-  { re: /\b(AssertionError|assertion failed|expected\b.*\bto (equal|be|contain)|toEqual|toBe\(|assert\.\w+)/i, classification: 'your_change', weight: 8, description: 'test assertion failure' },
-  { re: /\b(TypeError|ReferenceError|NullPointerException|AttributeError|NameError|UndefinedFieldError)\b/, classification: 'your_change', weight: 7, description: 'runtime exception thrown by the code under test' },
-  { re: /Cannot find module ['"][^'"]+['"]|ModuleNotFoundError: No module named/, classification: 'dependency', weight: 8, description: 'missing module at import time' },
-  { re: /\b(npm ERR!|yarn error|pnpm ERR_|pip install\b.*\b(failed|ERROR)|cargo (build|fetch).*error)\b/i, classification: 'dependency', weight: 8, description: 'package manager install/build failure' },
-  { re: /(EINTEGRITY|integrity check failed|signature mismatch|checksum mismatch)/i, classification: 'dependency', weight: 9, description: 'package integrity / checksum failure' },
-  { re: /\b(ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|read ECONNRESET|getaddrinfo ENOTFOUND)\b/, classification: 'infra', weight: 8, description: 'network error reaching a remote host' },
-  { re: /(JavaScript heap out of memory|OutOfMemoryError|MemoryError|killed: 9|Killed\b.*signal 9|oom-killer)/i, classification: 'infra', weight: 8, description: 'process killed by the runner (out of memory)' },
+  {
+    re: /\b(AssertionError|assertion failed|expected\b.*\bto (equal|be|contain)|toEqual|toBe\(|assert\.\w+)/i,
+    classification: 'your_change',
+    weight: 8,
+    description: 'test assertion failure'
+  },
+  {
+    re: /\b(TypeError|ReferenceError|NullPointerException|AttributeError|NameError|UndefinedFieldError)\b/,
+    classification: 'your_change',
+    weight: 7,
+    description: 'runtime exception thrown by the code under test'
+  },
+  {
+    re: /Cannot find module ['"][^'"]+['"]|ModuleNotFoundError: No module named/,
+    classification: 'dependency',
+    weight: 8,
+    description: 'missing module at import time'
+  },
+  {
+    re: /\b(npm ERR!|yarn error|pnpm ERR_|pip install\b.*\b(failed|ERROR)|cargo (build|fetch).*error)\b/i,
+    classification: 'dependency',
+    weight: 8,
+    description: 'package manager install/build failure'
+  },
+  {
+    re: /(EINTEGRITY|integrity check failed|signature mismatch|checksum mismatch)/i,
+    classification: 'dependency',
+    weight: 9,
+    description: 'package integrity / checksum failure'
+  },
+  {
+    re: /\b(ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|read ECONNRESET|getaddrinfo ENOTFOUND)\b/,
+    classification: 'infra',
+    weight: 8,
+    description: 'network error reaching a remote host'
+  },
+  {
+    re: /(JavaScript heap out of memory|OutOfMemoryError|MemoryError|killed: 9|Killed\b.*signal 9|oom-killer)/i,
+    classification: 'infra',
+    weight: 8,
+    description: 'process killed by the runner (out of memory)'
+  },
   { re: /(no space left on device|disk quota exceeded|ENOSPC)/i, classification: 'infra', weight: 9, description: 'CI runner out of disk space' },
-  { re: /(rate ?limit(ed)?|429 Too Many Requests|GH008|abuse detection)/i, classification: 'infra', weight: 6, description: 'upstream rate limit or abuse detection' },
-  { re: /\b(Timeout|Timed out|exceeded\s+\d+\s*(ms|s|seconds)|Test timeout of)\b/i, classification: 'flaky_test', weight: 5, description: 'test or step timed out' },
-  { re: /\b(retry|retried|attempt \d+ of \d+|flaky|intermittent)\b/i, classification: 'flaky_test', weight: 4, description: 'log mentions retries or flakiness' },
-  { re: /Element (not|is not) (visible|attached|interactable)|StaleElementReferenceException/i, classification: 'flaky_test', weight: 5, description: 'browser/UI race condition' },
-  { re: /\b(snapshot does not match|snapshot file does not match|toMatchSnapshot)\b/i, classification: 'your_change', weight: 6, description: 'snapshot test diff -- usually intentional and needs updating' },
+  {
+    re: /(rate ?limit(ed)?|429 Too Many Requests|GH008|abuse detection)/i,
+    classification: 'infra',
+    weight: 6,
+    description: 'upstream rate limit or abuse detection'
+  },
+  {
+    re: /\b(Timeout|Timed out|exceeded\s+\d+\s*(ms|s|seconds)|Test timeout of)\b/i,
+    classification: 'flaky_test',
+    weight: 5,
+    description: 'test or step timed out'
+  },
+  {
+    re: /\b(retry|retried|attempt \d+ of \d+|flaky|intermittent)\b/i,
+    classification: 'flaky_test',
+    weight: 4,
+    description: 'log mentions retries or flakiness'
+  },
+  {
+    re: /Element (not|is not) (visible|attached|interactable)|StaleElementReferenceException/i,
+    classification: 'flaky_test',
+    weight: 5,
+    description: 'browser/UI race condition'
+  },
+  {
+    re: /\b(snapshot does not match|snapshot file does not match|toMatchSnapshot)\b/i,
+    classification: 'your_change',
+    weight: 6,
+    description: 'snapshot test diff -- usually intentional and needs updating'
+  },
   { re: /(Permission denied|EACCES|sudo: required)/i, classification: 'infra', weight: 6, description: 'permission/access error on the CI runner' },
-  { re: /\bdocker (pull|push|build).*\b(error|failed|denied)\b/i, classification: 'infra', weight: 7, description: 'docker registry or build failure' },
-  { re: /\bSegmentation fault|SIGSEGV|fatal error: runtime: \w+\b/, classification: 'your_change', weight: 7, description: 'native crash or runtime fatal error' }
+  {
+    re: /\bdocker (pull|push|build).*\b(error|failed|denied)\b/i,
+    classification: 'infra',
+    weight: 7,
+    description: 'docker registry or build failure'
+  },
+  {
+    re: /\bSegmentation fault|SIGSEGV|fatal error: runtime: \w+\b/,
+    classification: 'your_change',
+    weight: 7,
+    description: 'native crash or runtime fatal error'
+  }
 ];
 
 function lineMentioning(text: string, re: RegExp) {
@@ -344,7 +562,11 @@ function summarizeIntent(lines: string[]) {
 }
 
 function classifyOverlap(ours: string[], theirs: string[]) {
-  const normalize = (values: string[]) => values.map(value => value.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+  const normalize = (values: string[]) =>
+    values
+      .map(value => value.replace(/\s+/g, ' ').trim())
+      .filter(Boolean)
+      .join('\n');
   const a = normalize(ours);
   const b = normalize(theirs);
   if (a === b) return 'whitespace';
@@ -355,10 +577,17 @@ function classifyOverlap(ours: string[], theirs: string[]) {
 
 function recommendStrategy(ours: string[], theirs: string[], overlap: 'logical' | 'whitespace' | 'cosmetic' | 'unknown') {
   if (overlap === 'whitespace') return { strategy: 'pick_ours', rationale: 'Both sides are equivalent ignoring whitespace.' };
-  if (overlap === 'cosmetic') return { strategy: 'pick_ours', rationale: 'Sides differ only in case/punctuation -- pick either, prefer the side with newer style guide.' };
-  if (ours.length === 0) return { strategy: 'pick_theirs', rationale: 'Our side removed the region; theirs added content. Keep theirs unless the removal was deliberate.' };
-  if (theirs.length === 0) return { strategy: 'pick_ours', rationale: 'Their side removed the region; ours added content. Keep ours unless the removal was deliberate.' };
-  const looksAdditive = (values: string[]) => values.length > 0 && values.every(value => /^(import|from|require|use\s|export\s|"\w[^"]*"\s*:|\s*\w[\w-]*\s*:)/.test(value.trim()));
+  if (overlap === 'cosmetic')
+    return { strategy: 'pick_ours', rationale: 'Sides differ only in case/punctuation -- pick either, prefer the side with newer style guide.' };
+  if (ours.length === 0)
+    return {
+      strategy: 'pick_theirs',
+      rationale: 'Our side removed the region; theirs added content. Keep theirs unless the removal was deliberate.'
+    };
+  if (theirs.length === 0)
+    return { strategy: 'pick_ours', rationale: 'Their side removed the region; ours added content. Keep ours unless the removal was deliberate.' };
+  const looksAdditive = (values: string[]) =>
+    values.length > 0 && values.every(value => /^(import|from|require|use\s|export\s|"\w[^"]*"\s*:|\s*\w[\w-]*\s*:)/.test(value.trim()));
   if (looksAdditive(ours) && looksAdditive(theirs)) {
     return { strategy: 'merge_both', rationale: 'Both sides look additive (imports / config entries). Combine and dedupe.' };
   }
@@ -523,7 +752,10 @@ export function createCodebaseQATool({ runUserShell }: ToolFactoryOptions) {
         };
       }
 
-      const hitMap = new Map<string, { file: string; line: number; ref: string; text: string; snippet: string; matched_term: string; relevance: number }>();
+      const hitMap = new Map<
+        string,
+        { file: string; line: number; ref: string; text: string; snippet: string; matched_term: string; relevance: number }
+      >();
       const rootPath = resolve(root);
 
       for (const term of searchTerms) {
@@ -585,8 +817,14 @@ export function createStacktraceRootCauseTool({ runUserShell }: ToolFactoryOptio
     execute: async ({ stacktrace, limit, context_hint }) => {
       const frames = parseFrames(stacktrace);
       const messageCandidates = extractMessageCandidates(stacktrace);
-      const functionCandidates = uniqueNonEmpty(frames.map(frame => frame.functionName), MAX_FUNCTION_CANDIDATES);
-      const fileCandidates = uniqueNonEmpty(frames.map(frame => (frame.file ? basename(frame.file) : null)), MAX_FILE_CANDIDATES);
+      const functionCandidates = uniqueNonEmpty(
+        frames.map(frame => frame.functionName),
+        MAX_FUNCTION_CANDIDATES
+      );
+      const fileCandidates = uniqueNonEmpty(
+        frames.map(frame => (frame.file ? basename(frame.file) : null)),
+        MAX_FILE_CANDIDATES
+      );
       const signals = buildSignals(messageCandidates, functionCandidates, fileCandidates, context_hint ?? null);
       const candidates = new Map<string, { path: string; score: number; evidence: Array<SearchEvidence | SnippetEvidence> }>();
 

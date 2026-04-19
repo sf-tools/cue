@@ -16,19 +16,7 @@ export interface DiffFile {
   hunks: DiffHunk[];
 }
 
-export type FileKind =
-  | 'src'
-  | 'test'
-  | 'docs'
-  | 'config'
-  | 'lockfile'
-  | 'deps'
-  | 'ci'
-  | 'infra'
-  | 'migration'
-  | 'security'
-  | 'asset'
-  | 'unknown';
+export type FileKind = 'src' | 'test' | 'docs' | 'config' | 'lockfile' | 'deps' | 'ci' | 'infra' | 'migration' | 'security' | 'asset' | 'unknown';
 
 const HEADER_DIFF_GIT = /^diff --git a\/(.+?) b\/(.+?)$/;
 const HEADER_OLD = /^---\s+(.+?)$/;

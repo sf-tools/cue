@@ -56,8 +56,14 @@ function categoryFor(file: DiffFile): ChangeCategory {
   if (kind === 'ci' || kind === 'infra') return 'infrastructure';
   if (kind === 'security' || kind === 'migration') return 'security';
 
-  const added = file.hunks.flatMap(hunk => hunk.addedLines).join('\n').toLowerCase();
-  const removed = file.hunks.flatMap(hunk => hunk.removedLines).join('\n').toLowerCase();
+  const added = file.hunks
+    .flatMap(hunk => hunk.addedLines)
+    .join('\n')
+    .toLowerCase();
+  const removed = file.hunks
+    .flatMap(hunk => hunk.removedLines)
+    .join('\n')
+    .toLowerCase();
 
   if (/\bfix\b|\bbug\b|regression|crash|null pointer|off[- ]by[- ]one/.test(added)) return 'fix';
   if (/\bperf\b|\bperformance\b|optimi[sz]e|throughput|latency|cache/.test(added)) return 'performance';
@@ -102,7 +108,8 @@ function pathToHumanArea(path: string) {
 
 function summarizeFile(file: DiffFile) {
   const verb = file.isNew ? 'adds' : file.isDeleted ? 'removes' : file.isRename ? `renames from \`${file.oldPath}\` to` : 'updates';
-  const sizeNote = file.additions + file.deletions > 200 ? ` (large change: +${file.additions}/-${file.deletions})` : ` (+${file.additions}/-${file.deletions})`;
+  const sizeNote =
+    file.additions + file.deletions > 200 ? ` (large change: +${file.additions}/-${file.deletions})` : ` (+${file.additions}/-${file.deletions})`;
   return `${verb} \`${file.path}\`${sizeNote}`;
 }
 
@@ -152,7 +159,18 @@ function buildInternalChangelog(files: DiffFile[]) {
     buckets.set(category, items);
   }
 
-  const order: ChangeCategory[] = ['feature', 'fix', 'performance', 'security', 'refactor', 'tests', 'docs', 'build_or_deps', 'infrastructure', 'chore'];
+  const order: ChangeCategory[] = [
+    'feature',
+    'fix',
+    'performance',
+    'security',
+    'refactor',
+    'tests',
+    'docs',
+    'build_or_deps',
+    'infrastructure',
+    'chore'
+  ];
   const sections = order
     .map(category => {
       const items = buckets.get(category);
@@ -200,7 +218,8 @@ function scrutinizeForFile(file: DiffFile) {
   if (kind === 'migration') out.push('Verify the migration is backward-compatible during rollout.');
   if (kind === 'security') out.push('Walk through every code path that hits this file -- security-sensitive surface.');
   if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added)) out.push('eval/exec/spawn introduced -- confirm every input is trusted.');
-  if (/\bcatch\s*\([^)]*\)\s*\{\s*\}|except\s+[A-Za-z][\w.]*:\s*pass\b/.test(added)) out.push('Caught error appears to be silenced -- confirm intent and add observability.');
+  if (/\bcatch\s*\([^)]*\)\s*\{\s*\}|except\s+[A-Za-z][\w.]*:\s*pass\b/.test(added))
+    out.push('Caught error appears to be silenced -- confirm intent and add observability.');
   if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip/.test(added)) out.push('Test is skipped -- confirm tracking issue and re-enable plan.');
   if (file.isDeleted) out.push('Confirm no remaining imports or runtime references to this path.');
   if (file.isRename) out.push('Search for any string-based references that did not follow the rename.');
@@ -254,30 +273,40 @@ function levelFor(score: number): RiskLevel {
   return 'low';
 }
 
-function scoreRisk(files: DiffFile[], added: string, totals: { additions: number; deletions: number }, coverageDelta: number | null, bugDensity: Map<string, number>) {
+function scoreRisk(
+  files: DiffFile[],
+  added: string,
+  totals: { additions: number; deletions: number },
+  coverageDelta: number | null,
+  bugDensity: Map<string, number>
+) {
   const drivers: Array<{ signal: string; weight: number; evidence: string }> = [];
   const kinds = countByKind(files);
   const pushDriver = (signal: string, weight: number, evidence: string) => drivers.push({ signal, weight, evidence });
 
   if (kinds.migration) pushDriver('database migration changed', 25, `${kinds.migration} migration file(s) modified`);
-  if (/\b(DROP|TRUNCATE|ALTER\s+TABLE\s+\S+\s+DROP)\b/i.test(added)) pushDriver('destructive schema change', 30, 'added lines contain DROP/TRUNCATE/ALTER ... DROP');
+  if (/\b(DROP|TRUNCATE|ALTER\s+TABLE\s+\S+\s+DROP)\b/i.test(added))
+    pushDriver('destructive schema change', 30, 'added lines contain DROP/TRUNCATE/ALTER ... DROP');
   if (kinds.security) pushDriver('security-sensitive path touched', 20, `${kinds.security} file(s) under auth/security/permission paths`);
   if (kinds.deps) pushDriver('dependency manifest changed', 10, `${kinds.deps} dependency manifest file(s) changed`);
-  if (kinds.lockfile && (kinds.deps ?? 0) === 0) pushDriver('lockfile changed without manifest update', 8, `${kinds.lockfile} lockfile(s) updated; manifest unchanged`);
+  if (kinds.lockfile && (kinds.deps ?? 0) === 0)
+    pushDriver('lockfile changed without manifest update', 8, `${kinds.lockfile} lockfile(s) updated; manifest unchanged`);
   if (kinds.infra) pushDriver('infrastructure or deploy config touched', 18, `${kinds.infra} infra/deploy file(s) modified`);
   if (kinds.ci) pushDriver('CI configuration changed', 8, `${kinds.ci} CI file(s) modified`);
   if (kinds.config) pushDriver('app configuration changed', 6, `${kinds.config} config file(s) modified`);
 
   const srcChanged = (kinds.src ?? 0) + (kinds.security ?? 0);
   const testChanged = kinds.test ?? 0;
-  if (srcChanged > 0 && testChanged === 0) pushDriver('source changes without test changes', 14, `${srcChanged} source file(s) changed, 0 test file(s) changed`);
+  if (srcChanged > 0 && testChanged === 0)
+    pushDriver('source changes without test changes', 14, `${srcChanged} source file(s) changed, 0 test file(s) changed`);
 
   const totalLines = totals.additions + totals.deletions;
   if (totalLines > 1000) pushDriver('very large diff', 18, `${totalLines} total line changes across ${files.length} file(s)`);
   else if (totalLines > 400) pushDriver('large diff', 10, `${totalLines} total line changes across ${files.length} file(s)`);
   if (files.length > 25) pushDriver('wide blast radius', 10, `${files.length} files touched`);
 
-  if (coverageDelta !== null && coverageDelta < 0) pushDriver('test coverage dropped', coverageDelta <= -3 ? 12 : 6, `coverage delta = ${coverageDelta.toFixed(2)}pp`);
+  if (coverageDelta !== null && coverageDelta < 0)
+    pushDriver('test coverage dropped', coverageDelta <= -3 ? 12 : 6, `coverage delta = ${coverageDelta.toFixed(2)}pp`);
 
   if (bugDensity.size) {
     let hot = 0;
@@ -291,16 +320,27 @@ function scoreRisk(files: DiffFile[], added: string, totals: { additions: number
         topPath = file.path;
       }
     }
-    if (hot > 0) pushDriver('historically bug-prone files touched', Math.min(15, 4 + hot * 2), `${hot} touched file(s) have prior bugs (top: ${topPath} @ ${topCount})`);
+    if (hot > 0)
+      pushDriver(
+        'historically bug-prone files touched',
+        Math.min(15, 4 + hot * 2),
+        `${hot} touched file(s) have prior bugs (top: ${topPath} @ ${topCount})`
+      );
   }
 
   if (/\b(?:TODO|FIXME|XXX)\b/.test(added)) pushDriver('new TODO/FIXME markers', 3, 'added lines contain TODO/FIXME/XXX');
-  if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip|t\.skip\(/.test(added)) pushDriver('tests skipped or disabled', 8, 'added lines disable a test');
+  if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip|t\.skip\(/.test(added))
+    pushDriver('tests skipped or disabled', 8, 'added lines disable a test');
   if (/\b(?:console\.log|debugger|print\()/.test(added)) pushDriver('debug output left in', 4, 'added lines contain console.log/print/debugger');
-  if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added)) pushDriver('shell or eval execution introduced', 12, 'added lines invoke eval/exec');
-  if (/\b(?:setTimeout|sleep|retry|backoff|Promise\.all|asyncio\.gather|goroutine|sync\.(Mutex|RWMutex))/i.test(added)) pushDriver('concurrency or timing primitives introduced', 6, 'async/lock/retry usage');
+  if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added))
+    pushDriver('shell or eval execution introduced', 12, 'added lines invoke eval/exec');
+  if (/\b(?:setTimeout|sleep|retry|backoff|Promise\.all|asyncio\.gather|goroutine|sync\.(Mutex|RWMutex))/i.test(added))
+    pushDriver('concurrency or timing primitives introduced', 6, 'async/lock/retry usage');
 
-  const score = Math.min(100, drivers.reduce((sum, driver) => sum + driver.weight, 0));
+  const score = Math.min(
+    100,
+    drivers.reduce((sum, driver) => sum + driver.weight, 0)
+  );
   return {
     score,
     level: levelFor(score),
@@ -320,7 +360,8 @@ function buildQuestions(files: DiffFile[], added: string, prTitle: string | null
   if (kinds.migration || has(/\bALTER\s+TABLE|CREATE\s+TABLE|DROP\s+TABLE|ADD\s+COLUMN|RENAME\s+COLUMN/i)) {
     out.push({
       topic: 'schema migration',
-      question: 'Is this migration backward-compatible during a rolling deploy? What is the order: ship code that tolerates both shapes, then migrate, then drop the old shape?',
+      question:
+        'Is this migration backward-compatible during a rolling deploy? What is the order: ship code that tolerates both shapes, then migrate, then drop the old shape?',
       why: 'Schema and code must overlap safely while old and new pods run side-by-side.',
       evidence: 'migration files or ALTER/CREATE/DROP TABLE in the diff'
     });
@@ -443,7 +484,8 @@ function buildQuestions(files: DiffFile[], added: string, prTitle: string | null
   if (prDescription && !/\bhow|risk|test|rollback|deploy|migration|flag\b/i.test(prDescription) && files.length > 3) {
     out.push({
       topic: 'description',
-      question: 'The PR description does not mention testing, risk, rollback, or migration steps. Can we add a “How to verify” and “Rollback” section?',
+      question:
+        'The PR description does not mention testing, risk, rollback, or migration steps. Can we add a “How to verify” and “Rollback” section?',
       why: 'A short structured description makes review and on-call escalation faster.',
       evidence: 'PR description lacks risk/test/rollback keywords'
     });
@@ -476,23 +518,45 @@ function buildTiming(now: Date, offsetMinutes: number, riskScore: number | null,
   const { hour, weekday, iso } = applyOffset(now, offsetMinutes);
   const factors: Array<{ factor: string; weight: number; recommendation: string }> = [];
 
-  if (freeze === true) factors.push({ factor: 'code freeze in effect', weight: -60, recommendation: 'Hold the deploy until the freeze window closes or get an explicit exception.' });
-  if (weekday === 5 && hour >= 14) factors.push({ factor: 'late Friday', weight: -25, recommendation: 'Defer to Monday morning unless the change is itself reverting an outage.' });
-  else if (weekday === 0 || weekday === 6) factors.push({ factor: 'weekend', weight: -20, recommendation: 'Weekend deploys have thin coverage -- defer or page in extra reviewers.' });
-  if (hour < 7 || hour >= 22) factors.push({ factor: 'outside core hours', weight: -10, recommendation: 'Out-of-hours deploys delay rollback if anything regresses.' });
-  else if (hour >= 9 && hour <= 15) factors.push({ factor: 'within core hours', weight: 8, recommendation: 'Core hours have the broadest reviewer + on-call coverage.' });
-  if (oncall === false) factors.push({ factor: 'on-call not available', weight: -20, recommendation: 'Confirm an on-call before shipping; otherwise hold.' });
-  else if (oncall === true) factors.push({ factor: 'on-call present', weight: 6, recommendation: 'On-call coverage in place -- proceed with normal deploy gating.' });
+  if (freeze === true)
+    factors.push({
+      factor: 'code freeze in effect',
+      weight: -60,
+      recommendation: 'Hold the deploy until the freeze window closes or get an explicit exception.'
+    });
+  if (weekday === 5 && hour >= 14)
+    factors.push({ factor: 'late Friday', weight: -25, recommendation: 'Defer to Monday morning unless the change is itself reverting an outage.' });
+  else if (weekday === 0 || weekday === 6)
+    factors.push({ factor: 'weekend', weight: -20, recommendation: 'Weekend deploys have thin coverage -- defer or page in extra reviewers.' });
+  if (hour < 7 || hour >= 22)
+    factors.push({ factor: 'outside core hours', weight: -10, recommendation: 'Out-of-hours deploys delay rollback if anything regresses.' });
+  else if (hour >= 9 && hour <= 15)
+    factors.push({ factor: 'within core hours', weight: 8, recommendation: 'Core hours have the broadest reviewer + on-call coverage.' });
+  if (oncall === false)
+    factors.push({ factor: 'on-call not available', weight: -20, recommendation: 'Confirm an on-call before shipping; otherwise hold.' });
+  else if (oncall === true)
+    factors.push({ factor: 'on-call present', weight: 6, recommendation: 'On-call coverage in place -- proceed with normal deploy gating.' });
 
   if (riskScore !== null) {
-    if (riskScore >= 75) factors.push({ factor: 'critical risk score', weight: -30, recommendation: 'Split the change, ship behind a flag, or schedule for a low-traffic window.' });
-    else if (riskScore >= 50) factors.push({ factor: 'high risk score', weight: -15, recommendation: 'Pair the deploy with active monitoring of relevant dashboards.' });
+    if (riskScore >= 75)
+      factors.push({
+        factor: 'critical risk score',
+        weight: -30,
+        recommendation: 'Split the change, ship behind a flag, or schedule for a low-traffic window.'
+      });
+    else if (riskScore >= 50)
+      factors.push({ factor: 'high risk score', weight: -15, recommendation: 'Pair the deploy with active monitoring of relevant dashboards.' });
     else if (riskScore <= 15) factors.push({ factor: 'low risk score', weight: 8, recommendation: 'Risk profile supports a normal-cadence deploy.' });
   }
 
   const score = factors.reduce((sum, factor) => sum + factor.weight, 0);
   const verdict: TimingVerdict = score <= -25 ? 'hold' : score < 0 ? 'caution' : 'go';
-  const summary = verdict === 'go' ? 'Conditions look good. Proceed with normal deploy gating.' : verdict === 'caution' ? 'Some headwinds. Proceed only with the recommended mitigations applied.' : 'Hold the deploy. The combined factors below outweigh the upside of shipping now.';
+  const summary =
+    verdict === 'go'
+      ? 'Conditions look good. Proceed with normal deploy gating.'
+      : verdict === 'caution'
+        ? 'Some headwinds. Proceed only with the recommended mitigations applied.'
+        : 'Hold the deploy. The combined factors below outweigh the upside of shipping now.';
 
   return {
     verdict,
@@ -504,31 +568,59 @@ function buildTiming(now: Date, offsetMinutes: number, riskScore: number | null,
   };
 }
 
-function buildRollback(migrations: string[], destructive: boolean | null, flags: string[], flagDefaultOff: boolean | null, externalDeps: boolean | null, breakingApi: boolean | null, dataMigration: boolean | null) {
+function buildRollback(
+  migrations: string[],
+  destructive: boolean | null,
+  flags: string[],
+  flagDefaultOff: boolean | null,
+  externalDeps: boolean | null,
+  breakingApi: boolean | null,
+  dataMigration: boolean | null
+) {
   const blockers: Array<{ factor: string; severity: 'low' | 'medium' | 'high'; detail: string }> = [];
   const reversible: string[] = [];
   let score = 100;
 
   if (destructive === true) {
-    blockers.push({ factor: 'destructive migration', severity: 'high', detail: 'Migration drops or rewrites data irreversibly -- a true one-way door.' });
+    blockers.push({
+      factor: 'destructive migration',
+      severity: 'high',
+      detail: 'Migration drops or rewrites data irreversibly -- a true one-way door.'
+    });
     score -= 70;
   } else if (migrations.length > 0) {
-    blockers.push({ factor: 'schema migration', severity: 'medium', detail: `${migrations.length} migration(s) included; rollback requires a forward fix or a tested down-migration.` });
+    blockers.push({
+      factor: 'schema migration',
+      severity: 'medium',
+      detail: `${migrations.length} migration(s) included; rollback requires a forward fix or a tested down-migration.`
+    });
     score -= 25;
   }
 
   if (dataMigration === true) {
-    blockers.push({ factor: 'data migration', severity: 'high', detail: 'Data has been rewritten -- reverting code does not restore the prior data shape.' });
+    blockers.push({
+      factor: 'data migration',
+      severity: 'high',
+      detail: 'Data has been rewritten -- reverting code does not restore the prior data shape.'
+    });
     score -= 30;
   }
 
   if (breakingApi === true) {
-    blockers.push({ factor: 'breaking API change', severity: 'high', detail: 'External consumers may have already adopted the new contract; rollback breaks them.' });
+    blockers.push({
+      factor: 'breaking API change',
+      severity: 'high',
+      detail: 'External consumers may have already adopted the new contract; rollback breaks them.'
+    });
     score -= 25;
   }
 
   if (externalDeps === true) {
-    blockers.push({ factor: 'external dependency change', severity: 'low', detail: 'Lockfile / package update means the rollback build needs the prior pin pulled fresh.' });
+    blockers.push({
+      factor: 'external dependency change',
+      severity: 'low',
+      detail: 'Lockfile / package update means the rollback build needs the prior pin pulled fresh.'
+    });
     score -= 8;
   }
 
@@ -546,7 +638,8 @@ function buildRollback(migrations: string[], destructive: boolean | null, flags:
 
   const steps = ['Identify the deploy artifact (commit SHA, image tag, or release ID).'];
   if (flags.length > 0 && flagDefaultOff === true) steps.push('First, toggle the relevant feature flag(s) off and verify recovery.');
-  if (migrations.length > 0 || dataMigration === true) steps.push('Decide between revert-with-down-migration and forward-fix; document the decision in the incident channel.');
+  if (migrations.length > 0 || dataMigration === true)
+    steps.push('Decide between revert-with-down-migration and forward-fix; document the decision in the incident channel.');
   if (breakingApi === true) steps.push('Notify downstream consumers before reverting, or ship a compatibility shim.');
   if (externalDeps === true) steps.push('Re-run the install/build with the prior lockfile to reproduce the previous artifact.');
   steps.push('Watch service-level dashboards for at least one full request cycle after rollback.');
@@ -635,13 +728,38 @@ export function createDeploySafetyAdvisorTool(_: ToolFactoryOptions) {
       has_data_migration: z.boolean().optional(),
       mode: z.enum(['timing', 'rollback', 'both']).optional().default('both')
     }),
-    execute: async ({ risk_score, now, timezone_offset_minutes, oncall_present, freeze_window, migrations = [], destructive_migration, feature_flags = [], flag_default_off, external_dependency_change, breaking_api_change, has_data_migration, mode = 'both' }) => {
+    execute: async ({
+      risk_score,
+      now,
+      timezone_offset_minutes,
+      oncall_present,
+      freeze_window,
+      migrations = [],
+      destructive_migration,
+      feature_flags = [],
+      flag_default_off,
+      external_dependency_change,
+      breaking_api_change,
+      has_data_migration,
+      mode = 'both'
+    }) => {
       const date = parseNow(now ?? null);
       const offset = timezone_offset_minutes ?? 0;
       return {
         mode,
         timing: mode === 'rollback' ? null : buildTiming(date, offset, risk_score ?? null, oncall_present ?? null, freeze_window ?? null),
-        rollback: mode === 'timing' ? null : buildRollback(migrations, destructive_migration ?? null, feature_flags, flag_default_off ?? null, external_dependency_change ?? null, breaking_api_change ?? null, has_data_migration ?? null)
+        rollback:
+          mode === 'timing'
+            ? null
+            : buildRollback(
+                migrations,
+                destructive_migration ?? null,
+                feature_flags,
+                flag_default_off ?? null,
+                external_dependency_change ?? null,
+                breaking_api_change ?? null,
+                has_data_migration ?? null
+              )
       };
     }
   });
