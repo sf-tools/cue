@@ -4,7 +4,7 @@ import type { ModelMessage } from 'ai';
 import type { ApprovalRequest, ApprovalScope, HistoryEntry } from '@/types';
 import type { AgentState } from './types';
 
-export type AgentStore = ReturnType<typeof createAgentStore>;
+export type AgentStore = ReturnType<typeof buildAgentStore>;
 
 function hasVisibleContent(entry: HistoryEntry) {
   if (entry.type === 'tool' || entry.type === 'compacted') return true;
@@ -74,7 +74,7 @@ function removePasteRange(state: AgentState, target: AgentState['pasteRanges'][n
   return true;
 }
 
-export function createAgentStore(initialState: AgentState = createInitialState()) {
+function buildAgentStore(initialState: AgentState) {
   const state = initialState;
 
   return {
@@ -376,4 +376,8 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return true;
     }
   };
+}
+
+export function createAgentStore(initialState: AgentState = createInitialState()): AgentStore {
+  return buildAgentStore(initialState);
 }

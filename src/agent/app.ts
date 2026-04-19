@@ -14,7 +14,7 @@ import { runUserShell } from './shell';
 import { openai } from '@ai-sdk/openai';
 import { randomUUID } from 'node:crypto';
 import { refreshGitBranch } from '@/git';
-import { createAgentStore } from '@/store';
+import { createAgentStore, type AgentState, type AgentStore } from '@/store';
 import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { resolveInputBinding } from './keybinds';
@@ -74,7 +74,7 @@ function estimateMessageTokens(messages: ModelMessage[]) {
 }
 
 export class AgentApp {
-  private readonly store = createAgentStore();
+  private readonly store: AgentStore = createAgentStore();
   private readonly theme = createTheme();
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
   private readonly commandSpinner = ora({ spinner: 'dots3', color: 'yellow', isEnabled: false });
@@ -371,7 +371,7 @@ export class AgentApp {
     this.render();
   }
 
-  private setThinkingMode(thinkingMode: this['state']['thinkingMode']) {
+  private setThinkingMode(thinkingMode: AgentState['thinkingMode']) {
     this.store.setThinkingMode(thinkingMode);
     this.persistPreferences();
     this.render();

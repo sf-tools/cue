@@ -10,6 +10,7 @@ export type ComposerState = {
   inputChars: string[];
   pasteRanges: Array<{ start: number; end: number }>;
   cursor: number;
+  scrollOffset?: number;
   slashCommandLength?: number;
   showCapabilitiesHint?: boolean;
 };
