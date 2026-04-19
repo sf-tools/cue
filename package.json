@@ -18,6 +18,7 @@
     "chalk": "^5.6.2",
     "dedent": "^1.7.2",
     "fuse.js": "^7.3.0",
+    "isomorphic-git": "^1.37.5",
     "log-update": "^8.0.0",
     "ora": "^9.3.0",
     "react": "^19.2.5",

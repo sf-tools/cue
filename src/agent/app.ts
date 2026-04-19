@@ -18,6 +18,7 @@ import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry
 import { resolveInputBinding } from './keybinds';
 import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './mentions';
 import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
+import { refreshGitBranch } from '@/git';
 
 export class AgentApp {
   private readonly store = createAgentStore();
@@ -57,6 +58,7 @@ export class AgentApp {
 
   async start() {
     await this.theme.sync();
+    await refreshGitBranch(process.cwd());
 
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
     process.stdin.resume();
