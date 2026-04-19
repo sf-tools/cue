@@ -13,12 +13,13 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   const pct = (state.lastPromptTokens / CONTEXT_WINDOW) * 100;
   const contextPct = state.lastPromptTokens > 0 ? `${pct < 1 ? '<1' : Math.round(pct)}% of ${ctxLabel}` : '';
   const cost = state.totalCost > 0 ? `$${state.totalCost.toFixed(4)}` : '';
+  const queued = state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
   const stats = [contextPct, cost].filter(Boolean).join(' · ');
 
   const modeLine = state.abortRequested
-    ? line(span(LEFT_MARGIN), span('Aborting…', chalk.redBright))
+    ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
     : state.busy
-      ? line(span(LEFT_MARGIN), span(`${ctx.spinnerFrame} Thinking...`, ctx.theme.spinnerText))
+      ? line(span(LEFT_MARGIN), span([`${ctx.spinnerFrame} Thinking...`, queued].filter(Boolean).join(' · '), ctx.theme.spinnerText))
       : stats
         ? line(span(LEFT_MARGIN), span(stats, ctx.theme.dimmed), span(' · ', ctx.theme.subtle), span(MODEL, ctx.theme.foreground))
         : line(span(LEFT_MARGIN), span(MODEL, ctx.theme.foreground));

@@ -95,6 +95,15 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
+    enqueueSubmission(text: string) {
+      state.queuedSubmissions.push(text);
+      return state;
+    },
+
+    shiftQueuedSubmission() {
+      return state.queuedSubmissions.shift();
+    },
+
     upsertToolEntry(entry: Extract<HistoryEntry, { type: 'tool' }>) {
       const index = state.historyEntries.findIndex(candidate => candidate.type === 'tool' && candidate.toolCallId === entry.toolCallId);
 

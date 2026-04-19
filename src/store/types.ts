@@ -5,6 +5,7 @@ export type AgentState = {
   messages: ModelMessage[];
   inputChars: string[];
   historyEntries: HistoryEntry[];
+  queuedSubmissions: string[];
   cursor: number;
   scrollOffset: number;
   busy: boolean;

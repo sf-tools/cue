@@ -34,7 +34,6 @@ export function createRenderContext(
 
 export function renderScreen(state: AgentState, ctx: RenderContext, suggestions: string[], previousFrame: Frame | null = null) {
   const header = renderHeader(ctx);
-  const transcript = renderTranscript(state.historyEntries, ctx);
   const preview = renderOutputPreview(state.liveAssistantText, ctx, state.abortConfirmationPending, state.abortRequested);
   const composer = renderComposer({ inputChars: state.inputChars, cursor: state.cursor, scrollOffset: state.scrollOffset }, ctx);
   const suggestionLines = renderSuggestions(suggestions, state.selectedSuggestion, ctx);
@@ -42,6 +41,7 @@ export function renderScreen(state: AgentState, ctx: RenderContext, suggestions:
 
   const reserved = header.length + composer.block.length + suggestionLines.length + footer.length;
   const available = Math.max(0, ctx.height - reserved);
+  const transcript = renderTranscript(state.historyEntries, ctx, Math.max(0, available - preview.length));
   const body = takeLast(vstack(transcript, preview), available);
   const frame = { lines: serializeBlock(vstack(header, body, composer.block, suggestionLines, footer)) };
 

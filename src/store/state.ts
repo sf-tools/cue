@@ -5,6 +5,7 @@ export const createInitialState = (): AgentState => ({
   messages: createInitialMessages(),
   inputChars: [],
   historyEntries: [],
+  queuedSubmissions: [],
   cursor: 0,
   scrollOffset: 0,
   busy: false,

@@ -5,7 +5,6 @@ import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs } from 'ai';
 import { createLogUpdate } from 'log-update';
 import { calcPrice } from '@pydantic/genai-prices';
-import { emitKeypressEvents } from 'node:readline';
 
 import { MODEL } from '@/config';
 import { createTheme } from '@/theme';
@@ -13,8 +12,10 @@ import { createTools } from '@/tools';
 import { runUserShell } from './shell';
 import { createAgentStore } from '@/store';
 import { plain, installSegmentContainingPolyfill } from '@/text';
-import { EntryKind, type Keypress, type LogUpdate } from '@/types';
+import { EntryKind, type LogUpdate } from '@/types';
+import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
+import { resolveInputBinding } from './keybinds';
 import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './mentions';
 import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
 
@@ -34,6 +35,10 @@ export class AgentApp {
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly sessionId = randomUUID();
   private previousFrame: Frame | null = null;
+  private drainingQueuedSubmissions = false;
+  private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  private renderScheduled = false;
+  private lastRenderAt = 0;
 
   private get state() {
     return this.store.getState();
@@ -42,7 +47,7 @@ export class AgentApp {
   constructor() {
     this.spinnerTimer = setInterval(() => {
       if (!this.state.busy || this.state.closed) return;
-      this.render();
+      this.scheduleRender();
     }, 80);
     this.spinnerTimer.unref();
     installSegmentContainingPolyfill();
@@ -51,10 +56,9 @@ export class AgentApp {
   async start() {
     this.theme.sync();
 
-    emitKeypressEvents(process.stdin);
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
     process.stdin.resume();
-    process.stdin.on('keypress', this.onKeypress);
+    process.stdin.on('data', this.onStdinData);
     process.stdout.on('resize', this.render);
 
     this.render();
@@ -65,8 +69,9 @@ export class AgentApp {
     this.store.setClosed();
 
     clearInterval(this.spinnerTimer);
+    if (this.renderTimer) clearTimeout(this.renderTimer);
     process.stdout.off('resize', this.render);
-    process.stdin.off('keypress', this.onKeypress);
+    process.stdin.off('data', this.onStdinData);
 
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
@@ -105,7 +110,10 @@ export class AgentApp {
     return suggestions;
   }
 
-  private render = () => {
+  private performRender = () => {
+    this.renderScheduled = false;
+    this.renderTimer = null;
+
     if (this.state.closed) return;
 
     const suggestions = this.normalizeSuggestions();
@@ -117,6 +125,26 @@ export class AgentApp {
 
     this.log(frame.lines.join('\n'));
     this.previousFrame = frame;
+    this.lastRenderAt = Date.now();
+  };
+
+  private scheduleRender() {
+    if (this.state.closed || this.renderScheduled) return;
+
+    const delay = Math.max(0, 16 - (Date.now() - this.lastRenderAt));
+    this.renderScheduled = true;
+    this.renderTimer = setTimeout(this.performRender, delay);
+    this.renderTimer.unref?.();
+  }
+
+  private render = () => {
+    if (this.renderTimer) {
+      clearTimeout(this.renderTimer);
+      this.renderTimer = null;
+      this.renderScheduled = false;
+    }
+
+    this.performRender();
   };
 
   private persistEntry(kind: EntryKind, text: string) {
@@ -167,16 +195,30 @@ export class AgentApp {
     } finally {
       this.store.setBusy(false);
       this.render();
+      void this.drainQueuedSubmissions();
     }
   }
 
-  private async submit() {
-    if (this.state.busy) return;
+  private async drainQueuedSubmissions() {
+    if (this.drainingQueuedSubmissions || this.state.closed) return;
 
-    const raw = this.state.inputChars.join('');
+    this.drainingQueuedSubmissions = true;
+
+    try {
+      while (!this.state.closed && !this.state.busy) {
+        const next = this.store.shiftQueuedSubmission();
+        if (!next) break;
+
+        this.render();
+        await this.processSubmission(next);
+      }
+    } finally {
+      this.drainingQueuedSubmissions = false;
+    }
+  }
+
+  private async processSubmission(raw: string) {
     const trimmed = raw.trim();
-    this.store.resetComposer();
-    this.render();
 
     if (!trimmed) return;
     if (trimmed === '/exit') {
@@ -192,11 +234,10 @@ export class AgentApp {
 
     this.persistEntry(EntryKind.User, trimmed);
 
+    const abortController = createAbortController(this.store);
+
     this.store.setBusy(true);
     this.store.clearLiveAssistantText();
-    this.store.setAbortConfirmationPending(false);
-    this.store.setAbortRequested(false);
-    this.store.setAbortController(new AbortController());
     this.render();
 
     try {
@@ -206,32 +247,38 @@ export class AgentApp {
         messages: this.state.messages,
         tools: this.tools,
         stopWhen: stepCountIs(20),
-        abortSignal: this.state.abortController?.signal
+        abortSignal: abortController.signal
       });
 
       for await (const part of result.fullStream) {
+        if (abortController.signal.aborted) break;
         if (this.state.abortRequested && part.type !== 'abort' && part.type !== 'error') continue;
 
         switch (part.type) {
+          case 'abort':
+            abortController.signal.throwIfAborted();
+            break;
           case 'text-delta':
             this.store.appendLiveAssistantText(part.text);
-            this.render();
+            this.scheduleRender();
             break;
           case 'tool-call':
             this.store.upsertToolEntry(createPendingToolEntry(part));
-            this.render();
+            this.scheduleRender();
             break;
           case 'tool-result':
             if (part.preliminary) break;
             this.store.upsertToolEntry(createCompletedToolEntry(part));
-            this.render();
+            this.scheduleRender();
             break;
           case 'tool-error':
             this.store.upsertToolEntry(createFailedToolEntry(part));
-            this.render();
+            this.scheduleRender();
             break;
         }
       }
+
+      abortController.signal.throwIfAborted();
 
       const [response, usage] = await Promise.all([result.response, result.usage]);
       this.store.pushMessages(response.messages);
@@ -242,9 +289,9 @@ export class AgentApp {
       if (price) this.store.addTotalCost(price.total_price);
       this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
     } catch (error: unknown) {
-      if (this.state.abortController?.signal.aborted) {
+      if (abortController.signal.aborted) {
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
-        this.persistEntry(EntryKind.Meta, 'cancelled');
+        this.persistEntry(EntryKind.Meta, '(aborted)');
       } else {
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
         this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
@@ -252,15 +299,34 @@ export class AgentApp {
     } finally {
       this.store.clearLiveAssistantText();
       this.store.setAbortController(null);
-      this.store.setAbortConfirmationPending(false);
-      this.store.setAbortRequested(false);
+      resetAbortState(this.store);
       this.store.setBusy(false);
       this.render();
+      void this.drainQueuedSubmissions();
     }
   }
 
+  private async submit() {
+    const raw = this.state.inputChars.join('');
+    const trimmed = raw.trim();
+    this.store.resetComposer();
+    this.store.resetSelectedSuggestion();
+    this.render();
+
+    if (!trimmed) return;
+
+    if (this.state.busy || this.state.queuedSubmissions.length > 0 || this.drainingQueuedSubmissions) {
+      this.store.enqueueSubmission(raw);
+      this.render();
+      void this.drainQueuedSubmissions();
+      return;
+    }
+
+    await this.processSubmission(raw);
+  }
+
   private insertText(text: string) {
-    if (!text || this.state.busy) return;
+    if (!text) return;
     this.store.insertText(text);
 
     if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {
@@ -290,92 +356,87 @@ export class AgentApp {
     return true;
   }
 
-  private onKeypress = async (str: string, key: Keypress) => {
-    if (key.ctrl && key.name === 'c') {
+  private handleEscape() {
+    if (handleAbortKeypress(this.store)) {
+      this.render();
+      return;
+    }
+
+    if (this.state.inputChars.length === 0 && this.state.selectedSuggestion === 0) return;
+    this.store.resetComposer();
+    this.store.resetSelectedSuggestion();
+    this.render();
+  }
+
+  private handleDelete(backward: boolean) {
+    const changed = backward ? this.store.deleteBackward() : this.store.deleteForward();
+    if (!changed) return;
+
+    if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) this.store.resetSelectedSuggestion();
+    this.render();
+  }
+
+  private onInputBinding = async (chunk: Buffer | string) => {
+    const binding = resolveInputBinding(chunk);
+    if (!binding) return;
+
+    if (binding.type === 'interrupt') {
       this.cleanup(0);
       return;
     }
 
-    if ((key.name === 'escape' || str === '\u001b') && this.state.busy && this.state.abortController) {
-      if (!this.state.abortConfirmationPending) {
-        this.store.setAbortConfirmationPending(true);
-        this.render();
-        return;
-      }
-
-      this.store.setAbortConfirmationPending(false);
-      this.store.setAbortRequested(true);
-      this.render();
-      this.state.abortController.abort();
+    if (binding.type === 'escape') {
+      this.handleEscape();
       return;
     }
-
-    if (key.name === 'tab') {
-      if (this.tryAcceptSuggestion()) return;
-    }
-
-    if (key.name === 'return') {
-      if (this.tryAcceptSuggestion()) return;
-      await this.submit();
-      return;
-    }
-
-    if (this.state.busy) return;
 
     if (this.state.abortConfirmationPending) {
       this.store.setAbortConfirmationPending(false);
       this.render();
     }
 
-    if (key.name === 'up' && this.moveSuggestionSelection(-1)) return;
-    if (key.name === 'down' && this.moveSuggestionSelection(1)) return;
+    if (binding.type === 'acceptSuggestion') {
+      this.tryAcceptSuggestion();
+      return;
+    }
 
-    if (key.name === 'backspace') {
-      if (this.store.deleteBackward()) {
-        if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {
-          this.store.resetSelectedSuggestion();
-        }
+    if (binding.type === 'submit') {
+      if (this.tryAcceptSuggestion()) return;
+      await this.submit();
+      return;
+    }
 
+    switch (binding.type) {
+      case 'moveSuggestion':
+        this.moveSuggestionSelection(binding.delta);
+        return;
+      case 'backspace':
+        this.handleDelete(true);
+        return;
+      case 'delete':
+        this.handleDelete(false);
+        return;
+      case 'moveCursor':
+        this.store.setCursor(this.state.cursor + binding.delta);
         this.render();
-      }
-      return;
-    }
-
-    if (key.name === 'delete') {
-      if (this.store.deleteForward()) {
-        if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {
-          this.store.resetSelectedSuggestion();
-        }
-
+        return;
+      case 'cursorHome':
+        this.store.setCursor(0);
         this.render();
-      }
-      return;
+        return;
+      case 'cursorEnd':
+        this.store.setCursor(this.state.inputChars.length);
+        this.render();
+        return;
+      case 'insertText':
+        this.insertText(binding.text);
+        return;
+      default:
+        return;
     }
+  };
 
-    if (key.name === 'left') {
-      this.store.setCursor(this.state.cursor - 1);
-      this.render();
-      return;
-    }
-
-    if (key.name === 'right') {
-      this.store.setCursor(this.state.cursor + 1);
-      this.render();
-      return;
-    }
-
-    if (key.name === 'home') {
-      this.store.setCursor(0);
-      this.render();
-      return;
-    }
-
-    if (key.name === 'end') {
-      this.store.setCursor(this.state.inputChars.length);
-      this.render();
-      return;
-    }
-
-    if (!key.ctrl && !key.meta && str) this.insertText(str);
+  private onStdinData = (chunk: Buffer | string) => {
+    void this.onInputBinding(chunk);
   };
 }
