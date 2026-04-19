@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 
 import { plain } from '@/text';
+import { objectInputSchema } from './input-schema';
 import type { ToolFactoryOptions } from './types';
 import { truncate } from './utils';
 
@@ -71,44 +72,61 @@ function shellQuote(value: string) {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+const worktreeActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('list') }),
+  z.object({
+    action: z.literal('add'),
+    path: z.string().min(1).describe('Path for the new worktree (relative or absolute).'),
+    branch: z.string().min(1).optional().describe('Existing branch to check out.'),
+    new_branch: z.string().min(1).optional().describe('New branch to create at the worktree.'),
+    ref: z
+      .string()
+      .min(1)
+      .optional()
+      .describe('Commit/ref to base the new branch on (defaults to HEAD).'),
+    force: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('remove'),
+    path: z.string().min(1),
+    force: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('prune'),
+    dry_run: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('lock'),
+    path: z.string().min(1),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('unlock'),
+    path: z.string().min(1),
+  }),
+]);
+
+const worktreeInputSchema = objectInputSchema(
+  worktreeActionSchema,
+  z.object({
+    action: z.enum(['list', 'add', 'remove', 'prune', 'lock', 'unlock']),
+    path: z.string().min(1).optional(),
+    branch: z.string().min(1).optional(),
+    new_branch: z.string().min(1).optional(),
+    ref: z.string().min(1).optional(),
+    force: z.boolean().optional(),
+    dry_run: z.boolean().optional(),
+    reason: z.string().optional(),
+  }),
+);
+
 export function createWorktreeTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
   return tool({
     description:
       "Manage git worktrees: list/add/remove/prune/lock/unlock. Use worktrees for isolated parallel work (subagent exploration, build matrix testing) without touching the user's working tree.",
-    inputSchema: z.discriminatedUnion('action', [
-      z.object({ action: z.literal('list') }),
-      z.object({
-        action: z.literal('add'),
-        path: z.string().min(1).describe('Path for the new worktree (relative or absolute).'),
-        branch: z.string().min(1).optional().describe('Existing branch to check out.'),
-        new_branch: z.string().min(1).optional().describe('New branch to create at the worktree.'),
-        ref: z
-          .string()
-          .min(1)
-          .optional()
-          .describe('Commit/ref to base the new branch on (defaults to HEAD).'),
-        force: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('remove'),
-        path: z.string().min(1),
-        force: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('prune'),
-        dry_run: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('lock'),
-        path: z.string().min(1),
-        reason: z.string().optional(),
-      }),
-      z.object({
-        action: z.literal('unlock'),
-        path: z.string().min(1),
-      }),
-    ]),
-    execute: async input => {
+    inputSchema: worktreeInputSchema,
+    execute: async rawInput => {
+      const input = worktreeActionSchema.parse(rawInput);
       if (input.action === 'list') {
         const result = await runUserShell('git worktree list --porcelain');
         if (result.exitCode !== 0)

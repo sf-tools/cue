@@ -8,6 +8,7 @@ import { z } from 'zod';
 
 import { createFileChange, describeFileChange } from '@/file-changes';
 import { readOptionalFile, type UndoEntry } from '@/undo';
+import { objectInputSchema } from './input-schema';
 import type { ToolFactoryOptions } from './types';
 import { truncate } from './utils';
 
@@ -600,50 +601,66 @@ function applyTextEdits(
   return lines.join('\n');
 }
 
+const lspActionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('definition'),
+    path: z.string().min(1),
+    line: z.number().int().positive(),
+    column: z.number().int().positive(),
+  }),
+  z.object({
+    action: z.literal('references'),
+    path: z.string().min(1),
+    line: z.number().int().positive(),
+    column: z.number().int().positive(),
+    include_declaration: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('hover'),
+    path: z.string().min(1),
+    line: z.number().int().positive(),
+    column: z.number().int().positive(),
+  }),
+  z.object({
+    action: z.literal('rename'),
+    path: z.string().min(1),
+    line: z.number().int().positive(),
+    column: z.number().int().positive(),
+    new_name: z.string().min(1),
+  }),
+  z.object({
+    action: z.literal('diagnostics'),
+    path: z.string().min(1),
+    wait_ms: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(15000)
+      .optional()
+      .describe('How long to wait for the server to publish diagnostics (default 2000).'),
+  }),
+]);
+
+const lspInputSchema = objectInputSchema(
+  lspActionSchema,
+  z.object({
+    action: z.enum(['definition', 'references', 'hover', 'rename', 'diagnostics']),
+    path: z.string().min(1),
+    line: z.number().int().positive().optional(),
+    column: z.number().int().positive().optional(),
+    include_declaration: z.boolean().optional(),
+    new_name: z.string().min(1).optional(),
+    wait_ms: z.number().int().nonnegative().max(15000).optional(),
+  }),
+);
+
 export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOptions) {
   return tool({
     description:
       'Run language-server requests for semantic understanding: definition, references, hover, rename, diagnostics. Lines and columns are 1-indexed. Spawns the right server (typescript-language-server, pyright, gopls, rust-analyzer) lazily and keeps it alive across calls. Rename requires approval.',
-    inputSchema: z.discriminatedUnion('action', [
-      z.object({
-        action: z.literal('definition'),
-        path: z.string().min(1),
-        line: z.number().int().positive(),
-        column: z.number().int().positive(),
-      }),
-      z.object({
-        action: z.literal('references'),
-        path: z.string().min(1),
-        line: z.number().int().positive(),
-        column: z.number().int().positive(),
-        include_declaration: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('hover'),
-        path: z.string().min(1),
-        line: z.number().int().positive(),
-        column: z.number().int().positive(),
-      }),
-      z.object({
-        action: z.literal('rename'),
-        path: z.string().min(1),
-        line: z.number().int().positive(),
-        column: z.number().int().positive(),
-        new_name: z.string().min(1),
-      }),
-      z.object({
-        action: z.literal('diagnostics'),
-        path: z.string().min(1),
-        wait_ms: z
-          .number()
-          .int()
-          .nonnegative()
-          .max(15000)
-          .optional()
-          .describe('How long to wait for the server to publish diagnostics (default 2000).'),
-      }),
-    ]),
-    execute: async input => {
+    inputSchema: lspInputSchema,
+    execute: async rawInput => {
+      const input = lspActionSchema.parse(rawInput);
       const langInfo = langForPath(input.path);
       if (!langInfo) return `error: no LSP server known for ${extname(input.path) || 'this file'}`;
 

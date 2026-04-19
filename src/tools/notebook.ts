@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { createFileChange, describeFileChange } from '@/file-changes';
 import { plain } from '@/text';
 import { readOptionalFile, type UndoEntry } from '@/undo';
+import { objectInputSchema } from './input-schema';
 import type { ToolFactoryOptions } from './types';
 import { truncate } from './utils';
 
@@ -132,46 +133,60 @@ export function createNotebookReadTool() {
   });
 }
 
+const notebookEditActionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('set'),
+    path: z.string().min(1),
+    index: z.number().int().nonnegative(),
+    source: z.string(),
+    cell_type: z.enum(['code', 'markdown', 'raw']).optional(),
+  }),
+  z.object({
+    action: z.literal('insert'),
+    path: z.string().min(1),
+    index: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Insert position (use cells.length to append).'),
+    source: z.string(),
+    cell_type: z.enum(['code', 'markdown', 'raw']).default('code'),
+  }),
+  z.object({
+    action: z.literal('delete'),
+    path: z.string().min(1),
+    index: z.number().int().nonnegative(),
+  }),
+  z.object({
+    action: z.literal('clear_outputs'),
+    path: z.string().min(1),
+    index: z
+      .number()
+      .int()
+      .nonnegative()
+      .optional()
+      .describe('If omitted, clears outputs of every code cell.'),
+  }),
+]);
+
+const notebookEditInputSchema = objectInputSchema(
+  notebookEditActionSchema,
+  z.object({
+    action: z.enum(['set', 'insert', 'delete', 'clear_outputs']),
+    path: z.string().min(1),
+    index: z.number().int().nonnegative().optional(),
+    source: z.string().optional(),
+    cell_type: z.enum(['code', 'markdown', 'raw']).optional(),
+  }),
+);
+
 export function createNotebookEditTool({ requestApproval, pushUndoEntry }: ToolFactoryOptions) {
   return tool({
     description:
       'Edit a Jupyter notebook (.ipynb) at the cell level: set the source of a cell, insert a new cell, delete a cell, or clear cached outputs. All actions require approval.',
-    inputSchema: z.discriminatedUnion('action', [
-      z.object({
-        action: z.literal('set'),
-        path: z.string().min(1),
-        index: z.number().int().nonnegative(),
-        source: z.string(),
-        cell_type: z.enum(['code', 'markdown', 'raw']).optional(),
-      }),
-      z.object({
-        action: z.literal('insert'),
-        path: z.string().min(1),
-        index: z
-          .number()
-          .int()
-          .nonnegative()
-          .describe('Insert position (use cells.length to append).'),
-        source: z.string(),
-        cell_type: z.enum(['code', 'markdown', 'raw']).default('code'),
-      }),
-      z.object({
-        action: z.literal('delete'),
-        path: z.string().min(1),
-        index: z.number().int().nonnegative(),
-      }),
-      z.object({
-        action: z.literal('clear_outputs'),
-        path: z.string().min(1),
-        index: z
-          .number()
-          .int()
-          .nonnegative()
-          .optional()
-          .describe('If omitted, clears outputs of every code cell.'),
-      }),
-    ]),
-    execute: async input => {
+    inputSchema: notebookEditInputSchema,
+    execute: async rawInput => {
+      const input = notebookEditActionSchema.parse(rawInput);
       const { raw, notebook } = await loadNotebook(input.path);
 
       if (input.action === 'set') {

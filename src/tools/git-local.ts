@@ -2,6 +2,7 @@ import { tool } from 'ai';
 import { z } from 'zod';
 
 import { plain } from '@/text';
+import { objectInputSchema } from './input-schema';
 import type { ToolFactoryOptions } from './types';
 import { truncate } from './utils';
 
@@ -24,39 +25,100 @@ function runOutput(prefix: string, exitCode: number, output: string, max = 12000
   return cleaned ? truncate(cleaned, max) : '(no output)';
 }
 
+const gitHistoryActionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('log'),
+    limit: z.number().int().positive().max(HARD_LOG_LIMIT).optional(),
+    ref: z
+      .string()
+      .optional()
+      .describe('Branch/ref/range, e.g. `main`, `HEAD~10..HEAD`, `feature..main`.'),
+    path: z.array(z.string()).optional().describe('Restrict to specific file(s).'),
+    author: z.string().optional(),
+    grep: z.string().optional().describe('Filter commit messages by regex.'),
+    patch: z.boolean().optional().describe('Include unified diff per commit (off by default).'),
+    stat: z.boolean().optional().describe('Include diffstat per commit.'),
+  }),
+  z.object({
+    action: z.literal('show'),
+    ref: z.string().min(1).describe('Commit SHA, tag, or branch name.'),
+    path: z.array(z.string()).optional().describe('Restrict diff to specific file(s).'),
+    stat_only: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('blame'),
+    path: z.string().min(1),
+    line_start: z.number().int().positive().optional(),
+    line_end: z.number().int().positive().optional(),
+    ref: z.string().optional().describe('Blame as of this ref (defaults to HEAD).'),
+  }),
+]);
+
+const gitHistoryInputSchema = objectInputSchema(
+  gitHistoryActionSchema,
+  z.object({
+    action: z.enum(['log', 'show', 'blame']),
+    limit: z.number().int().positive().max(HARD_LOG_LIMIT).optional(),
+    ref: z.string().min(1).optional(),
+    path: z.union([z.string().min(1), z.array(z.string())]).optional(),
+    author: z.string().optional(),
+    grep: z.string().optional(),
+    patch: z.boolean().optional(),
+    stat: z.boolean().optional(),
+    stat_only: z.boolean().optional(),
+    line_start: z.number().int().positive().optional(),
+    line_end: z.number().int().positive().optional(),
+  }),
+);
+
+const gitStashActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('list') }),
+  z.object({
+    action: z.literal('show'),
+    ref: z.string().optional().describe('Stash ref like `stash@{0}` (defaults to latest).'),
+    patch: z.boolean().optional(),
+  }),
+  z.object({
+    action: z.literal('push'),
+    message: z.string().optional(),
+    include_untracked: z.boolean().optional(),
+    keep_index: z.boolean().optional(),
+    path: z.array(z.string()).optional().describe('Stash only these paths.'),
+  }),
+  z.object({
+    action: z.literal('pop'),
+    ref: z.string().optional().describe('Stash ref to pop (defaults to latest).'),
+  }),
+  z.object({
+    action: z.literal('apply'),
+    ref: z.string().optional(),
+  }),
+  z.object({
+    action: z.literal('drop'),
+    ref: z.string().optional(),
+  }),
+]);
+
+const gitStashInputSchema = objectInputSchema(
+  gitStashActionSchema,
+  z.object({
+    action: z.enum(['list', 'show', 'push', 'pop', 'apply', 'drop']),
+    ref: z.string().optional(),
+    patch: z.boolean().optional(),
+    message: z.string().optional(),
+    include_untracked: z.boolean().optional(),
+    keep_index: z.boolean().optional(),
+    path: z.array(z.string()).optional(),
+  }),
+);
+
 export function createGitHistoryTool({ runUserShell }: ToolFactoryOptions) {
   return tool({
     description:
       'Inspect local git history: log (with patches), show a commit, blame a file. All read-only — no approval required.',
-    inputSchema: z.discriminatedUnion('action', [
-      z.object({
-        action: z.literal('log'),
-        limit: z.number().int().positive().max(HARD_LOG_LIMIT).optional(),
-        ref: z
-          .string()
-          .optional()
-          .describe('Branch/ref/range, e.g. `main`, `HEAD~10..HEAD`, `feature..main`.'),
-        path: z.array(z.string()).optional().describe('Restrict to specific file(s).'),
-        author: z.string().optional(),
-        grep: z.string().optional().describe('Filter commit messages by regex.'),
-        patch: z.boolean().optional().describe('Include unified diff per commit (off by default).'),
-        stat: z.boolean().optional().describe('Include diffstat per commit.'),
-      }),
-      z.object({
-        action: z.literal('show'),
-        ref: z.string().min(1).describe('Commit SHA, tag, or branch name.'),
-        path: z.array(z.string()).optional().describe('Restrict diff to specific file(s).'),
-        stat_only: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('blame'),
-        path: z.string().min(1),
-        line_start: z.number().int().positive().optional(),
-        line_end: z.number().int().positive().optional(),
-        ref: z.string().optional().describe('Blame as of this ref (defaults to HEAD).'),
-      }),
-    ]),
-    execute: async input => {
+    inputSchema: gitHistoryInputSchema,
+    execute: async rawInput => {
+      const input = gitHistoryActionSchema.parse(rawInput);
       if (input.action === 'log') {
         const limit = input.limit ?? DEFAULT_LOG_LIMIT;
         const parts = ['git log', `-n ${limit}`, '--no-color'];
@@ -97,34 +159,9 @@ export function createGitStashTool({ runUserShell, requestApproval }: ToolFactor
   return tool({
     description:
       'Manage the local git stash: list, show, push (save), pop, apply, drop. Mutating actions (push/pop/apply/drop) require approval.',
-    inputSchema: z.discriminatedUnion('action', [
-      z.object({ action: z.literal('list') }),
-      z.object({
-        action: z.literal('show'),
-        ref: z.string().optional().describe('Stash ref like `stash@{0}` (defaults to latest).'),
-        patch: z.boolean().optional(),
-      }),
-      z.object({
-        action: z.literal('push'),
-        message: z.string().optional(),
-        include_untracked: z.boolean().optional(),
-        keep_index: z.boolean().optional(),
-        path: z.array(z.string()).optional().describe('Stash only these paths.'),
-      }),
-      z.object({
-        action: z.literal('pop'),
-        ref: z.string().optional().describe('Stash ref to pop (defaults to latest).'),
-      }),
-      z.object({
-        action: z.literal('apply'),
-        ref: z.string().optional(),
-      }),
-      z.object({
-        action: z.literal('drop'),
-        ref: z.string().optional(),
-      }),
-    ]),
-    execute: async input => {
+    inputSchema: gitStashInputSchema,
+    execute: async rawInput => {
+      const input = gitStashActionSchema.parse(rawInput);
       if (input.action === 'list') {
         const { exitCode, output } = await runUserShell('git stash list --no-color');
         const cleaned = plain(output).trim();
