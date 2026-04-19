@@ -26,6 +26,7 @@ bun start
 ```bash
 cue --help
 cue --version
+cue --json --prompt "summarize this repo"
 ```
 
 ## Dev
@@ -41,6 +42,27 @@ bun run build
 ```
 
 The build output is written to `dist/`.
+
+## Headless JSON mode
+
+Cue can also run a single headless turn and emit newline-delimited JSON for scripts, CI, or other tools.
+
+```bash
+cue --json --prompt "read README.md and summarize the project"
+printf "inspect src/cli.ts and explain the flags" | cue --json
+```
+
+Useful flags:
+
+- `--allow-all` auto-approves command/edit tools in headless mode.
+- `--thinking` includes reasoning deltas in the JSON stream.
+- `--model <id>` and `--reasoning <mode>` override the saved defaults.
+
+There is also a demo consumer script at `scripts/demo-headless-json.mjs`:
+
+```bash
+bun run demo:json
+```
 
 ## Notes
 

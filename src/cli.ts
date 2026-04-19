@@ -1,9 +1,18 @@
 import { stderr, stdout } from 'node:process';
 import chalk from 'chalk';
 
-import { APP_RELEASE_DATE_ISO, APP_RELEASE_UNIX_TIME, APP_VERSION, DEFAULT_MODEL } from '@/config';
+import { APP_RELEASE_DATE_ISO, APP_RELEASE_UNIX_TIME, APP_VERSION, DEFAULT_MODEL, type ThinkingMode } from '@/config';
 
-type CliResult = { kind: 'start' } | { kind: 'exit'; code: number };
+export type JsonCliResult = {
+  kind: 'headless-json';
+  prompt?: string;
+  allowAll: boolean;
+  includeThinking: boolean;
+  model?: string;
+  reasoning?: ThinkingMode;
+};
+
+type CliResult = { kind: 'start' } | JsonCliResult | { kind: 'exit'; code: number };
 
 const COMMAND_NAME = 'cue';
 
@@ -33,7 +42,7 @@ function printHelp() {
     '',
     'Your next move, on cue.',
     '',
-    `${chalk.bold('Usage:')} ${chalk.white(`${COMMAND_NAME} [options]`)}`,
+    `${chalk.bold('Usage:')} ${chalk.white(`${COMMAND_NAME} [options] [prompt]`)}`,
     '',
     `${chalk.bold('Default model:')} ${chalk.white(DEFAULT_MODEL)}`,
     '',
@@ -41,7 +50,13 @@ function printHelp() {
     '',
     formatRows([
       ['-h, --help', 'Show help'],
-      ['-v, --version', 'Show version']
+      ['-v, --version', 'Show version'],
+      ['--json, --stream-json', 'Run one headless turn and emit newline-delimited JSON'],
+      ['--prompt <text>', 'Prompt text for headless JSON mode'],
+      ['--allow-all', 'Auto-approve command/edit tools in headless JSON mode'],
+      ['--thinking', 'Include reasoning deltas in headless JSON mode'],
+      ['--model <id>', 'Override the model for headless JSON mode'],
+      ['--reasoning <mode>', 'Override reasoning mode: auto, low, medium, high']
     ]),
     '',
     chalk.bold('Quick in-session shortcuts:'),
@@ -63,6 +78,8 @@ function printHelp() {
       ['cue', 'Start the interactive TUI'],
       ['cue --help', 'Show CLI help'],
       ['cue --version', 'Print the build version'],
+      ['cue --json --prompt "summarize this repo"', 'Run one headless JSON turn'],
+      ['printf "fix the failing tests" | cue --json --allow-all', 'Drive Cue from a script'],
       ['!git status', 'Run a shell command once Cue is open'],
       ['@src/cue.ts', 'Attach a file once Cue is open']
     ]),
@@ -86,6 +103,10 @@ function printError(message: string, suggestion = `Run '${COMMAND_NAME} --help' 
   if (suggestion) stderr.write(`${chalk.dim(suggestion)}\n`);
 }
 
+function isThinkingMode(value: string): value is ThinkingMode {
+  return value === 'auto' || value === 'low' || value === 'medium' || value === 'high';
+}
+
 export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
   if (argv.length === 0) return { kind: 'start' };
 
@@ -103,13 +124,103 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
     }
   }
 
-  const invalidFlag = argv.find(arg => arg.startsWith('-'));
-  if (invalidFlag) {
-    printError(`Invalid flag '${invalidFlag}'.`);
+  let jsonMode = false;
+  let allowAll = false;
+  let includeThinking = false;
+  let prompt: string | undefined;
+  let model: string | undefined;
+  let reasoning: ThinkingMode | undefined;
+  const positionals: string[] = [];
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+
+    if (arg === '--json' || arg === '--stream-json') {
+      jsonMode = true;
+      continue;
+    }
+
+    if (arg === '--allow-all') {
+      allowAll = true;
+      continue;
+    }
+
+    if (arg === '--thinking') {
+      includeThinking = true;
+      continue;
+    }
+
+    if (arg === '--prompt') {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('-')) {
+        printError(`Missing value for '${arg}'.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      prompt = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--model') {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('-')) {
+        printError(`Missing value for '${arg}'.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      model = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg === '--reasoning') {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('-')) {
+        printError(`Missing value for '${arg}'.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      if (!isThinkingMode(value)) {
+        printError(`Invalid reasoning mode '${value}'. Expected auto, low, medium, or high.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      reasoning = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('-')) {
+      printError(`Invalid flag '${arg}'.`);
+      return { kind: 'exit', code: 1 };
+    }
+
+    positionals.push(arg);
+  }
+
+  if (!jsonMode) {
+    if (allowAll || includeThinking || prompt !== undefined || model !== undefined || reasoning !== undefined) {
+      printError('Headless flags require --json.');
+      return { kind: 'exit', code: 1 };
+    }
+
+    const [unexpected] = positionals;
+    printError(`Unexpected argument '${unexpected}'.`);
     return { kind: 'exit', code: 1 };
   }
 
-  const [unexpected] = argv;
-  printError(`Unexpected argument '${unexpected}'.`);
-  return { kind: 'exit', code: 1 };
+  if (prompt !== undefined && positionals.length > 0) {
+    printError('Provide the headless prompt with either --prompt or positional text, not both.');
+    return { kind: 'exit', code: 1 };
+  }
+
+  return {
+    kind: 'headless-json',
+    prompt: prompt ?? (positionals.length > 0 ? positionals.join(' ') : undefined),
+    allowAll,
+    includeThinking,
+    model,
+    reasoning
+  };
 }

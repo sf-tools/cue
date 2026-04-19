@@ -1,6 +1,6 @@
 {
   "name": "cue",
-  "version": "0.0.16",
+  "version": "0.0.18",
   "type": "module",
   "scripts": {
     "clean": "rm -rf dist",
