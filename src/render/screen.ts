@@ -49,15 +49,18 @@ export function renderScreen(
   previousFrame: Frame | null = null
 ) {
   const header = renderHeader(ctx);
-  const preview = renderOutputPreview(state.liveAssistantText, ctx, state.pendingApproval);
-  const composer = renderComposer({
-    inputChars: state.inputChars,
-    pasteRanges: state.pasteRanges,
-    cursor: state.cursor,
-    scrollOffset: state.scrollOffset,
-    slashCommandLength,
-    showCapabilitiesHint: state.historyEntries.length === 0
-  }, ctx);
+  const preview = renderOutputPreview(state.liveReasoningText, state.liveAssistantText, ctx, state.pendingApproval);
+  const composer = renderComposer(
+    {
+      inputChars: state.inputChars,
+      pasteRanges: state.pasteRanges,
+      cursor: state.cursor,
+      scrollOffset: state.scrollOffset,
+      slashCommandLength,
+      showCapabilitiesHint: state.historyEntries.length === 0
+    },
+    ctx
+  );
   const suggestionLines = renderSuggestions(suggestions, state.selectedSuggestion, ctx);
   const footer = renderFooter(state, ctx);
 

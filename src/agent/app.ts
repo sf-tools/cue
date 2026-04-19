@@ -1,5 +1,5 @@
 import ora from 'ora';
-import { MODEL, COMPACTION_TRIGGER_TOKENS } from '@/config';
+import { createOpenAIProviderOptions, cycleThinkingMode, getCompactionTriggerTokens, pricingUsageFromLanguageModelUsage } from '@/config';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
@@ -293,8 +293,34 @@ export class AgentApp {
     this.footerNoticeTimer.unref?.();
   }
 
+  private setCurrentModel(model: string) {
+    this.store.setCurrentModel(model);
+    this.store.resetLastUsage();
+    this.render();
+  }
+
+  private setThinkingMode(thinkingMode: this['state']['thinkingMode']) {
+    this.store.setThinkingMode(thinkingMode);
+    this.render();
+  }
+
+  private cycleThinkingMode() {
+    const next = cycleThinkingMode(this.state.thinkingMode, this.state.currentModel);
+    this.store.setThinkingMode(next);
+    this.render();
+    return next;
+  }
+
+  private openCommandArgumentPicker(commandName: string) {
+    this.clearHistoryNavigation();
+    this.resetPreferredComposerColumn();
+    this.store.replaceInput(`/${commandName}`);
+    this.store.resetSelectedSuggestion();
+    this.render();
+  }
+
   private shouldAutoCompact() {
-    return this.state.autoCompactEnabled && this.state.lastPromptTokens >= COMPACTION_TRIGGER_TOKENS;
+    return this.state.autoCompactEnabled && this.state.lastPromptTokens >= getCompactionTriggerTokens(this.state.currentModel);
   }
 
   private hasSessionApproval(scope: ApprovalScope) {
@@ -355,11 +381,15 @@ export class AgentApp {
     this.render();
 
     try {
-      const result = await compactMessages(this.state.messages, { force });
+      const result = await compactMessages(this.state.messages, {
+        force,
+        model: this.state.currentModel,
+        thinkingMode: this.state.thinkingMode
+      });
       this.store.replaceMessages(result.messages);
-      this.store.setLastPromptTokens(0);
+      this.store.resetLastUsage();
 
-      const price = calcPrice({ input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens }, MODEL, {
+      const price = calcPrice(pricingUsageFromLanguageModelUsage(result.usage), this.state.currentModel, {
         providerId: 'openai'
       });
 
@@ -491,6 +521,10 @@ export class AgentApp {
             store: this.store,
             cleanup: code => this.cleanup(code),
             compactConversation: options => this.compactConversation(options),
+            setCurrentModel: model => this.setCurrentModel(model),
+            setThinkingMode: thinkingMode => this.setThinkingMode(thinkingMode),
+            cycleThinkingMode: () => this.cycleThinkingMode(),
+            openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
@@ -526,6 +560,7 @@ export class AgentApp {
 
     this.store.setBusy(true);
     this.store.clearLiveAssistantText();
+    this.store.clearLiveReasoningText();
     this.render();
 
     try {
@@ -533,11 +568,12 @@ export class AgentApp {
 
       this.store.pushMessage({ role: 'user', content: await this.expand(trimmed) });
       const result = streamText({
-        model: openai(MODEL),
+        model: openai(this.state.currentModel),
         messages: this.state.messages,
         tools: this.tools,
         stopWhen: stepCountIs(20),
-        abortSignal: abortController.signal
+        abortSignal: abortController.signal,
+        providerOptions: createOpenAIProviderOptions(this.state.currentModel, this.state.thinkingMode)
       });
 
       for await (const part of result.fullStream) {
@@ -547,6 +583,10 @@ export class AgentApp {
         switch (part.type) {
           case 'abort':
             abortController.signal.throwIfAborted();
+            break;
+          case 'reasoning-delta':
+            this.store.appendLiveReasoningText(part.text);
+            this.scheduleRender();
             break;
           case 'text-delta':
             this.store.appendLiveAssistantText(part.text);
@@ -572,22 +612,30 @@ export class AgentApp {
 
       const [response, usage] = await Promise.all([result.response, result.usage]);
       this.store.pushMessages(response.messages);
-      this.store.setLastPromptTokens(usage.inputTokens || 0);
+      this.store.setLastUsage({
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        reasoningTokens: usage.outputTokenDetails.reasoningTokens ?? usage.reasoningTokens
+      });
 
-      const price = calcPrice({ input_tokens: usage.inputTokens, output_tokens: usage.outputTokens }, MODEL, { providerId: 'openai' });
+      const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), this.state.currentModel, { providerId: 'openai' });
 
       if (price) this.store.addTotalCost(price.total_price);
+      if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
       this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
     } catch (error: unknown) {
       if (abortController.signal.aborted) {
+        if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
         this.persistEntry(EntryKind.Meta, '(aborted)');
       } else {
+        if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
         this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
       }
     } finally {
       this.store.clearLiveAssistantText();
+      this.store.clearLiveReasoningText();
       this.store.setAbortController(null);
       resetAbortState(this.store);
       this.store.setBusy(false);
@@ -810,6 +858,11 @@ export class AgentApp {
     if (this.state.abortConfirmationPending) {
       this.store.setAbortConfirmationPending(false);
       this.render();
+    }
+
+    if (binding.type === 'toggleThinkingMode') {
+      this.cycleThinkingMode();
+      return;
     }
 
     if (binding.type === 'acceptSuggestion') {

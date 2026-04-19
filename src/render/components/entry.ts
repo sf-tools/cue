@@ -94,6 +94,16 @@ function renderAssistantEntry(text: string, ctx: RenderContext): Block {
   return indent(renderAssistantLines(text, ctx), LEFT_MARGIN);
 }
 
+function renderReasoningEntry(text: string, ctx: RenderContext): Block {
+  const width = Math.max(1, ctx.width - 4);
+  const body = text.split('\n').flatMap(lineText => wrapTextBlock(lineText, width, ctx.theme.dimmed));
+
+  return thinPanelize([line(span('Reasoning', chalk.cyanBright)), ...(body.length > 0 ? [blankLine(), ...body] : [])], {
+    bg: ctx.theme.panelBg(),
+    width: ctx.width
+  });
+}
+
 function renderShellEntry(text: string, ctx: RenderContext): Block {
   const match = text.match(/^(.*?)(\s+exit\s+\d+)$/);
 
@@ -169,6 +179,7 @@ export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext): Blo
 
   if (entry.kind === EntryKind.User) return renderUserEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Assistant) return renderAssistantEntry(entry.text, ctx);
+  if (entry.kind === EntryKind.Reasoning) return renderReasoningEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Shell) return renderShellEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Error) return renderErrorEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Tool) return renderToolEntry(entry.text, ctx);

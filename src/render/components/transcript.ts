@@ -121,12 +121,23 @@ function renderApprovalNotice(request: ApprovalRequest, ctx: RenderContext): Blo
   );
 }
 
-export function renderOutputPreview(text: string, ctx: RenderContext, pendingApproval: ApprovalRequest | null = null): Block {
-  if (!text && !pendingApproval) return [];
+export function renderOutputPreview(reasoningText: string, text: string, ctx: RenderContext, pendingApproval: ApprovalRequest | null = null): Block {
+  if (!reasoningText && !text && !pendingApproval) return [];
 
   const maxLines = Math.max(3, ctx.height - 12);
-  const previewText = text ? clipPreviewText(text, ctx, maxLines) : '';
-  const preview = previewText ? renderHistoryEntry({ type: 'entry', kind: EntryKind.Assistant, text: previewText }, ctx) : [];
+  const previewBlocks: Block[] = [];
+
+  if (reasoningText) {
+    const clippedReasoning = clipPreviewText(reasoningText, ctx, maxLines);
+    previewBlocks.push(renderHistoryEntry({ type: 'entry', kind: EntryKind.Reasoning, text: clippedReasoning }, ctx));
+  }
+
+  if (text) {
+    const previewText = clipPreviewText(text, ctx, maxLines);
+    previewBlocks.push(renderHistoryEntry({ type: 'entry', kind: EntryKind.Assistant, text: previewText }, ctx));
+  }
+
+  const preview = previewBlocks.flatMap((block, index) => (index === 0 ? block : [blankLine(), ...block]));
   const notice = pendingApproval ? [...renderApprovalNotice(pendingApproval, ctx), blankLine()] : [];
 
   return [...takeLast(preview, maxLines), ...notice];

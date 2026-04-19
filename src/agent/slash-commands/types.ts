@@ -1,3 +1,4 @@
+import type { ThinkingMode } from '@/config';
 import type { AgentStore } from '@/store';
 import type { EntryKind } from '@/types';
 
@@ -12,6 +13,10 @@ export type SlashCommandContext = {
   store: AgentStore;
   cleanup(code?: number): void;
   compactConversation(options?: { manual?: boolean; force?: boolean }): Promise<boolean>;
+  setCurrentModel(model: string): void;
+  setThinkingMode(thinkingMode: ThinkingMode): void;
+  cycleThinkingMode(): ThinkingMode;
+  openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
   render(): void;
   persistEntry(kind: EntryKind, text: string): void;
@@ -19,13 +24,28 @@ export type SlashCommandContext = {
   persistAnsi(text: string): void;
 };
 
+export type TextStyle = (text: string) => string;
+
+export type SlashCommandArgumentSuggestion =
+  | string
+  | {
+      value: string;
+      label?: string;
+      suffix?: string;
+      detail?: string;
+      labelStyle?: TextStyle;
+      suffixStyle?: TextStyle;
+      detailStyle?: TextStyle;
+    };
+
 export type SlashCommand = {
   name: string;
   aliases?: string[];
   specialHiddenAliases?: string[];
   description: string;
   suggestedInput?: string;
-  argumentSuggestions?: string[];
+  argumentSuggestions?: SlashCommandArgumentSuggestion[];
+  showArgumentSuggestionsOnExactInvocation?: boolean;
   execute(context: SlashCommandContext, args: SlashCommandArgs): Promise<void> | void;
 };
 
@@ -56,6 +76,9 @@ export type SlashCommandSuggestion = {
   replacement: string;
   commandName: string;
   isAlias: boolean;
+  labelStyle?: TextStyle;
+  suffixStyle?: TextStyle;
+  detailStyle?: TextStyle;
 };
 
 export type SlashCommandQuery = { type: 'invocation'; query: string } | { type: 'argument'; invocation: string; query: string };

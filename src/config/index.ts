@@ -6,7 +6,25 @@ export {
   COMPACTION_TRIGGER_TOKENS,
   CONTEXT_WINDOW,
   MODEL,
-  USER_SHELL
+  USER_SHELL,
+  getCompactionTriggerTokens,
+  getContextWindow
 } from './constants';
 
+export {
+  DEFAULT_MODEL,
+  OPENAI_MODEL_OPTIONS,
+  createOpenAIProviderOptions,
+  cycleThinkingMode,
+  formatThinkingMode,
+  getOpenAIContextWindow,
+  getOpenAIModelDisplayName,
+  getSupportedThinkingModes,
+  getThinkingModeDescription,
+  isReasoningCapableOpenAIModel,
+  normalizeOpenAIModelId,
+  pricingUsageFromLanguageModelUsage
+} from './models';
+
+export type { ThinkingMode } from './models';
 export { COMPACTION_PROMPT, createInitialMessages, SYSTEM_PROMPT } from './prompt';

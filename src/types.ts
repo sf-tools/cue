@@ -1,6 +1,7 @@
 export enum EntryKind {
   User = 'user',
   Assistant = 'assistant',
+  Reasoning = 'reasoning',
   Tool = 'tool',
   Shell = 'shell',
   Error = 'error',

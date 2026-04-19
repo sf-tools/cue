@@ -181,6 +181,21 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
+    setLiveReasoningText(text: string) {
+      state.liveReasoningText = text;
+      return state;
+    },
+
+    appendLiveReasoningText(chunk: string) {
+      state.liveReasoningText += chunk;
+      return state;
+    },
+
+    clearLiveReasoningText() {
+      state.liveReasoningText = '';
+      return state;
+    },
+
     pushMessage(message: ModelMessage) {
       state.messages.push(message);
       return state;
@@ -238,8 +253,27 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
-    setLastPromptTokens(lastPromptTokens: number) {
-      state.lastPromptTokens = lastPromptTokens;
+    setCurrentModel(currentModel: string) {
+      state.currentModel = currentModel;
+      return state;
+    },
+
+    setThinkingMode(thinkingMode: AgentState['thinkingMode']) {
+      state.thinkingMode = thinkingMode;
+      return state;
+    },
+
+    setLastUsage(usage: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number }) {
+      state.lastPromptTokens = usage.inputTokens ?? 0;
+      state.lastOutputTokens = usage.outputTokens ?? 0;
+      state.lastReasoningTokens = usage.reasoningTokens ?? 0;
+      return state;
+    },
+
+    resetLastUsage() {
+      state.lastPromptTokens = 0;
+      state.lastOutputTokens = 0;
+      state.lastReasoningTokens = 0;
       return state;
     },
 

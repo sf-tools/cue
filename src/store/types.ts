@@ -1,4 +1,5 @@
 import type { ModelMessage } from 'ai';
+import type { ThinkingMode } from '@/config';
 import type { ApprovalRequest, HistoryEntry } from '@/types';
 
 export type ComposerPasteRange = {
@@ -18,8 +19,13 @@ export type AgentState = {
   busyStatusText: string | null;
   closed: boolean;
   liveAssistantText: string;
+  liveReasoningText: string;
   selectedSuggestion: number;
+  currentModel: string;
+  thinkingMode: ThinkingMode;
   lastPromptTokens: number;
+  lastOutputTokens: number;
+  lastReasoningTokens: number;
   totalCost: number;
   abortController: AbortController | null;
   abortConfirmationPending: boolean;

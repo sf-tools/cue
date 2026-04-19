@@ -1,5 +1,5 @@
 import type { AgentState } from './types';
-import { createInitialMessages } from '@/config';
+import { MODEL, createInitialMessages } from '@/config';
 
 export const createInitialState = (): AgentState => ({
   messages: createInitialMessages(),
@@ -13,8 +13,13 @@ export const createInitialState = (): AgentState => ({
   busyStatusText: null,
   closed: false,
   liveAssistantText: '',
+  liveReasoningText: '',
   selectedSuggestion: 0,
+  currentModel: MODEL,
+  thinkingMode: 'auto',
   lastPromptTokens: 0,
+  lastOutputTokens: 0,
+  lastReasoningTokens: 0,
   totalCost: 0,
   abortController: null,
   abortConfirmationPending: false,

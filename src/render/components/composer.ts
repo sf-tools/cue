@@ -40,7 +40,11 @@ function charWidth(ch: string) {
   return Math.max(1, widthOf(ch));
 }
 
-function renderInputLines(state: ComposerState, viewWidth: number, charStyleAt?: (index: number, ch: string) => ((text: string) => string) | undefined) {
+function renderInputLines(
+  state: ComposerState,
+  viewWidth: number,
+  charStyleAt?: (index: number, ch: string) => ((text: string) => string) | undefined
+) {
   const lines: StyledLine[] = [];
   let segments: StyledLine['segments'] = [];
   let currentWidth = 0;
@@ -192,13 +196,14 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const validSlashCommand = slashMode && (state.slashCommandLength ?? 0) > 0;
   const capabilitiesHint = state.showCapabilitiesHint ? '/ commands · @ files · ! shell' : '';
   const capabilitiesWidth = widthOf(capabilitiesHint);
-  const prompt = state.inputChars.length === 0
-    ? span('→', ctx.theme.dimmed)
-    : shellMode
-      ? span('!', chalk.yellow)
-      : slashMode
-        ? span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground)
-        : span('→', ctx.theme.foreground);
+  const prompt =
+    state.inputChars.length === 0
+      ? span('→', ctx.theme.dimmed)
+      : shellMode
+        ? span('!', chalk.yellow)
+        : slashMode
+          ? span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground)
+          : span('→', ctx.theme.foreground);
 
   if (state.inputChars.length === 0) {
     const label = 'Plan, search, build anything';
@@ -206,19 +211,22 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
 
     return {
       nextScrollOffset: state.scrollOffset,
-      block: thinPanelize([
-        line(
-          prompt,
-          span(' '),
-          span('P', chalk.inverse),
-          span(label.slice(1), ctx.theme.dimmed),
-          span(fill),
-          ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-        )
-      ], {
-        bg: ctx.theme.composerBg(),
-        width: ctx.width
-      })
+      block: thinPanelize(
+        [
+          line(
+            prompt,
+            span(' '),
+            span('P', chalk.inverse),
+            span(label.slice(1), ctx.theme.dimmed),
+            span(fill),
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
+          )
+        ],
+        {
+          bg: ctx.theme.composerBg(),
+          width: ctx.width
+        }
+      )
     };
   }
 
@@ -228,19 +236,22 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
 
     return {
       nextScrollOffset: 0,
-      block: thinPanelize([
-        line(
-          prompt,
-          span(' '),
-          span(' ', chalk.inverse),
-          span(label, ctx.theme.dimmed),
-          span(fill),
-          ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-        )
-      ], {
-        bg: ctx.theme.composerBg(),
-        width: ctx.width
-      })
+      block: thinPanelize(
+        [
+          line(
+            prompt,
+            span(' '),
+            span(' ', chalk.inverse),
+            span(label, ctx.theme.dimmed),
+            span(fill),
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
+          )
+        ],
+        {
+          bg: ctx.theme.composerBg(),
+          width: ctx.width
+        }
+      )
     };
   }
 
@@ -249,18 +260,21 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
 
     return {
       nextScrollOffset: state.scrollOffset,
-      block: thinPanelize([
-        line(
-          prompt,
-          span(' '),
-          span(' ', chalk.inverse),
-          span(fill),
-          ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-        )
-      ], {
-        bg: ctx.theme.composerBg(),
-        width: ctx.width
-      })
+      block: thinPanelize(
+        [
+          line(
+            prompt,
+            span(' '),
+            span(' ', chalk.inverse),
+            span(fill),
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
+          )
+        ],
+        {
+          bg: ctx.theme.composerBg(),
+          width: ctx.width
+        }
+      )
     };
   }
 
@@ -268,9 +282,7 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const inputLines = renderInputLines(
     inputState,
     contentWidth,
-    slashMode
-      ? index => (index < (state.slashCommandLength ?? 0) ? chalk.cyanBright : undefined)
-      : undefined
+    slashMode ? index => (index < (state.slashCommandLength ?? 0) ? chalk.cyanBright : undefined) : undefined
   );
   const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
 

@@ -3,6 +3,7 @@ import parseKeypress, { nonAlphanumericKeys } from '@/keypress';
 export type InputBinding =
   | { type: 'interrupt' }
   | { type: 'escape' }
+  | { type: 'toggleThinkingMode' }
   | { type: 'acceptSuggestion' }
   | { type: 'submit' }
   | { type: 'moveSuggestion'; delta: number }
@@ -47,6 +48,7 @@ export function resolveInputBinding(data: Buffer | string): InputBinding | null 
 
   if (input === 'c' && keypress.ctrl) return { type: 'interrupt' };
   if (keypress.name === 'escape') return { type: 'escape' };
+  if (keypress.name === 'tab' && keypress.shift) return { type: 'toggleThinkingMode' };
   if (keypress.name === 'tab') return { type: 'acceptSuggestion' };
   if (keypress.name === 'return') return { type: 'submit' };
   if (keypress.name === 'up') return { type: 'moveSuggestion', delta: -1 };

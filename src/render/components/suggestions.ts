@@ -16,9 +16,24 @@ export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSug
   return suggestions.map((suggestion, index) => {
     const selected = index === selectedSuggestion;
     const prefix = selected ? [span(margin), span('→', ctx.theme.foreground), span(' ')] : [span(`${margin}  `)];
-    const lineStyle = selected ? ctx.theme.foreground : ctx.theme.dimmed;
-    const suffixStyle = selected ? ctx.theme.dimmed : ctx.theme.subtle;
-    const detailStyle = selected ? ctx.theme.foreground : ctx.theme.subtle;
+    const customLabelStyle = 'labelStyle' in suggestion ? suggestion.labelStyle : undefined;
+    const customSuffixStyle = 'suffixStyle' in suggestion ? suggestion.suffixStyle : undefined;
+    const customDetailStyle = 'detailStyle' in suggestion ? suggestion.detailStyle : undefined;
+    const lineStyle = customLabelStyle
+      ? selected
+        ? customLabelStyle
+        : (text: string) => ctx.theme.dimmed(customLabelStyle(text))
+      : selected
+        ? ctx.theme.foreground
+        : ctx.theme.dimmed;
+    const suffixStyle = customSuffixStyle
+      ? selected
+        ? customSuffixStyle
+        : (text: string) => ctx.theme.dimmed(customSuffixStyle(text))
+      : selected
+        ? ctx.theme.dimmed
+        : ctx.theme.subtle;
+    const detailStyle = customDetailStyle || (selected ? ctx.theme.foreground : ctx.theme.subtle);
     const detail = 'detail' in suggestion ? suggestion.detail : '';
     const suffix = 'suffix' in suggestion ? (suggestion.suffix ?? '') : '';
     const renderedWidth = widthOf(suggestion.label) + widthOf(suffix);

@@ -1,12 +1,14 @@
 import { openai } from '@ai-sdk/openai';
 import { generateText, type LanguageModelUsage, type ModelMessage } from 'ai';
 
-import { COMPACTION_PROMPT, COMPACTION_RECENT_MESSAGE_COUNT, MODEL } from '@/config';
+import { COMPACTION_PROMPT, COMPACTION_RECENT_MESSAGE_COUNT, MODEL, createOpenAIProviderOptions, type ThinkingMode } from '@/config';
 import { plain } from '@/text';
 
 export type CompactMessagesOptions = {
   recentMessageCount?: number;
   force?: boolean;
+  model?: string;
+  thinkingMode?: ThinkingMode;
 };
 
 export type CompactionResult = {
@@ -48,7 +50,7 @@ export function canCompactMessages(
 }
 
 export async function compactMessages(messages: ModelMessage[], options: CompactMessagesOptions = {}): Promise<CompactionResult> {
-  const { recentMessageCount = COMPACTION_RECENT_MESSAGE_COUNT, force = false } = options;
+  const { recentMessageCount = COMPACTION_RECENT_MESSAGE_COUNT, force = false, model = MODEL, thinkingMode = 'auto' } = options;
   const systemMessages = getSystemMessages(messages);
   const conversationMessages = getConversationMessages(messages);
   const tailCount = resolveTailCount(conversationMessages, recentMessageCount, force);
@@ -58,8 +60,9 @@ export async function compactMessages(messages: ModelMessage[], options: Compact
   if (messagesToSummarize.length === 0) throw new Error('not enough conversation history to compact');
 
   const { text, usage } = await generateText({
-    model: openai(MODEL),
-    messages: [...systemMessages, ...messagesToSummarize, { role: 'user', content: COMPACTION_PROMPT }]
+    model: openai(model),
+    messages: [...systemMessages, ...messagesToSummarize, { role: 'user', content: COMPACTION_PROMPT }],
+    providerOptions: createOpenAIProviderOptions(model, thinkingMode)
   });
 
   const summary = extractSummary(text);

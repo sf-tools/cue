@@ -1,4 +1,11 @@
-import type { SlashCommand, SlashCommandInvocation, SlashCommandParseResult, SlashCommandQuery, SlashCommandSuggestion } from './types';
+import type {
+  SlashCommand,
+  SlashCommandArgumentSuggestion,
+  SlashCommandInvocation,
+  SlashCommandParseResult,
+  SlashCommandQuery,
+  SlashCommandSuggestion
+} from './types';
 
 function normalizeInvocation(value: string) {
   return value.trim().replace(/^\//, '').toLowerCase();
@@ -11,6 +18,10 @@ function splitArgs(argsText: string) {
 
 function compareSuggestions(a: SlashCommandSuggestion, b: SlashCommandSuggestion) {
   return a.label.localeCompare(b.label);
+}
+
+function normalizeArgumentSuggestion(suggestion: SlashCommandArgumentSuggestion) {
+  return typeof suggestion === 'string' ? { value: suggestion } : suggestion;
 }
 
 export function currentSlashCommandQuery(inputChars: string[], cursor: number): SlashCommandQuery | null {
@@ -88,36 +99,52 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
     },
 
     listSuggestions(query: SlashCommandQuery) {
-      if (query.type === 'argument') {
-        const resolved = invocationMap.get(query.invocation);
+      const listArgumentSuggestions = (invocation: string, queryText: string) => {
+        const resolved = invocationMap.get(invocation);
         const values = resolved?.command.argumentSuggestions ?? [];
-        const normalizedQuery = normalizeInvocation(query.query);
+        const normalizedQuery = normalizeInvocation(queryText);
 
         return values
-          .filter(value => {
+          .map(normalizeArgumentSuggestion)
+          .filter(suggestion => {
             if (!normalizedQuery) return true;
-            const normalizedValue = normalizeInvocation(value);
-            return normalizedValue.startsWith(normalizedQuery) || normalizedValue.includes(normalizedQuery);
+            const normalizedValue = normalizeInvocation(suggestion.value);
+            const normalizedLabel = normalizeInvocation(suggestion.label ?? suggestion.value);
+            return (
+              normalizedValue.startsWith(normalizedQuery) ||
+              normalizedValue.includes(normalizedQuery) ||
+              normalizedLabel.startsWith(normalizedQuery) ||
+              normalizedLabel.includes(normalizedQuery)
+            );
           })
           .slice(0, 6)
-          .map<SlashCommandSuggestion>(value => {
-            const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? query.invocation);
+          .map<SlashCommandSuggestion>(suggestion => {
+            const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? invocation);
 
             return {
               kind: 'slash-command',
-              label: `/${canonicalInvocation}`,
-              suffix: ` ${value}`,
-              detail: resolved?.command.description ?? '',
+              label: suggestion.label ?? suggestion.value,
+              suffix: suggestion.suffix,
+              detail: suggestion.detail ?? resolved?.command.description ?? '',
               invocation: canonicalInvocation,
-              replacement: `/${canonicalInvocation} ${value}`,
-              commandName: resolved?.command.name ?? query.invocation,
-              isAlias: Boolean(resolved?.isAlias)
+              replacement: `/${canonicalInvocation} ${suggestion.value}`,
+              commandName: resolved?.command.name ?? invocation,
+              isAlias: Boolean(resolved?.isAlias),
+              labelStyle: suggestion.labelStyle,
+              suffixStyle: suggestion.suffixStyle,
+              detailStyle: suggestion.detailStyle
             };
           })
           .sort(compareSuggestions);
-      }
+      };
+
+      if (query.type === 'argument') return listArgumentSuggestions(query.invocation, query.query);
 
       const normalizedQuery = normalizeInvocation(query.query);
+      const exactInvocation = invocationMap.get(normalizedQuery);
+      if (exactInvocation?.command.showArgumentSuggestionsOnExactInvocation) {
+        return listArgumentSuggestions(exactInvocation.invocation, '');
+      }
 
       const suggestions = sortedInvocations
         .filter(({ invocation, hidden, specialHidden }) => {
