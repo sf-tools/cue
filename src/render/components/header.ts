@@ -33,16 +33,19 @@ export function renderExitSummary(options: {
   threadUrl?: string | null;
   resumeCommand?: string | null;
 }): Block {
+  const threadTitle = options.threadTitle?.trim() || 'Untitled session';
+  const threadUrl = options.resumeCommand ? options.threadUrl : null;
+
   return [
     line(span('      :::::::: ', chalk.cyan)),
     line(span('    :+:    :+: ', chalk.cyan)),
     line(
       span('   +:+          ', chalk.cyan),
-      ...(options.threadTitle ? [span(options.threadTitle, chalk.white)] : []),
+      span(threadTitle, chalk.white),
     ),
     line(
       span('  +#+           ', chalk.cyan),
-      ...(options.threadUrl ? [span(options.threadUrl, chalk.blue)] : []),
+      ...(threadUrl ? [span(threadUrl, chalk.blue)] : []),
     ),
     line(
       span(' +#+            ', chalk.cyan),
