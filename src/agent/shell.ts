@@ -1,4 +1,4 @@
-import { spawn as spawnPty } from 'node-pty';
+import { spawn as spawnPty } from '@homebridge/node-pty-prebuilt-multiarch';
 
 import { USER_SHELL } from '@/config';
 import { normalizePtyOutput } from '@/text';
