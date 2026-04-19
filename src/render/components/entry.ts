@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { EntryKind, type HistoryEntry } from '@/types';
 import { widthOf } from '@/text';
 import { LEFT_MARGIN, indent, thinPanelize, wrapTextBlock } from '../layout';
+import { renderMarkdown } from '../markdown';
 import { blankLine, line, rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
@@ -97,7 +98,8 @@ function renderAssistantLines(text: string, ctx: RenderContext, animate = false)
 }
 
 function renderAssistantEntry(text: string, ctx: RenderContext, animate = false): Block {
-  return indent(renderAssistantLines(text, ctx, animate), LEFT_MARGIN);
+  if (animate) return indent(renderAssistantLines(text, ctx, true), LEFT_MARGIN);
+  return indent(renderMarkdown(text, ctx, Math.max(1, ctx.width - 2)), LEFT_MARGIN);
 }
 
 function renderReasoningEntry(text: string, ctx: RenderContext): Block {
