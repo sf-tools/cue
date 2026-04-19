@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+
 import { diffFrames } from './diff';
 import { takeLast } from './layout';
 import { blankLine, vstack } from './primitives';
@@ -14,6 +16,29 @@ import type { AgentState } from '@/store';
 import type { Frame, RenderContext } from './types';
 import type { ThemePalette } from '@/theme';
 
+const gitBranchCache = new Map<string, { value: string | null; at: number }>();
+
+function resolveGitBranch(cwd: string) {
+  const cached = gitBranchCache.get(cwd);
+  const now = Date.now();
+  if (cached && now - cached.at < 1_000) return cached.value;
+
+  let value: string | null = null;
+
+  try {
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).trim();
+
+    value = branch && branch !== 'HEAD' ? branch : null;
+  } catch {}
+
+  gitBranchCache.set(cwd, { value, at: now });
+  return value;
+}
+
 export function frameWidth(columns = process.stdout.columns || 100) {
   return Math.max(40, columns - 2);
 }
@@ -24,10 +49,13 @@ export function createRenderContext(
   columns = process.stdout.columns || 100,
   rows = process.stdout.rows || 30
 ): RenderContext {
+  const cwd = process.cwd();
+
   return {
     width: frameWidth(columns),
     height: rows,
-    cwd: formatWorkspacePath(process.cwd()),
+    cwd: formatWorkspacePath(cwd),
+    gitBranch: resolveGitBranch(cwd),
     spinnerFrame,
     theme
   };

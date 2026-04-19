@@ -24,5 +24,7 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
         ? line(span(LEFT_MARGIN), span(stats, ctx.theme.dimmed), span(' · ', ctx.theme.subtle), span(MODEL, chalk.white))
         : line(span(LEFT_MARGIN), span(MODEL, chalk.white));
 
-  return [line(), modeLine, line(span(LEFT_MARGIN), span(ctx.cwd.padEnd(Math.max(ctx.width, ctx.cwd.length)), ctx.theme.subtle))];
+  const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
+
+  return [line(), modeLine, line(span(LEFT_MARGIN), span(location.padEnd(Math.max(ctx.width, location.length)), ctx.theme.subtle))];
 }
