@@ -1,19 +1,20 @@
-import type { ToolFactoryOptions } from './types';
 import { createAntTool } from './ant';
 import { createBashTool } from './bash';
-import { createChoiceSelectorTool } from './choice-selector';
-import { createCiTool } from './ci';
-import { createDepsTool } from './deps';
 import { createEditTool } from './edit';
-import { createGitOpsTool } from './gitops';
-import { createOracleTool } from './oracle';
-import { createPlanningModeTool } from './planning-mode';
 import { createReadTool } from './read';
+import { createWriteTool } from './write';
+import { createOracleTool } from './oracle';
+import { createWebSearchTool } from './web';
 import { createRipgrepTool } from './ripgrep';
 import { createSubagentTool } from './subagent';
-import { createTestTool } from './test';
-import { createWebSearchTool } from './web';
-import { createWriteTool } from './write';
+import type { ToolFactoryOptions } from './types';
+import { createPlanningModeTool } from './planning-mode';
+import { createChoiceSelectorTool } from './choice-selector';
+import { createCiRunsTool, createCiWorkflowsTool } from './ci';
+
+import { createTestAnalyzeTool, createTestDetectTool, createTestRunTool, createTestScaffoldTool } from './test';
+import { createGitConflictsTool, createGitIntegrateTool, createGitProgressTool, createGitStatusTool } from './gitops';
+import { createDepsImpactTool, createDepsPackagesTool, createDepsScanTool, createSymbolRenameTool, createVerifyChangesTool } from './deps';
 
 import {
   createCommitSearchTool,
@@ -36,10 +37,21 @@ export function createTools(options: ToolFactoryOptions) {
   const ant = createAntTool(options);
   const choiceSelector = createChoiceSelectorTool(options);
   const webSearch = createWebSearchTool();
-  const test = createTestTool(options);
-  const ci = createCiTool(options);
-  const gitops = createGitOpsTool(options);
-  const deps = createDepsTool(options);
+  const testDetect = createTestDetectTool(options);
+  const testAnalyze = createTestAnalyzeTool(options);
+  const testScaffold = createTestScaffoldTool(options);
+  const testRun = createTestRunTool(options);
+  const ciWorkflows = createCiWorkflowsTool(options);
+  const ciRuns = createCiRunsTool(options);
+  const gitStatus = createGitStatusTool(options);
+  const gitConflicts = createGitConflictsTool(options);
+  const gitIntegrate = createGitIntegrateTool(options);
+  const gitProgress = createGitProgressTool(options);
+  const depsScan = createDepsScanTool(options);
+  const depsImpact = createDepsImpactTool(options);
+  const depsPackages = createDepsPackagesTool(options);
+  const symbolRename = createSymbolRenameTool(options);
+  const verifyChanges = createVerifyChangesTool(options);
   const oracle = createOracleTool(options, {
     read,
     ripgrep,
@@ -75,9 +87,20 @@ export function createTools(options: ToolFactoryOptions) {
     list_repositories: listRepositories,
     commit_search: commitSearch,
     diff,
-    test,
-    ci,
-    gitops,
-    deps
+    test_detect: testDetect,
+    test_analyze: testAnalyze,
+    test_scaffold: testScaffold,
+    test_run: testRun,
+    ci_workflows: ciWorkflows,
+    ci_runs: ciRuns,
+    git_status: gitStatus,
+    git_conflicts: gitConflicts,
+    git_integrate: gitIntegrate,
+    git_progress: gitProgress,
+    deps_scan: depsScan,
+    deps_impact: depsImpact,
+    deps_packages: depsPackages,
+    symbol_rename: symbolRename,
+    verify_changes: verifyChanges
   };
 }

@@ -6,13 +6,7 @@ import { z } from 'zod';
 
 import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
-
-const MAX_OUTPUT_CHARS = 6000;
-
-function truncate(text: string, max = MAX_OUTPUT_CHARS) {
-  if (text.length <= max) return text;
-  return `${text.slice(0, max)}\n… truncated ${text.length - max} chars`;
-}
+import { truncate } from './utils';
 
 async function ghAvailable(runUserShell: ToolFactoryOptions['runUserShell']) {
   const { exitCode } = await runUserShell('command -v gh >/dev/null 2>&1');
@@ -32,44 +26,80 @@ async function listWorkflowFiles(cwd: string) {
 function parseWorkflowMeta(text: string) {
   const nameMatch = text.match(/^name:\s*(.+)$/m);
   const triggers: string[] = [];
-  const onMatch = text.match(/^on:\s*([\s\S]*?)(?=^\S|\Z)/m);
-  if (onMatch) {
-    const block = onMatch[1];
-    if (/^\s*push\b/m.test(block)) triggers.push('push');
-    if (/^\s*pull_request\b/m.test(block)) triggers.push('pull_request');
-    if (/^\s*workflow_dispatch\b/m.test(block)) triggers.push('workflow_dispatch');
-    if (/^\s*schedule\b/m.test(block)) triggers.push('schedule');
-    if (/^\s*release\b/m.test(block)) triggers.push('release');
+
+  const inlineArray = text.match(/^on:\s*\[([^\]]+)\]/m);
+  if (inlineArray) {
+    triggers.push(...inlineArray[1].split(',').map(value => value.trim()));
   } else {
-    const inline = text.match(/^on:\s*\[([^\]]+)\]/m);
-    if (inline) triggers.push(...inline[1].split(',').map(s => s.trim()));
+    const inlineScalar = text.match(/^on:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*$/m);
+    if (inlineScalar) triggers.push(inlineScalar[1]);
+
+    const onMatch = text.match(/^on:\s*([\s\S]*?)(?=^\S|\Z)/m);
+    if (onMatch) {
+      const block = onMatch[1];
+      if (/^\s*push\b/m.test(block)) triggers.push('push');
+      if (/^\s*pull_request\b/m.test(block)) triggers.push('pull_request');
+      if (/^\s*workflow_dispatch\b/m.test(block)) triggers.push('workflow_dispatch');
+      if (/^\s*schedule\b/m.test(block)) triggers.push('schedule');
+      if (/^\s*release\b/m.test(block)) triggers.push('release');
+    }
   }
+
   const jobs: string[] = [];
   const jobRe = /^\s{2}([a-zA-Z0-9_-]+):\s*$/gm;
   const jobsHeader = text.match(/^jobs:\s*$([\s\S]*)/m);
   if (jobsHeader) {
-    let m: RegExpExecArray | null;
-    while ((m = jobRe.exec(jobsHeader[1])) !== null) jobs.push(m[1]);
+    let match: RegExpExecArray | null;
+    while ((match = jobRe.exec(jobsHeader[1])) !== null) jobs.push(match[1]);
   }
+
   return { name: nameMatch?.[1].trim() ?? null, triggers, jobs };
 }
 
-export function createCiTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
+async function lintWorkflowFiles(cwd: string, runUserShell: ToolFactoryOptions['runUserShell']) {
+  const files = await listWorkflowFiles(cwd);
+  if (files.length === 0) return { ok: true, message: 'no workflow files found', issues: [] as { file: string; problem: string }[] };
+
+  const hasActionlint = (await runUserShell('command -v actionlint >/dev/null 2>&1')).exitCode === 0;
+  if (hasActionlint) {
+    const { output, exitCode } = await runUserShell(`actionlint -color=never ${files.map(file => JSON.stringify(file)).join(' ')}`);
+    return { ok: exitCode === 0, tool: 'actionlint', output: truncate(plain(output).trimEnd()) };
+  }
+
+  const issues: { file: string; problem: string }[] = [];
+  for (const file of files) {
+    const text = await readFile(join(cwd, file), 'utf8');
+    const meta = parseWorkflowMeta(text);
+    if (!meta.name) issues.push({ file, problem: 'missing top-level name' });
+    if (meta.triggers.length === 0) issues.push({ file, problem: 'no triggers detected under `on:`' });
+    if (meta.jobs.length === 0) issues.push({ file, problem: 'no jobs detected under `jobs:`' });
+    if (/uses:\s*actions\/checkout@(v?[12])\b/.test(text)) {
+      issues.push({ file, problem: 'using outdated actions/checkout (<v3); update to @v4' });
+    }
+    if (/\$\{\{\s*github\.event\.pull_request\.title/.test(text)) {
+      issues.push({ file, problem: 'PR title interpolated into shell — script-injection risk; pass via env' });
+    }
+  }
+
+  return { ok: issues.length === 0, tool: 'structural', issues };
+}
+
+async function ensureGhAvailable(runUserShell: ToolFactoryOptions['runUserShell']) {
+  if (!(await ghAvailable(runUserShell))) {
+    throw new Error('gh CLI not found on PATH; install GitHub CLI to inspect or manage workflow runs');
+  }
+}
+
+export function createCiWorkflowsTool({ runUserShell }: ToolFactoryOptions) {
   return tool({
-    description: 'Manage GitHub Actions CI/CD. Subactions: workflows.list, workflows.lint, runs.list, runs.view, runs.rerun, runs.cancel.',
+    description: 'Inspect GitHub Actions workflow files in .github/workflows. Use for listing workflows or linting workflow YAML.',
     inputSchema: z.object({
-      action: z.enum(['workflows.list', 'workflows.lint', 'runs.list', 'runs.view', 'runs.rerun', 'runs.cancel']),
-      runId: z.string().optional(),
-      workflow: z.string().optional(),
-      branch: z.string().optional(),
-      limit: z.number().int().positive().max(50).optional(),
-      failedOnly: z.boolean().optional(),
-      logFailed: z.boolean().optional()
+      action: z.enum(['list', 'lint'])
     }),
-    execute: async ({ action, runId, workflow, branch, limit, failedOnly, logFailed }) => {
+    execute: async ({ action }) => {
       const cwd = process.cwd();
 
-      if (action === 'workflows.list') {
+      if (action === 'list') {
         const files = await listWorkflowFiles(cwd);
         const workflows = await Promise.all(
           files.map(async file => {
@@ -80,41 +110,35 @@ export function createCiTool({ runUserShell, requestApproval }: ToolFactoryOptio
         return { count: workflows.length, workflows };
       }
 
-      if (action === 'workflows.lint') {
-        const files = await listWorkflowFiles(cwd);
-        if (files.length === 0) return { ok: true, message: 'no workflow files found', issues: [] };
-        const hasActionlint = (await runUserShell('command -v actionlint >/dev/null 2>&1')).exitCode === 0;
-        if (hasActionlint) {
-          const { output, exitCode } = await runUserShell(`actionlint -color=never ${files.map(f => JSON.stringify(f)).join(' ')}`);
-          return { ok: exitCode === 0, tool: 'actionlint', output: truncate(plain(output).trimEnd()) };
-        }
-        const issues: { file: string; problem: string }[] = [];
-        for (const file of files) {
-          const text = await readFile(join(cwd, file), 'utf8');
-          const meta = parseWorkflowMeta(text);
-          if (!meta.name) issues.push({ file, problem: 'missing top-level name' });
-          if (meta.triggers.length === 0) issues.push({ file, problem: 'no triggers detected under `on:`' });
-          if (meta.jobs.length === 0) issues.push({ file, problem: 'no jobs detected under `jobs:`' });
-          if (/uses:\s*actions\/checkout@(v?[12])\b/.test(text))
-            issues.push({ file, problem: 'using outdated actions/checkout (<v3); update to @v4' });
-          if (/\$\{\{\s*github\.event\.pull_request\.title/.test(text)) {
-            issues.push({ file, problem: 'PR title interpolated into shell — script-injection risk; pass via env' });
-          }
-        }
-        return { ok: issues.length === 0, tool: 'structural', issues };
-      }
+      return await lintWorkflowFiles(cwd, runUserShell);
+    }
+  });
+}
 
-      if (!(await ghAvailable(runUserShell))) {
-        throw new Error('gh CLI not found on PATH; install GitHub CLI to use runs.* actions');
-      }
+export function createCiRunsTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
+  return tool({
+    description: 'Inspect or manage GitHub Actions runs through gh CLI. Use for listing runs, viewing one run, re-running a failed run, or canceling a run.',
+    inputSchema: z.object({
+      action: z.enum(['list', 'view', 'rerun', 'cancel']),
+      runId: z.string().optional(),
+      workflow: z.string().optional(),
+      branch: z.string().optional(),
+      limit: z.number().int().positive().max(50).optional(),
+      failedOnly: z.boolean().optional(),
+      logFailed: z.boolean().optional()
+    }),
+    execute: async ({ action, runId, workflow, branch, limit, failedOnly, logFailed }) => {
+      await ensureGhAvailable(runUserShell);
 
-      if (action === 'runs.list') {
+      if (action === 'list') {
         const args = ['gh run list', `--limit ${limit ?? 10}`];
         if (workflow) args.push(`--workflow ${JSON.stringify(workflow)}`);
         if (branch) args.push(`--branch ${JSON.stringify(branch)}`);
         args.push('--json databaseId,name,displayTitle,workflowName,status,conclusion,headBranch,event,createdAt,url');
+
         const { output, exitCode } = await runUserShell(args.join(' '));
         if (exitCode !== 0) throw new Error(plain(output).trim() || `gh exited ${exitCode}`);
+
         try {
           return { runs: JSON.parse(plain(output).trim()) };
         } catch {
@@ -122,60 +146,50 @@ export function createCiTool({ runUserShell, requestApproval }: ToolFactoryOptio
         }
       }
 
-      if (action === 'runs.view') {
-        if (!runId) throw new Error('runs.view requires `runId`');
-        const viewCmd = `gh run view ${JSON.stringify(runId)} --json databaseId,name,displayTitle,workflowName,status,conclusion,headBranch,event,createdAt,updatedAt,jobs,url`;
-        const { output, exitCode } = await runUserShell(viewCmd);
+      if (!runId) throw new Error(`${action} requires \`runId\``);
+
+      if (action === 'view') {
+        const cmd = `gh run view ${JSON.stringify(runId)} --json databaseId,name,displayTitle,workflowName,status,conclusion,headBranch,event,createdAt,updatedAt,jobs,url`;
+        const { output, exitCode } = await runUserShell(cmd);
         if (exitCode !== 0) throw new Error(plain(output).trim() || `gh exited ${exitCode}`);
+
         let summary: unknown;
         try {
           summary = JSON.parse(plain(output).trim());
         } catch {
           summary = { raw: truncate(plain(output).trimEnd()) };
         }
+
         let failedLog: string | undefined;
         if (logFailed) {
           const { output: log } = await runUserShell(`gh run view ${JSON.stringify(runId)} --log-failed 2>/dev/null | tail -n 200`);
           failedLog = truncate(plain(log).trimEnd(), 4000);
         }
+
         return { summary, failedLog };
       }
 
-      if (action === 'runs.rerun') {
-        if (!runId) throw new Error('runs.rerun requires `runId`');
-        const cmd = failedOnly ? `gh run rerun ${JSON.stringify(runId)} --failed` : `gh run rerun ${JSON.stringify(runId)}`;
-        if (
-          !(await requestApproval({
-            scope: 'command',
-            title: failedOnly ? 'Re-run failed jobs' : 'Re-run workflow',
-            detail: cmd,
-            body: [`run id: ${runId}`]
-          }))
-        ) {
-          throw new Error('rerun denied by user');
-        }
-        const { output, exitCode } = await runUserShell(cmd);
-        return { exitCode, ok: exitCode === 0, output: truncate(plain(output).trimEnd()) };
+      const cmd =
+        action === 'rerun'
+          ? failedOnly
+            ? `gh run rerun ${JSON.stringify(runId)} --failed`
+            : `gh run rerun ${JSON.stringify(runId)}`
+          : `gh run cancel ${JSON.stringify(runId)}`;
+
+      const title = action === 'rerun' ? (failedOnly ? 'Re-run failed jobs' : 'Re-run workflow') : 'Cancel workflow run';
+      if (
+        !(await requestApproval({
+          scope: 'command',
+          title,
+          detail: cmd,
+          body: [`run id: ${runId}`]
+        }))
+      ) {
+        throw new Error(`${action} denied by user`);
       }
 
-      if (action === 'runs.cancel') {
-        if (!runId) throw new Error('runs.cancel requires `runId`');
-        const cmd = `gh run cancel ${JSON.stringify(runId)}`;
-        if (
-          !(await requestApproval({
-            scope: 'command',
-            title: 'Cancel workflow run',
-            detail: cmd,
-            body: [`run id: ${runId}`]
-          }))
-        ) {
-          throw new Error('cancel denied by user');
-        }
-        const { output, exitCode } = await runUserShell(cmd);
-        return { exitCode, ok: exitCode === 0, output: truncate(plain(output).trimEnd()) };
-      }
-
-      throw new Error(`unknown action: ${String(action)}`);
+      const { output, exitCode } = await runUserShell(cmd);
+      return { exitCode, ok: exitCode === 0, output: truncate(plain(output).trimEnd()) };
     }
   });
 }
