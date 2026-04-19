@@ -27,7 +27,7 @@ function formatUsageSummary(state: AgentState) {
   const reasoningTokens = state.busy ? state.liveReasoningTokens : state.lastReasoningTokens;
 
   const hasUsage = promptTokens > 0 || outputTokens > 0 || reasoningTokens > 0;
-  if (!hasUsage) return '';
+  if (!hasUsage) return null;
 
   const contextWindow = getContextWindow(state.currentModel);
   const input = approx(promptTokens, { capital: false, precision: 2 });
@@ -36,14 +36,32 @@ function formatUsageSummary(state: AgentState) {
   const pct = contextWindow > 0 ? (promptTokens / contextWindow) * 100 : 0;
   const pctLabel = contextWindow > 0 ? (pct < 1 ? '<1%' : `${Math.round(pct)}%`) : 'n/a';
 
-  return `↑${input} ↓${output} / ${context} (${pctLabel})`;
+  return {
+    text: `↑${input} ↓${output} / ${context} (${pctLabel})`,
+    pct
+  };
+}
+
+function contextUsageStyle(pct: number | null | undefined, ctx: RenderContext) {
+  if (pct == null || !Number.isFinite(pct)) return ctx.theme.dimmed;
+  if (pct >= 97) return chalk.redBright;
+  if (pct >= 92) return chalk.hex('#ff9f1a');
+  if (pct >= 85) return chalk.yellowBright;
+  return ctx.theme.dimmed;
 }
 
 function joinFooterParts(...parts: Array<string | null | undefined>) {
   return parts.filter(Boolean).join(' · ');
 }
 
-function buildStatsLine(state: AgentState, ctx: RenderContext, footerPrefix: Segment[], usage: string, cost: string, autoCompact: string) {
+function buildStatsLine(
+  state: AgentState,
+  ctx: RenderContext,
+  footerPrefix: Segment[],
+  usage: { text: string; pct: number } | null,
+  cost: string,
+  autoCompact: string
+) {
   const modelName = getOpenAIModelDisplayName(state.currentModel);
   const statsSegments = [...footerPrefix];
   let hasStats = false;
@@ -55,7 +73,7 @@ function buildStatsLine(state: AgentState, ctx: RenderContext, footerPrefix: Seg
     hasStats = true;
   };
 
-  appendStat(usage);
+  appendStat(usage?.text ?? '', contextUsageStyle(usage?.pct, ctx));
   appendStat(cost);
   appendStat(autoCompact);
 
