@@ -6,7 +6,7 @@ import { line, span } from '../primitives';
 
 import type { ComposerRenderResult, RenderContext, StyledLine } from '../types';
 
-type ComposerState = {
+export type ComposerState = {
   inputChars: string[];
   pasteRanges: Array<{ start: number; end: number }>;
   cursor: number;
@@ -14,6 +14,27 @@ type ComposerState = {
   slashCommandLength?: number;
   showCapabilitiesHint?: boolean;
 };
+
+function adjustComposerState(state: ComposerState) {
+  const shellMode = state.inputChars[0] === '!';
+  const slashMode = state.inputChars[0] === '/';
+  const hiddenPrefix = shellMode || slashMode ? 1 : 0;
+
+  if (!hiddenPrefix) return { hiddenPrefix, inputState: state };
+
+  return {
+    hiddenPrefix,
+    inputState: {
+      ...state,
+      inputChars: state.inputChars.slice(1),
+      pasteRanges: state.pasteRanges.flatMap(range => {
+        if (range.end <= 1) return [];
+        return [{ start: Math.max(0, range.start - 1), end: range.end - 1 }];
+      }),
+      cursor: Math.max(0, state.cursor - 1)
+    }
+  };
+}
 
 function charWidth(ch: string) {
   return Math.max(1, widthOf(ch));
@@ -78,6 +99,90 @@ function renderInputLines(state: ComposerState, viewWidth: number, charStyleAt?:
 
   flushLine();
   return lines;
+}
+
+type CursorPoint = { row: number; col: number };
+
+function buildCursorMap(state: ComposerState, viewWidth: number) {
+  const positions: CursorPoint[] = Array.from({ length: state.inputChars.length + 1 }, () => ({ row: 0, col: 0 }));
+  const pasteRanges = [...state.pasteRanges].sort((left, right) => left.start - right.start || left.end - right.end);
+  let pasteIndex = 0;
+  let pasteCount = 0;
+  let row = 0;
+  let col = 0;
+
+  const placeToken = (start: number, end: number, text: string) => {
+    let tokenRow = row;
+    let tokenCol = col;
+    const tokenWidth = charWidth(text);
+
+    if (tokenCol > 0 && tokenCol + tokenWidth > viewWidth) {
+      tokenRow += 1;
+      tokenCol = 0;
+    }
+
+    for (let index = start; index < end; index += 1) positions[index] = { row: tokenRow, col: tokenCol };
+    row = tokenRow;
+    col = tokenCol + tokenWidth;
+    positions[end] = { row, col };
+  };
+
+  for (let index = 0; index < state.inputChars.length; index += 1) {
+    const range = pasteRanges[pasteIndex];
+
+    if (range && index === range.start) {
+      pasteCount += 1;
+      const extraLines = state.inputChars.slice(range.start, range.end).filter(ch => ch === '\n').length;
+      placeToken(range.start, range.end, `[paste #${pasteCount} +${extraLines} lines]`);
+      index = range.end - 1;
+      pasteIndex += 1;
+      continue;
+    }
+
+    const ch = state.inputChars[index];
+
+    if (ch === '\n') {
+      positions[index] = { row, col };
+      row += 1;
+      col = 0;
+      positions[index + 1] = { row, col };
+      continue;
+    }
+
+    placeToken(index, index + 1, ch);
+  }
+
+  return positions;
+}
+
+export function moveComposerCursorVertical(state: ComposerState, viewWidth: number, delta: number, preferredColumn?: number) {
+  const { hiddenPrefix, inputState } = adjustComposerState(state);
+  const positions = buildCursorMap(inputState, viewWidth);
+  const current = positions[Math.max(0, Math.min(inputState.cursor, positions.length - 1))] ?? { row: 0, col: 0 };
+  const targetRow = current.row + delta;
+  if (targetRow < 0) return null;
+
+  const targetCol = preferredColumn ?? current.col;
+  let bestIndex: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < positions.length; index += 1) {
+    const point = positions[index];
+    if (point.row !== targetRow) continue;
+
+    const distance = Math.abs(point.col - targetCol);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = index;
+    }
+  }
+
+  if (bestIndex === null) return null;
+
+  return {
+    cursor: bestIndex + hiddenPrefix,
+    preferredColumn: targetCol
+  };
 }
 
 export function renderComposer(state: ComposerState, ctx: RenderContext): ComposerRenderResult {
@@ -159,17 +264,7 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     };
   }
 
-  const inputState = shellMode || slashMode
-    ? {
-        ...state,
-        inputChars: state.inputChars.slice(1),
-        pasteRanges: state.pasteRanges.flatMap(range => {
-          if (range.end <= 1) return [];
-          return [{ start: Math.max(0, range.start - 1), end: range.end - 1 }];
-        }),
-        cursor: Math.max(0, state.cursor - 1)
-      }
-    : state;
+  const { inputState } = adjustComposerState(state);
   const inputLines = renderInputLines(
     inputState,
     contentWidth,

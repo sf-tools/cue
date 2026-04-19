@@ -17,8 +17,9 @@ import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
-import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
+import { createRenderContext, frameWidth, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
+import { moveComposerCursorVertical } from '@/render/components/composer';
 
 const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
 const BRACKETED_PASTE_START = '\u001b[200~';
@@ -59,6 +60,7 @@ export class AgentApp {
   private lastRenderAt = 0;
   private historyNavigationIndex: number | null = null;
   private historyNavigationDraft = '';
+  private preferredComposerColumn: number | null = null;
   private pendingApprovalResolver: ((decision: ApprovalDecision) => void) | null = null;
   private bracketedPasteActive = false;
   private bracketedPasteBuffer = '';
@@ -599,6 +601,10 @@ export class AgentApp {
     this.historyNavigationDraft = '';
   }
 
+  private resetPreferredComposerColumn() {
+    this.preferredComposerColumn = null;
+  }
+
   private getInputHistory() {
     return this.state.historyEntries.flatMap(entry => (entry.type === 'entry' && entry.kind === EntryKind.User ? [entry.text] : []));
   }
@@ -615,6 +621,7 @@ export class AgentApp {
         this.historyNavigationIndex = Math.max(0, this.historyNavigationIndex - 1);
       }
 
+      this.resetPreferredComposerColumn();
       this.store.replaceInput(history[this.historyNavigationIndex]);
       this.store.resetSelectedSuggestion();
       this.render();
@@ -627,9 +634,11 @@ export class AgentApp {
     if (nextIndex >= history.length) {
       const draft = this.historyNavigationDraft;
       this.clearHistoryNavigation();
+      this.resetPreferredComposerColumn();
       this.store.replaceInput(draft);
     } else {
       this.historyNavigationIndex = nextIndex;
+      this.resetPreferredComposerColumn();
       this.store.replaceInput(history[nextIndex]);
     }
 
@@ -642,6 +651,7 @@ export class AgentApp {
     const raw = this.state.inputChars.join('');
     const trimmed = raw.trim();
     this.clearHistoryNavigation();
+    this.resetPreferredComposerColumn();
     this.store.resetComposer();
     this.store.resetSelectedSuggestion();
     this.render();
@@ -661,6 +671,7 @@ export class AgentApp {
   private insertText(text: string) {
     if (!text) return;
     this.historyNavigationIndex = null;
+    this.resetPreferredComposerColumn();
     this.store.insertText(text);
 
     if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
@@ -673,6 +684,7 @@ export class AgentApp {
     if (!normalized) return;
 
     this.historyNavigationIndex = null;
+    this.resetPreferredComposerColumn();
     this.store.insertPastedText(normalized);
 
     if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
@@ -684,7 +696,30 @@ export class AgentApp {
     const suggestions = this.getSuggestions();
     if (suggestions.length === 0) return false;
 
+    this.resetPreferredComposerColumn();
     this.store.setSelectedSuggestion((this.state.selectedSuggestion + delta + suggestions.length) % suggestions.length);
+    this.render();
+    return true;
+  }
+
+  private moveComposerCursorVertical(delta: number) {
+    const next = moveComposerCursorVertical(
+      {
+        inputChars: this.state.inputChars,
+        pasteRanges: this.state.pasteRanges,
+        cursor: this.state.cursor,
+        scrollOffset: this.state.scrollOffset,
+        slashCommandLength: this.getSlashCommandLength()
+      },
+      Math.max(1, frameWidth() - 4),
+      delta,
+      this.preferredComposerColumn ?? undefined
+    );
+
+    if (!next || next.cursor === this.state.cursor) return false;
+
+    this.preferredComposerColumn = next.preferredColumn;
+    this.store.setCursor(next.cursor);
     this.render();
     return true;
   }
@@ -727,6 +762,7 @@ export class AgentApp {
 
     if (this.state.inputChars.length === 0 && this.state.selectedSuggestion === 0) return;
     this.clearHistoryNavigation();
+    this.resetPreferredComposerColumn();
     this.store.resetComposer();
     this.store.resetSelectedSuggestion();
     this.render();
@@ -737,6 +773,7 @@ export class AgentApp {
     if (!changed) return;
 
     this.historyNavigationIndex = null;
+    this.resetPreferredComposerColumn();
 
     if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
     this.render();
@@ -789,6 +826,7 @@ export class AgentApp {
     switch (binding.type) {
       case 'moveSuggestion': {
         if (this.moveSuggestionSelection(binding.delta)) return;
+        if (this.moveComposerCursorVertical(binding.delta)) return;
         this.moveInputHistory(binding.delta);
         return;
       }
@@ -799,14 +837,17 @@ export class AgentApp {
         this.handleDelete(false);
         return;
       case 'moveCursor':
+        this.resetPreferredComposerColumn();
         this.store.setCursor(this.state.cursor + binding.delta);
         this.render();
         return;
       case 'cursorHome':
+        this.resetPreferredComposerColumn();
         this.store.setCursor(0);
         this.render();
         return;
       case 'cursorEnd':
+        this.resetPreferredComposerColumn();
         this.store.setCursor(this.state.inputChars.length);
         this.render();
         return;
