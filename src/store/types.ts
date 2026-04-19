@@ -7,12 +7,17 @@ export type ComposerPasteRange = {
   end: number;
 };
 
+export type QueuedSubmission = {
+  text: string;
+  planningMode?: boolean;
+};
+
 export type AgentState = {
   messages: ModelMessage[];
   inputChars: string[];
   pasteRanges: ComposerPasteRange[];
   historyEntries: HistoryEntry[];
-  queuedSubmissions: string[];
+  queuedSubmissions: QueuedSubmission[];
   cursor: number;
   busy: boolean;
   busyStatusText: string | null;

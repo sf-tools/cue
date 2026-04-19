@@ -2,7 +2,7 @@ import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
 import type { ApprovalRequest, ApprovalScope, ChoiceRequest, FileChange, HistoryEntry } from '@/types';
-import type { AgentState } from './types';
+import type { AgentState, QueuedSubmission } from './types';
 
 export type AgentStore = ReturnType<typeof buildAgentStore>;
 
@@ -277,8 +277,8 @@ function buildAgentStore(initialState: AgentState) {
       return state;
     },
 
-    enqueueSubmission(text: string) {
-      state.queuedSubmissions.push(text);
+    enqueueSubmission(submission: QueuedSubmission) {
+      state.queuedSubmissions.push(submission);
       return state;
     },
 

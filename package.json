@@ -21,6 +21,7 @@
     "isomorphic-git": "^1.37.5",
     "log-update": "^8.0.0",
     "markdown-it": "^14.1.1",
+    "open-simplex-noise": "^2.5.0",
     "ora": "^9.3.0",
     "prismjs": "^1.30.0",
     "react": "^19.2.5",

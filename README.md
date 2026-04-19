@@ -68,5 +68,6 @@ bun run demo:json
 
 - Use `!` to run a shell command.
 - Use `@path/to/file` to include a file in your prompt.
-- Built-in slash commands include `/model`, `/reasoning`, `/compact`, and `/exit`.
+- Built-in slash commands include `/model`, `/reasoning`, `/review`, `/compact`, and `/exit`.
+- Typing `review my codebase` runs the same read-only review flow as `/review`.
 - `cue --help` shows CLI help, and `cue --version` prints the build version.

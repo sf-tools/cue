@@ -12,7 +12,9 @@ export type JsonCliResult = {
   reasoning?: ThinkingMode;
 };
 
-type CliResult = { kind: 'start' } | JsonCliResult | { kind: 'exit'; code: number };
+export type StartCliResult = { kind: 'start'; resumeId?: string };
+
+type CliResult = StartCliResult | JsonCliResult | { kind: 'exit'; code: number };
 
 const COMMAND_NAME = 'cue';
 
@@ -52,6 +54,7 @@ function printHelp() {
       ['-h, --help', 'Show help'],
       ['-v, --version', 'Show version'],
       ['--json, --stream-json', 'Run one headless turn and emit newline-delimited JSON'],
+      ['--resume <id>', 'Resume a saved interactive session'],
       ['--prompt <text>', 'Prompt text for headless JSON mode'],
       ['--allow-all', 'Auto-approve command/edit tools in headless JSON mode'],
       ['--thinking', 'Include reasoning deltas in headless JSON mode'],
@@ -65,9 +68,11 @@ function printHelp() {
       ['!<command>', 'Run a shell command'],
       ['@path/to/file', 'Attach a file to your prompt'],
       ['Ctrl+O', 'Expand/collapse truncated previews'],
+      ['/logout', 'Log out of Cue'],
       ['/model', 'Switch models'],
       ['/reasoning', 'Adjust reasoning level'],
       ['/planning', 'Toggle read-only planning mode'],
+      ['/review', 'Run a read-only codebase review'],
       ['/compact', 'Summarize the conversation to save context'],
       ['/exit', 'Quit Cue']
     ]),
@@ -130,6 +135,7 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
   let prompt: string | undefined;
   let model: string | undefined;
   let reasoning: ThinkingMode | undefined;
+  let resumeId: string | undefined;
   const positionals: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -147,6 +153,29 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
 
     if (arg === '--thinking') {
       includeThinking = true;
+      continue;
+    }
+
+    if (arg === '--resume') {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('-')) {
+        printError(`Missing value for '${arg}'.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      resumeId = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith('--resume=')) {
+      const value = arg.slice('--resume='.length);
+      if (!value) {
+        printError(`Missing value for '--resume'.`);
+        return { kind: 'exit', code: 1 };
+      }
+
+      resumeId = value;
       continue;
     }
 
@@ -205,8 +234,17 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
       return { kind: 'exit', code: 1 };
     }
 
-    const [unexpected] = positionals;
-    printError(`Unexpected argument '${unexpected}'.`);
+    if (positionals.length > 0) {
+      const [unexpected] = positionals;
+      printError(`Unexpected argument '${unexpected}'.`);
+      return { kind: 'exit', code: 1 };
+    }
+
+    return { kind: 'start', resumeId };
+  }
+
+  if (resumeId) {
+    printError('--resume cannot be used with --json.');
     return { kind: 'exit', code: 1 };
   }
 

@@ -16,6 +16,7 @@ import {
   type ThinkingMode
 } from '@/config';
 import { createTools } from '@/tools';
+import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import type { JsonCliResult } from '@/cli';
 import type { ApprovalRequest, ChoiceRequest, ChoiceSelection } from '@/types';
 import type { UndoEntry } from '@/undo';
@@ -213,9 +214,9 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
   try {
     const stdinText = await readStdinText();
     const promptSource = options.prompt !== undefined ? 'arg' : 'stdin';
-    const prompt = options.prompt ?? stdinText ?? '';
+    const rawPrompt = options.prompt ?? stdinText ?? '';
 
-    if (!prompt.trim()) {
+    if (!rawPrompt.trim()) {
       await emit({
         type: 'result',
         subtype: 'error',
@@ -227,6 +228,9 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
       });
       return 1;
     }
+
+    const prompt = isCodebaseReviewShortcut(rawPrompt) ? buildCodebaseReviewPrompt() : rawPrompt.trim();
+    if (isCodebaseReviewShortcut(rawPrompt)) planningMode = true;
 
     const preferences = await loadCuePreferences();
     const model = normalizeOpenAIModelId(options.model ?? preferences.model);
@@ -314,7 +318,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
     process.once('SIGTERM', handleSignal);
 
     try {
-      const messages: ModelMessage[] = [...createInitialMessages(), { role: 'user', content: await expandPrompt(prompt.trim()) }];
+      const messages: ModelMessage[] = [...createInitialMessages(), { role: 'user', content: await expandPrompt(prompt) }];
 
       const result = streamText({
         model: openai(model),

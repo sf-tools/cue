@@ -18,6 +18,7 @@ export type SlashCommandContext = {
   setAutoCompactEnabled(enabled: boolean): void;
   setPlanningMode(enabled: boolean): void;
   cycleThinkingMode(): ThinkingMode;
+  enqueueSubmission(text: string, options?: { planningMode?: boolean }): void;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
   render(): void;
