@@ -13,6 +13,7 @@ const renderers: Record<string, (entry: ToolHistoryEntry, ctx: RenderContext) =>
   edit: renderEditTool,
   read: renderReadTool,
   ripgrep: renderRipgrepTool,
+  rg: renderRipgrepTool,
   write: renderWriteTool,
   web_search: renderWebSearchTool
 };

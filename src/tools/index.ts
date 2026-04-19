@@ -11,6 +11,7 @@ export function createTools(options: ToolFactoryOptions) {
   return {
     read: createReadTool(options),
     ripgrep: createRipgrepTool(options),
+    rg: createRipgrepTool(options),
     write: createWriteTool(options),
     bash: createBashTool(options),
     web_search: createWebSearchTool()
