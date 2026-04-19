@@ -168,7 +168,7 @@ function codeTokenStyle(types: string[], ctx: RenderContext): Style | undefined 
   if (hasCodeType(types, 'string', 'char', 'attr-value', 'template-string')) styles.push(value => chalk.greenBright(value));
   if (hasCodeType(types, 'regex')) styles.push(value => chalk.redBright(value));
   if (hasCodeType(types, 'function', 'function-variable')) styles.push(value => chalk.blueBright(value));
-  if (hasCodeType(types, 'class-name', 'builtin')) styles.push(value => chalk.yellowBright(value));
+  if (hasCodeType(types, 'class-name', 'builtin')) styles.push(value => chalk.white(value));
   if (hasCodeType(types, 'property', 'tag', 'selector', 'namespace', 'attr-name')) styles.push(value => chalk.cyan(value));
   if (hasCodeType(types, 'operator', 'entity', 'url')) styles.push(value => chalk.cyanBright(value));
   if (hasCodeType(types, 'punctuation')) styles.push(ctx.theme.subtle);
@@ -231,7 +231,7 @@ function collectInlineRange(
         appendText(
           pieces,
           token.content,
-          composeStyles(inheritedStyle, value => chalk.bgHex(env.ctx.theme.composerBg())(chalk.yellow(value)))
+          composeStyles(inheritedStyle, value => chalk.bgHex(env.ctx.theme.composerBg())(value))
         );
         index += 1;
         break;
