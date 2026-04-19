@@ -9,6 +9,8 @@ export type SlashCommandArgs = {
   argv: string[];
 };
 
+export type ThreadShareState = 'private' | 'shared' | 'unknown';
+
 export type SlashCommandContext = {
   store: AgentStore;
   cleanup(code?: number): void;
@@ -21,6 +23,7 @@ export type SlashCommandContext = {
   enqueueSubmission(text: string, options?: { planningMode?: boolean }): void;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
+  getCurrentThreadShareState(): ThreadShareState;
   shareCurrentThread(): Promise<{ share: { shareId: string; sharedAt: string; url: string } }>;
   makeCurrentThreadPrivate(): Promise<{ ok: true }>;
   render(): void;
@@ -51,6 +54,8 @@ export type SlashCommand = {
   suggestedInput?: string;
   argumentSuggestions?: SlashCommandArgumentSuggestion[];
   showArgumentSuggestionsOnExactInvocation?: boolean;
+  isAvailable?(context: Pick<SlashCommandContext, 'getCurrentThreadShareState'>): boolean;
+  unavailableDetail?(context: Pick<SlashCommandContext, 'getCurrentThreadShareState'>): string;
   execute(context: SlashCommandContext, args: SlashCommandArgs): Promise<void> | void;
 };
 

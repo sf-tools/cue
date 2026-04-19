@@ -1,6 +1,7 @@
 import type {
   SlashCommand,
   SlashCommandArgumentSuggestion,
+  SlashCommandContext,
   SlashCommandInvocation,
   SlashCommandParseResult,
   SlashCommandQuery,
@@ -24,6 +25,10 @@ function normalizeArgumentSuggestion(suggestion: SlashCommandArgumentSuggestion)
   return typeof suggestion === 'string' ? { value: suggestion } : suggestion;
 }
 
+function getSuggestionContext(context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>) {
+  return context ?? { getCurrentThreadShareState: () => 'unknown' as const };
+}
+
 export function currentSlashCommandQuery(inputChars: string[], cursor: number): SlashCommandQuery | null {
   const beforeCursor = inputChars.slice(0, cursor).join('');
   const invocationMatch = beforeCursor.match(/^\/([^\s]*)$/);
@@ -39,7 +44,10 @@ export function currentSlashCommandQuery(inputChars: string[], cursor: number): 
   };
 }
 
-export function createSlashCommandRegistry(commands: SlashCommand[]) {
+export function createSlashCommandRegistry(
+  commands: SlashCommand[],
+  context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>
+) {
   const invocations: SlashCommandInvocation[] = [];
   const invocationMap = new Map<string, SlashCommandInvocation>();
 
@@ -99,6 +107,8 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
     },
 
     listSuggestions(query: SlashCommandQuery) {
+      const suggestionContext = getSuggestionContext(context);
+
       const listArgumentSuggestions = (invocation: string, queryText: string, limit = 6) => {
         const resolved = invocationMap.get(invocation);
         const values = resolved?.command.argumentSuggestions ?? [];
@@ -120,16 +130,22 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
           .slice(0, limit)
           .map<SlashCommandSuggestion>(suggestion => {
             const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? invocation);
+            const disabled = resolved?.command.isAvailable ? !resolved.command.isAvailable(suggestionContext) : undefined;
+            const detail =
+              disabled && resolved?.command.unavailableDetail
+                ? resolved.command.unavailableDetail(suggestionContext)
+                : suggestion.detail ?? resolved?.command.description ?? '';
 
             return {
               kind: 'slash-command',
               label: suggestion.label ?? suggestion.value,
               suffix: suggestion.suffix,
-              detail: suggestion.detail ?? resolved?.command.description ?? '',
+              detail,
               invocation: canonicalInvocation,
               replacement: `/${canonicalInvocation} ${suggestion.value}`,
               commandName: resolved?.command.name ?? invocation,
               isAlias: Boolean(resolved?.isAlias),
+              disabled,
               labelStyle: suggestion.labelStyle,
               suffixStyle: suggestion.suffixStyle,
               detailStyle: suggestion.detailStyle
@@ -147,7 +163,8 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
       }
 
       const suggestions = sortedInvocations
-        .filter(({ invocation, hidden, specialHidden }) => {
+        .filter(({ command, invocation, hidden, specialHidden }) => {
+          if (command.isAvailable && !command.isAvailable(suggestionContext)) return false;
           if (!normalizedQuery) return !hidden;
           if (specialHidden) return invocation.startsWith(normalizedQuery);
           if (hidden) return false;

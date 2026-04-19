@@ -133,7 +133,9 @@ export class AgentApp {
     peekUndoEntry: () => this.undoStack[this.undoStack.length - 1] ?? null,
     popUndoEntry: () => this.undoStack.pop() ?? null
   });
-  private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
+  private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands, {
+    getCurrentThreadShareState: () => this.getCurrentThreadShareState()
+  });
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly rainbowTimer: ReturnType<typeof setInterval>;
@@ -524,6 +526,17 @@ export class AgentApp {
         updatedAt: snapshot.savedAt
       });
     } catch {}
+  }
+
+  private getCurrentThreadShareState() {
+    for (let index = this.state.historyEntries.length - 1; index >= 0; index -= 1) {
+      const entry = this.state.historyEntries[index];
+      if (entry.type !== 'entry' || entry.kind !== EntryKind.Meta) continue;
+      if (entry.text.startsWith('shared thread: ')) return 'shared' as const;
+      if (entry.text === 'thread is now private') return 'private' as const;
+    }
+
+    return 'private' as const;
   }
 
   private async shareCurrentThread() {
@@ -918,6 +931,7 @@ export class AgentApp {
             enqueueSubmission: (text, options) => this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
+            getCurrentThreadShareState: () => this.getCurrentThreadShareState(),
             shareCurrentThread: () => this.shareCurrentThread(),
             makeCurrentThreadPrivate: () => this.makeCurrentThreadPrivate(),
             render: this.render,
