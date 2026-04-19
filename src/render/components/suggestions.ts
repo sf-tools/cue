@@ -5,6 +5,21 @@ import { repeat, widthOf } from '@/text';
 import type { Block, RenderContext } from '../types';
 import type { ComposerSuggestion } from '@/agent/composer-suggestions';
 
+function truncateToWidth(text: string, maxWidth: number) {
+  if (maxWidth <= 0) return '';
+  if (widthOf(text) <= maxWidth) return text;
+  if (maxWidth === 1) return '…';
+
+  let out = '';
+
+  for (const ch of Array.from(text)) {
+    if (widthOf(`${out}${ch}…`) > maxWidth) break;
+    out += ch;
+  }
+
+  return `${out}…`;
+}
+
 export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSuggestion: number, ctx: RenderContext): Block {
   if (suggestions.length === 0) return [];
 
@@ -21,6 +36,7 @@ export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSug
     const index = pageStart + visibleIndex;
     const selected = index === selectedSuggestion;
     const prefix = selected ? [span(margin), span('→', ctx.theme.foreground), span(' ')] : [span(`${margin}  `)];
+    const prefixWidth = widthOf(`${margin}${selected ? '→ ' : '  '}`);
     const customLabelStyle = 'labelStyle' in suggestion ? suggestion.labelStyle : undefined;
     const customSuffixStyle = 'suffixStyle' in suggestion ? suggestion.suffixStyle : undefined;
     const customDetailStyle = 'detailStyle' in suggestion ? suggestion.detailStyle : undefined;
@@ -36,13 +52,22 @@ export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSug
     const detail = 'detail' in suggestion ? suggestion.detail : '';
     const suffix = 'suffix' in suggestion ? (suggestion.suffix ?? '') : '';
     const renderedWidth = widthOf(suggestion.label) + widthOf(suffix);
-    const padding = detail ? repeat(' ', maxLabelWidth - renderedWidth + 3) : '';
+    const desiredPaddingWidth = detail ? maxLabelWidth - renderedWidth + 3 : 0;
+    const remainingWidth = Math.max(0, ctx.width - prefixWidth - renderedWidth);
+    const paddingWidth = detail
+      ? remainingWidth >= desiredPaddingWidth + widthOf(detail)
+        ? desiredPaddingWidth
+        : remainingWidth > 1
+          ? 1
+          : 0
+      : 0;
+    const visibleDetail = detail ? truncateToWidth(detail, remainingWidth - paddingWidth) : '';
 
     return line(
       ...prefix,
       span(suggestion.label, lineStyle),
       ...(suffix ? [span(suffix, suffixStyle)] : []),
-      ...(detail ? [span(padding), span(detail, detailStyle)] : [])
+      ...(visibleDetail ? [span(repeat(' ', paddingWidth)), span(visibleDetail, detailStyle)] : [])
     );
   });
 

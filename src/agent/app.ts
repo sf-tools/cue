@@ -87,6 +87,8 @@ export class AgentApp {
   private committedHistoryCount = 0;
   private headerPrinted = false;
   private lastTransientLines: string[] = [];
+  private lastRenderColumns = 0;
+  private lastRenderRows = 0;
 
   private readonly tools = createTools({
     runUserShell,
@@ -365,14 +367,31 @@ export class AgentApp {
     return parsed?.type === 'resolved' ? parsed.invocation.length : 0;
   }
 
+  private resetRenderedScreen() {
+    this.clearTransientBlock();
+    this.committedHistoryCount = 0;
+    this.headerPrinted = false;
+
+    if (process.stdout.isTTY) process.stdout.write('\u001b[2J\u001b[H');
+  }
+
   private performRender = () => {
     this.renderScheduled = false;
     this.renderTimer = null;
 
     if (this.state.closed) return;
 
+    const columns = process.stdout.columns || 100;
+    const rows = process.stdout.rows || 30;
+    const resized = this.lastRenderColumns > 0 && (columns !== this.lastRenderColumns || rows !== this.lastRenderRows);
+
+    if (resized) this.resetRenderedScreen();
+
     const suggestions = this.normalizeSuggestions();
-    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
+    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), columns, rows);
+
+    this.lastRenderColumns = columns;
+    this.lastRenderRows = rows;
 
     if (!this.headerPrinted) {
       this.appendPermanentLines(serializeBlock(renderHeader(ctx)));
