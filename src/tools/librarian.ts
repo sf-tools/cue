@@ -35,7 +35,7 @@ function normalizeRepository(input: string) {
 
   return {
     repo: cleaned,
-    url: `https://github.com/${cleaned}`
+    url: `https://github.com/${cleaned}`,
   };
 }
 
@@ -47,14 +47,14 @@ function githubHeaders(extra: HeadersInit = {}) {
     'User-Agent': 'cue',
     'X-GitHub-Api-Version': '2022-11-28',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extra
+    ...extra,
   } satisfies HeadersInit;
 }
 
 async function fetchGitHubJson<T>(path: string, init: RequestInit = {}) {
   const response = await fetch(`${GITHUB_API_BASE_URL}/${path.replace(/^\//, '')}`, {
     ...init,
-    headers: githubHeaders(init.headers)
+    headers: githubHeaders(init.headers),
   });
 
   let data: T | null = null;
@@ -69,7 +69,7 @@ async function fetchGitHubJson<T>(path: string, init: RequestInit = {}) {
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,
-    data
+    data,
   };
 }
 
@@ -87,7 +87,8 @@ function truncate(text: string, maxChars: number) {
 }
 
 function decodeGitHubContent(content: string, encoding: string) {
-  if (encoding === 'base64') return Buffer.from(content.replace(/\n/g, ''), 'base64').toString('utf8');
+  if (encoding === 'base64')
+    return Buffer.from(content.replace(/\n/g, ''), 'base64').toString('utf8');
   return content;
 }
 
@@ -105,7 +106,8 @@ function latestUserMessage(messages: ModelMessage[]) {
     const message = messages[index];
     if (message.role !== 'user') continue;
 
-    if (typeof message.content === 'string' && message.content.trim()) return message.content.trim();
+    if (typeof message.content === 'string' && message.content.trim())
+      return message.content.trim();
     if (Array.isArray(message.content)) {
       const text = message.content
         .map((part: unknown) => {
@@ -131,17 +133,21 @@ export function createReadGitHubTool(_: ToolFactoryOptions) {
       read_range: z
         .object({
           start: z.number().int().positive(),
-          end: z.number().int().positive()
+          end: z.number().int().positive(),
         })
-        .optional()
+        .optional(),
     }),
     execute: async ({ path, repository, read_range }) => {
       const { repo, url } = normalizeRepository(repository);
       const cleanPath = path.replace(/^\/+/, '');
-      const response = await fetchGitHubJson<{ content: string; encoding: string; type: string }>(`repos/${repo}/contents/${cleanPath}`);
+      const response = await fetchGitHubJson<{ content: string; encoding: string; type: string }>(
+        `repos/${repo}/contents/${cleanPath}`,
+      );
 
       if (!response.ok || !response.data) {
-        throw new Error(`failed to read ${cleanPath} from ${url}: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `failed to read ${cleanPath} from ${url}: ${response.status} ${response.statusText}`,
+        );
       }
 
       if (response.data.type !== 'file') {
@@ -159,9 +165,9 @@ export function createReadGitHubTool(_: ToolFactoryOptions) {
       return {
         repository: url,
         path: cleanPath,
-        content: numbered
+        content: numbered,
       };
-    }
+    },
   });
 }
 
@@ -174,13 +180,15 @@ export function createSearchGitHubTool(_: ToolFactoryOptions) {
       repository: z.string().min(1),
       path: z.string().optional(),
       limit: z.number().int().positive().max(MAX_PAGE_SIZE).default(30),
-      offset: z.number().int().min(0).default(0)
+      offset: z.number().int().min(0).default(0),
     }),
     execute: async ({ pattern, repository, path, limit = 30, offset = 0 }) => {
       const { repo, url } = normalizeRepository(repository);
       const perPage = Math.min(limit, MAX_PAGE_SIZE);
       const page = getPage(perPage, offset);
-      const query = [pattern, `repo:${repo}`, path && path !== '.' ? `path:${path}` : null].filter(Boolean).join(' ');
+      const query = [pattern, `repo:${repo}`, path && path !== '.' ? `path:${path}` : null]
+        .filter(Boolean)
+        .join(' ');
       const response = await fetchGitHubJson<{
         total_count: number;
         items: Array<{
@@ -189,8 +197,8 @@ export function createSearchGitHubTool(_: ToolFactoryOptions) {
         }>;
       }>(`search/code?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}`, {
         headers: {
-          Accept: 'application/vnd.github.text-match+json'
-        }
+          Accept: 'application/vnd.github.text-match+json',
+        },
       });
 
       if (!response.ok || !response.data) {
@@ -203,7 +211,12 @@ export function createSearchGitHubTool(_: ToolFactoryOptions) {
         if (!grouped.has(file)) grouped.set(file, []);
 
         const fragments = (item.text_matches ?? [])
-          .filter(match => match.property === 'content' && typeof match.fragment === 'string' && match.fragment.trim())
+          .filter(
+            match =>
+              match.property === 'content' &&
+              typeof match.fragment === 'string' &&
+              match.fragment.trim(),
+          )
           .map(match => truncate(match.fragment.trim(), 2_048));
 
         if (fragments.length === 0) grouped.get(file)!.push('(match found, excerpt unavailable)');
@@ -213,9 +226,9 @@ export function createSearchGitHubTool(_: ToolFactoryOptions) {
       return {
         repository: url,
         results: Array.from(grouped.entries()).map(([file, chunks]) => ({ file, chunks })),
-        totalCount: response.data.total_count ?? 0
+        totalCount: response.data.total_count ?? 0,
       };
-    }
+    },
   });
 }
 
@@ -226,15 +239,19 @@ export function createListDirectoryGitHubTool(_: ToolFactoryOptions) {
     inputSchema: z.object({
       path: z.string().default('.'),
       repository: z.string().min(1),
-      limit: z.number().int().positive().max(1_000).default(100)
+      limit: z.number().int().positive().max(1_000).default(100),
     }),
     execute: async ({ path = '.', repository, limit = 100 }) => {
       const { repo, url } = normalizeRepository(repository);
       const cleanPath = path === '.' ? '' : path.replace(/^\/+/, '');
-      const response = await fetchGitHubJson<Array<{ name: string; type: 'file' | 'dir' }>>(`repos/${repo}/contents/${cleanPath}`);
+      const response = await fetchGitHubJson<Array<{ name: string; type: 'file' | 'dir' }>>(
+        `repos/${repo}/contents/${cleanPath}`,
+      );
 
       if (!response.ok || !response.data) {
-        throw new Error(`failed to list ${cleanPath || '.'} in ${url}: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `failed to list ${cleanPath || '.'} in ${url}: ${response.status} ${response.statusText}`,
+        );
       }
 
       const entries = response.data
@@ -250,9 +267,9 @@ export function createListDirectoryGitHubTool(_: ToolFactoryOptions) {
       return {
         repository: url,
         path: cleanPath || '.',
-        entries
+        entries,
       };
-    }
+    },
   });
 }
 
@@ -265,7 +282,7 @@ export function createListRepositoriesTool(_: ToolFactoryOptions) {
       organization: z.string().optional(),
       language: z.string().optional(),
       limit: z.number().int().positive().max(MAX_PAGE_SIZE).default(30),
-      offset: z.number().int().min(0).default(0)
+      offset: z.number().int().min(0).default(0),
     }),
     execute: async ({ pattern, organization, language, limit = 30, offset = 0 }) => {
       const perPage = Math.min(limit, MAX_PAGE_SIZE);
@@ -274,7 +291,7 @@ export function createListRepositoriesTool(_: ToolFactoryOptions) {
         pattern ? `${pattern} in:name` : 'stars:>1',
         organization ? `org:${organization}` : null,
         language ? `language:${language}` : null,
-        'is:public'
+        'is:public',
       ]
         .filter(Boolean)
         .join(' ');
@@ -289,7 +306,9 @@ export function createListRepositoriesTool(_: ToolFactoryOptions) {
           forks_count: number;
           html_url: string;
         }>;
-      }>(`search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}&sort=stars&order=desc`);
+      }>(
+        `search/repositories?q=${encodeURIComponent(query)}&per_page=${perPage}&page=${page}&sort=stars&order=desc`,
+      );
 
       if (!response.ok || !response.data) {
         throw new Error(`failed to search repositories: ${response.status} ${response.statusText}`);
@@ -302,11 +321,11 @@ export function createListRepositoriesTool(_: ToolFactoryOptions) {
           description: item.description,
           language: item.language,
           stargazersCount: item.stargazers_count,
-          forksCount: item.forks_count
+          forksCount: item.forks_count,
         })),
-        totalCount: response.data.total_count ?? 0
+        totalCount: response.data.total_count ?? 0,
       };
-    }
+    },
   });
 }
 
@@ -322,7 +341,7 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
       until: z.string().optional(),
       path: z.string().optional(),
       limit: z.number().int().positive().max(MAX_PAGE_SIZE).default(30),
-      offset: z.number().int().min(0).default(0)
+      offset: z.number().int().min(0).default(0),
     }),
     execute: async ({ repository, query, author, since, until, path, limit = 30, offset = 0 }) => {
       const { repo, url } = normalizeRepository(repository);
@@ -347,12 +366,15 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
         >(`repos/${repo}/commits?${params.toString()}`);
 
         if (!response.ok || !response.data) {
-          throw new Error(`failed to list commits for ${url}: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `failed to list commits for ${url}: ${response.status} ${response.statusText}`,
+          );
         }
 
         const filtered = (response.data ?? []).filter(item => {
           if (!query) return true;
-          const haystack = `${item.commit.message}\n${item.commit.author.name}\n${item.commit.author.email}`.toLowerCase();
+          const haystack =
+            `${item.commit.message}\n${item.commit.author.name}\n${item.commit.author.email}`.toLowerCase();
           return haystack.includes(query.toLowerCase());
         });
 
@@ -361,9 +383,9 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
           commits: filtered.map(item => ({
             sha: item.sha,
             message: truncate(item.commit.message.trim(), 1_024),
-            author: item.commit.author
+            author: item.commit.author,
           })),
-          totalCount: filtered.length
+          totalCount: filtered.length,
         };
       }
 
@@ -372,7 +394,7 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
         `repo:${repo}`,
         author ? `author:${author}` : null,
         since ? `author-date:>=${since}` : null,
-        until ? `author-date:<=${until}` : null
+        until ? `author-date:<=${until}` : null,
       ]
         .filter(Boolean)
         .join(' ');
@@ -385,14 +407,19 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
             author: { name: string; email: string; date: string };
           };
         }>;
-      }>(`search/commits?q=${encodeURIComponent(searchTerms)}&per_page=${perPage}&page=${page}&sort=author-date&order=desc`, {
-        headers: {
-          Accept: 'application/vnd.github+json'
-        }
-      });
+      }>(
+        `search/commits?q=${encodeURIComponent(searchTerms)}&per_page=${perPage}&page=${page}&sort=author-date&order=desc`,
+        {
+          headers: {
+            Accept: 'application/vnd.github+json',
+          },
+        },
+      );
 
       if (!response.ok || !response.data) {
-        throw new Error(`failed to search commits for ${url}: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `failed to search commits for ${url}: ${response.status} ${response.statusText}`,
+        );
       }
 
       return {
@@ -400,22 +427,23 @@ export function createCommitSearchTool(_: ToolFactoryOptions) {
         commits: (response.data.items ?? []).map(item => ({
           sha: item.sha,
           message: truncate(item.commit.message.trim(), 1_024),
-          author: item.commit.author
+          author: item.commit.author,
         })),
-        totalCount: response.data.total_count ?? 0
+        totalCount: response.data.total_count ?? 0,
       };
-    }
+    },
   });
 }
 
 export function createDiffTool(_: ToolFactoryOptions) {
   return tool({
-    description: 'Compare two commits, branches, or tags in a GitHub repository. Returns file-level change metadata and optional truncated patches.',
+    description:
+      'Compare two commits, branches, or tags in a GitHub repository. Returns file-level change metadata and optional truncated patches.',
     inputSchema: z.object({
       base: z.string().min(1),
       head: z.string().min(1),
       repository: z.string().min(1),
-      includePatches: z.boolean().default(false)
+      includePatches: z.boolean().default(false),
     }),
     execute: async ({ base, head, repository, includePatches = false }) => {
       const { repo, url } = normalizeRepository(repository);
@@ -441,7 +469,9 @@ export function createDiffTool(_: ToolFactoryOptions) {
       }>(`repos/${repo}/compare/${encodeURIComponent(base)}...${encodeURIComponent(head)}`);
 
       if (!response.ok || !response.data) {
-        throw new Error(`failed to diff ${base}...${head} in ${url}: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `failed to diff ${base}...${head} in ${url}: ${response.status} ${response.statusText}`,
+        );
       }
 
       const headCommit = response.data.commits?.[response.data.commits.length - 1];
@@ -459,21 +489,21 @@ export function createDiffTool(_: ToolFactoryOptions) {
           blob_url: file.blob_url,
           raw_url: file.raw_url,
           contents_url: file.contents_url,
-          patch: includePatches && file.patch ? truncate(file.patch, MAX_PATCH_CHARS) : undefined
+          patch: includePatches && file.patch ? truncate(file.patch, MAX_PATCH_CHARS) : undefined,
         })),
         base_commit: {
           sha: response.data.base_commit?.sha ?? base,
-          message: response.data.base_commit?.commit?.message?.trim() ?? ''
+          message: response.data.base_commit?.commit?.message?.trim() ?? '',
         },
         head_commit: {
           sha: headCommit?.sha ?? head,
-          message: headCommit?.commit?.message?.trim() ?? ''
+          message: headCommit?.commit?.message?.trim() ?? '',
         },
         ahead_by: response.data.ahead_by,
         behind_by: response.data.behind_by,
-        total_commits: response.data.total_commits
+        total_commits: response.data.total_commits,
       };
-    }
+    },
   });
 }
 
@@ -484,7 +514,7 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
     list_directory_github: createListDirectoryGitHubTool(options),
     list_repositories: createListRepositoriesTool(options),
     commit_search: createCommitSearchTool(options),
-    diff: createDiffTool(options)
+    diff: createDiffTool(options),
   };
 
   return tool({
@@ -495,11 +525,12 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
       repository: z.string().optional(),
       context: z.string().optional(),
       files: z.array(z.string().min(1)).max(20).optional(),
-      maxSteps: z.number().int().positive().max(MAX_LIBRARIAN_STEPS).optional()
+      maxSteps: z.number().int().positive().max(MAX_LIBRARIAN_STEPS).optional(),
     }),
     execute: async ({ task, repository, context, files = [], maxSteps }, execOptions) => {
       const currentContext = (asRecord(execOptions.experimental_context) ?? {}) as SubagentContext;
-      const currentDepth = typeof currentContext.subagentDepth === 'number' ? currentContext.subagentDepth : 0;
+      const currentDepth =
+        typeof currentContext.subagentDepth === 'number' ? currentContext.subagentDepth : 0;
 
       if (currentDepth >= 1) {
         throw new Error('nested librarian subagents are currently disabled');
@@ -516,7 +547,7 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
         context?.trim() ? `Extra context:\n${context.trim()}` : null,
         files.length > 0 ? `Inspect these paths first if relevant:\n- ${files.join('\n- ')}` : null,
         latestUser ? `Latest user request:\n${latestUser}` : null,
-        'Work within public GitHub API access unless a token is configured. Return concise findings with concrete evidence.'
+        'Work within public GitHub API access unless a token is configured. Return concise findings with concrete evidence.',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -527,9 +558,11 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
           system: `${SYSTEM_PROMPT}\n\n<librarian>\n- You are Cue's GitHub librarian subagent.\n- Explore repositories using only the provided GitHub tools.\n- Prefer list_directory_github before broad reads.\n- Use search_github to find likely files, then read_github to inspect them.\n- Use diff and commit_search for history questions.\n- If no repository is provided, use list_repositories first to identify candidates.\n- Final answer format: Verdict, Findings, Evidence, Recommended next step.\n</librarian>`,
           prompt,
           tools,
-          stopWhen: stepCountIs(Math.max(1, Math.min(MAX_LIBRARIAN_STEPS, maxSteps ?? DEFAULT_LIBRARIAN_STEPS))),
+          stopWhen: stepCountIs(
+            Math.max(1, Math.min(MAX_LIBRARIAN_STEPS, maxSteps ?? DEFAULT_LIBRARIAN_STEPS)),
+          ),
           providerOptions: createOpenAIProviderOptions(model, thinkingMode),
-          experimental_context: { subagentDepth: currentDepth + 1 }
+          experimental_context: { subagentDepth: currentDepth + 1 },
         });
 
         const summary = plain(result.text).trim();
@@ -539,11 +572,13 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
           repository: normalizedRepository,
           summary,
           steps: result.steps.length,
-          toolCalls: result.steps.flatMap(step => step.toolCalls.map(call => call.toolName))
+          toolCalls: result.steps.flatMap(step => step.toolCalls.map(call => call.toolName)),
         };
       } catch (error: unknown) {
-        throw new Error(`librarian failed: ${plain(error instanceof Error ? error.message : String(error))}`);
+        throw new Error(
+          `librarian failed: ${plain(error instanceof Error ? error.message : String(error))}`,
+        );
       }
-    }
+    },
   });
 }

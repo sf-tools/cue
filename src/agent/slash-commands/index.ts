@@ -10,5 +10,5 @@ export type {
   SlashCommandContext,
   SlashCommandParseResult,
   SlashCommandRegistry,
-  SlashCommandSuggestion
+  SlashCommandSuggestion,
 } from './types';

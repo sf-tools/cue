@@ -21,7 +21,7 @@ const renderers: Record<string, (entry: ToolHistoryEntry, ctx: RenderContext) =>
   rg: renderRipgrepTool,
   undo: renderUndoTool,
   write: renderWriteTool,
-  web_search: renderWebSearchTool
+  web_search: renderWebSearchTool,
 };
 
 export function renderToolHistoryEntry(entry: ToolHistoryEntry, ctx: RenderContext) {

@@ -19,7 +19,13 @@ export function renderChoiceSelectorTool(entry: ToolHistoryEntry, ctx: RenderCon
   const bodyBlock: Block = [];
 
   if (entry.status === 'failed') {
-    bodyBlock.push(...wrapTextBlock(entry.errorText || 'choice selection failed', Math.max(1, ctx.width - 4), ctx.theme.dimmed));
+    bodyBlock.push(
+      ...wrapTextBlock(
+        entry.errorText || 'choice selection failed',
+        Math.max(1, ctx.width - 4),
+        ctx.theme.dimmed,
+      ),
+    );
     return renderToolCard({ name: 'choice', detail: title, bodyBlock, status: entry.status }, ctx);
   }
 
@@ -29,12 +35,18 @@ export function renderChoiceSelectorTool(entry: ToolHistoryEntry, ctx: RenderCon
         span('  '),
         span('picked ', ctx.theme.subtle),
         span(selectedLabel || selectedValue || 'option', ctx.theme.foreground),
-        ...(selectedValue && selectedLabel && selectedValue !== selectedLabel ? [span(' · ', ctx.theme.subtle), span(selectedValue, ctx.theme.dimmed)] : [])
-      )
+        ...(selectedValue && selectedLabel && selectedValue !== selectedLabel
+          ? [span(' · ', ctx.theme.subtle), span(selectedValue, ctx.theme.dimmed)]
+          : []),
+      ),
     );
 
     if (selectedDetail) {
-      bodyBlock.push(...wrapTextBlock(selectedDetail, Math.max(1, ctx.width - 6), ctx.theme.dimmed).map(detailLine => line(span('    '), ...detailLine.segments)));
+      bodyBlock.push(
+        ...wrapTextBlock(selectedDetail, Math.max(1, ctx.width - 6), ctx.theme.dimmed).map(
+          detailLine => line(span('    '), ...detailLine.segments),
+        ),
+      );
     }
   }
 

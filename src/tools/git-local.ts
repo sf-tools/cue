@@ -19,7 +19,8 @@ function pathArg(paths: string[] | undefined) {
 
 function runOutput(prefix: string, exitCode: number, output: string, max = 12000) {
   const cleaned = plain(output).trim();
-  if (exitCode !== 0) return `${prefix} failed (exit ${exitCode}):\n${truncate(cleaned, max) || '(no output)'}`;
+  if (exitCode !== 0)
+    return `${prefix} failed (exit ${exitCode}):\n${truncate(cleaned, max) || '(no output)'}`;
   return cleaned ? truncate(cleaned, max) : '(no output)';
 }
 
@@ -31,26 +32,29 @@ export function createGitHistoryTool({ runUserShell }: ToolFactoryOptions) {
       z.object({
         action: z.literal('log'),
         limit: z.number().int().positive().max(HARD_LOG_LIMIT).optional(),
-        ref: z.string().optional().describe('Branch/ref/range, e.g. `main`, `HEAD~10..HEAD`, `feature..main`.'),
+        ref: z
+          .string()
+          .optional()
+          .describe('Branch/ref/range, e.g. `main`, `HEAD~10..HEAD`, `feature..main`.'),
         path: z.array(z.string()).optional().describe('Restrict to specific file(s).'),
         author: z.string().optional(),
         grep: z.string().optional().describe('Filter commit messages by regex.'),
         patch: z.boolean().optional().describe('Include unified diff per commit (off by default).'),
-        stat: z.boolean().optional().describe('Include diffstat per commit.')
+        stat: z.boolean().optional().describe('Include diffstat per commit.'),
       }),
       z.object({
         action: z.literal('show'),
         ref: z.string().min(1).describe('Commit SHA, tag, or branch name.'),
         path: z.array(z.string()).optional().describe('Restrict diff to specific file(s).'),
-        stat_only: z.boolean().optional()
+        stat_only: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('blame'),
         path: z.string().min(1),
         line_start: z.number().int().positive().optional(),
         line_end: z.number().int().positive().optional(),
-        ref: z.string().optional().describe('Blame as of this ref (defaults to HEAD).')
-      })
+        ref: z.string().optional().describe('Blame as of this ref (defaults to HEAD).'),
+      }),
     ]),
     execute: async input => {
       if (input.action === 'log') {
@@ -85,7 +89,7 @@ export function createGitHistoryTool({ runUserShell }: ToolFactoryOptions) {
       parts.push('--', shellQuote(input.path));
       const { exitCode, output } = await runUserShell(parts.join(' '));
       return runOutput('git blame', exitCode, output);
-    }
+    },
   });
 }
 
@@ -98,33 +102,34 @@ export function createGitStashTool({ runUserShell, requestApproval }: ToolFactor
       z.object({
         action: z.literal('show'),
         ref: z.string().optional().describe('Stash ref like `stash@{0}` (defaults to latest).'),
-        patch: z.boolean().optional()
+        patch: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('push'),
         message: z.string().optional(),
         include_untracked: z.boolean().optional(),
         keep_index: z.boolean().optional(),
-        path: z.array(z.string()).optional().describe('Stash only these paths.')
+        path: z.array(z.string()).optional().describe('Stash only these paths.'),
       }),
       z.object({
         action: z.literal('pop'),
-        ref: z.string().optional().describe('Stash ref to pop (defaults to latest).')
+        ref: z.string().optional().describe('Stash ref to pop (defaults to latest).'),
       }),
       z.object({
         action: z.literal('apply'),
-        ref: z.string().optional()
+        ref: z.string().optional(),
       }),
       z.object({
         action: z.literal('drop'),
-        ref: z.string().optional()
-      })
+        ref: z.string().optional(),
+      }),
     ]),
     execute: async input => {
       if (input.action === 'list') {
         const { exitCode, output } = await runUserShell('git stash list --no-color');
         const cleaned = plain(output).trim();
-        if (exitCode !== 0) return `git stash list failed (exit ${exitCode}):\n${cleaned || '(no output)'}`;
+        if (exitCode !== 0)
+          return `git stash list failed (exit ${exitCode}):\n${cleaned || '(no output)'}`;
         return cleaned || '(no stashes)';
       }
 
@@ -163,6 +168,6 @@ export function createGitStashTool({ runUserShell, requestApproval }: ToolFactor
 
       const { exitCode, output } = await runUserShell(cmd);
       return runOutput(cmd, exitCode, output);
-    }
+    },
   });
 }

@@ -12,5 +12,5 @@ export const privateSlashCommand: SlashCommand = {
     await context.makeCurrentThreadPrivate();
     context.persistEntry(EntryKind.Meta, 'thread is now private');
     context.showFooterNotice('thread unshared');
-  }
+  },
 };

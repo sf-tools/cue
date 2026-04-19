@@ -31,8 +31,8 @@ function adjustComposerState(state: ComposerState) {
         if (range.end <= 1) return [];
         return [{ start: Math.max(0, range.start - 1), end: range.end - 1 }];
       }),
-      cursor: Math.max(0, state.cursor - 1)
-    }
+      cursor: Math.max(0, state.cursor - 1),
+    },
   };
 }
 
@@ -43,12 +43,14 @@ function charWidth(ch: string) {
 function renderInputLines(
   state: ComposerState,
   viewWidth: number,
-  charStyleAt?: (index: number, ch: string) => ((text: string) => string) | undefined
+  charStyleAt?: (index: number, ch: string) => ((text: string) => string) | undefined,
 ) {
   const lines: StyledLine[] = [];
   let segments: StyledLine['segments'] = [];
   let currentWidth = 0;
-  const pasteRanges = [...state.pasteRanges].sort((left, right) => left.start - right.start || left.end - right.end);
+  const pasteRanges = [...state.pasteRanges].sort(
+    (left, right) => left.start - right.start || left.end - right.end,
+  );
 
   const flushLine = (allowEmpty = false) => {
     if (segments.length === 0 && !allowEmpty) return;
@@ -74,9 +76,14 @@ function renderInputLines(
 
     if (range && index === range.start) {
       pasteCount += 1;
-      const extraLines = state.inputChars.slice(range.start, range.end).filter(ch => ch === '\n').length;
+      const extraLines = state.inputChars
+        .slice(range.start, range.end)
+        .filter(ch => ch === '\n').length;
       const label = `[paste #${pasteCount} +${extraLines} lines]`;
-      pushChar(label, state.cursor >= range.start && state.cursor < range.end ? chalk.inverse : undefined);
+      pushChar(
+        label,
+        state.cursor >= range.start && state.cursor < range.end ? chalk.inverse : undefined,
+      );
       index = range.end - 1;
       pasteIndex += 1;
       continue;
@@ -108,8 +115,13 @@ function renderInputLines(
 type CursorPoint = { row: number; col: number };
 
 function buildCursorMap(state: ComposerState, viewWidth: number) {
-  const positions: CursorPoint[] = Array.from({ length: state.inputChars.length + 1 }, () => ({ row: 0, col: 0 }));
-  const pasteRanges = [...state.pasteRanges].sort((left, right) => left.start - right.start || left.end - right.end);
+  const positions: CursorPoint[] = Array.from({ length: state.inputChars.length + 1 }, () => ({
+    row: 0,
+    col: 0,
+  }));
+  const pasteRanges = [...state.pasteRanges].sort(
+    (left, right) => left.start - right.start || left.end - right.end,
+  );
   let pasteIndex = 0;
   let pasteCount = 0;
   let row = 0;
@@ -125,7 +137,8 @@ function buildCursorMap(state: ComposerState, viewWidth: number) {
       tokenCol = 0;
     }
 
-    for (let index = start; index < end; index += 1) positions[index] = { row: tokenRow, col: tokenCol };
+    for (let index = start; index < end; index += 1)
+      positions[index] = { row: tokenRow, col: tokenCol };
     row = tokenRow;
     col = tokenCol + tokenWidth;
     positions[end] = { row, col };
@@ -136,7 +149,9 @@ function buildCursorMap(state: ComposerState, viewWidth: number) {
 
     if (range && index === range.start) {
       pasteCount += 1;
-      const extraLines = state.inputChars.slice(range.start, range.end).filter(ch => ch === '\n').length;
+      const extraLines = state.inputChars
+        .slice(range.start, range.end)
+        .filter(ch => ch === '\n').length;
       placeToken(range.start, range.end, `[paste #${pasteCount} +${extraLines} lines]`);
       index = range.end - 1;
       pasteIndex += 1;
@@ -159,17 +174,31 @@ function buildCursorMap(state: ComposerState, viewWidth: number) {
   return positions;
 }
 
-function renderComposerPrompt(state: ComposerState, ctx: RenderContext, shellMode: boolean, slashMode: boolean, validSlashCommand: boolean): Segment {
+function renderComposerPrompt(
+  state: ComposerState,
+  ctx: RenderContext,
+  shellMode: boolean,
+  slashMode: boolean,
+  validSlashCommand: boolean,
+): Segment {
   if (state.inputChars.length === 0) return span('→', ctx.theme.dimmed);
   if (shellMode) return span('!', chalk.yellow);
   if (slashMode) return span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground);
   return span('→', ctx.theme.foreground);
 }
 
-export function moveComposerCursorVertical(state: ComposerState, viewWidth: number, delta: number, preferredColumn?: number) {
+export function moveComposerCursorVertical(
+  state: ComposerState,
+  viewWidth: number,
+  delta: number,
+  preferredColumn?: number,
+) {
   const { hiddenPrefix, inputState } = adjustComposerState(state);
   const positions = buildCursorMap(inputState, viewWidth);
-  const current = positions[Math.max(0, Math.min(inputState.cursor, positions.length - 1))] ?? { row: 0, col: 0 };
+  const current = positions[Math.max(0, Math.min(inputState.cursor, positions.length - 1))] ?? {
+    row: 0,
+    col: 0,
+  };
   const targetRow = current.row + delta;
   if (targetRow < 0) return null;
 
@@ -192,7 +221,7 @@ export function moveComposerCursorVertical(state: ComposerState, viewWidth: numb
 
   return {
     cursor: bestIndex + hiddenPrefix,
-    preferredColumn: targetCol
+    preferredColumn: targetCol,
   };
 }
 
@@ -206,7 +235,8 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const prompt = renderComposerPrompt(state, ctx, shellMode, slashMode, validSlashCommand);
   const promptWidth = widthOf(prompt.text);
   const hintWidth = capabilitiesHint ? capabilitiesWidth + 1 : 0;
-  const placeholderFill = (occupiedWidth: number) => repeat(' ', Math.max(0, contentWidth + 1 - occupiedWidth - hintWidth));
+  const placeholderFill = (occupiedWidth: number) =>
+    repeat(' ', Math.max(0, contentWidth + 1 - occupiedWidth - hintWidth));
 
   if (state.inputChars.length === 0) {
     const label = 'Plan, search, build anything';
@@ -221,14 +251,14 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
             span('P', chalk.inverse),
             span(label.slice(1), ctx.theme.dimmed),
             span(fill),
-            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-          )
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : []),
+          ),
         ],
         {
           bg: ctx.theme.composerBg(),
-          width: ctx.width
-        }
-      )
+          width: ctx.width,
+        },
+      ),
     };
   }
 
@@ -245,14 +275,14 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
             span(' ', chalk.inverse),
             span(label, ctx.theme.dimmed),
             span(fill),
-            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-          )
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : []),
+          ),
         ],
         {
           bg: ctx.theme.composerBg(),
-          width: ctx.width
-        }
-      )
+          width: ctx.width,
+        },
+      ),
     };
   }
 
@@ -267,14 +297,14 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
             span(' '),
             span(' ', chalk.inverse),
             span(fill),
-            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : [])
-          )
+            ...(capabilitiesHint ? [span(' '), span(capabilitiesHint, ctx.theme.dimmed)] : []),
+          ),
         ],
         {
           bg: ctx.theme.composerBg(),
-          width: ctx.width
-        }
-      )
+          width: ctx.width,
+        },
+      ),
     };
   }
 
@@ -282,11 +312,17 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const inputLines = renderInputLines(
     inputState,
     contentWidth,
-    slashMode ? index => (index < (state.slashCommandLength ?? 0) ? chalk.cyanBright : undefined) : undefined
+    slashMode
+      ? index => (index < (state.slashCommandLength ?? 0) ? chalk.cyanBright : undefined)
+      : undefined,
   );
-  const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
+  const block = inputLines.map((entry, index) =>
+    line(
+      ...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments]),
+    ),
+  );
 
   return {
-    block: thinPanelize(block, { bg: ctx.theme.composerBg(), width: ctx.width })
+    block: thinPanelize(block, { bg: ctx.theme.composerBg(), width: ctx.width }),
   };
 }

@@ -60,29 +60,29 @@ const SERVERS: Record<LspLang, LspServerSpec> = {
     langIds: ['typescript', 'typescriptreact', 'javascript', 'javascriptreact'],
     command: 'typescript-language-server',
     args: ['--stdio'],
-    installHint: 'install with `npm i -g typescript-language-server typescript`'
+    installHint: 'install with `npm i -g typescript-language-server typescript`',
   },
   python: {
     lang: 'python',
     langIds: ['python'],
     command: 'pyright-langserver',
     args: ['--stdio'],
-    installHint: 'install with `npm i -g pyright` (or `pip install pyright`)'
+    installHint: 'install with `npm i -g pyright` (or `pip install pyright`)',
   },
   go: {
     lang: 'go',
     langIds: ['go'],
     command: 'gopls',
     args: [],
-    installHint: 'install with `go install golang.org/x/tools/gopls@latest`'
+    installHint: 'install with `go install golang.org/x/tools/gopls@latest`',
   },
   rust: {
     lang: 'rust',
     langIds: ['rust'],
     command: 'rust-analyzer',
     args: [],
-    installHint: 'install with `rustup component add rust-analyzer`'
-  }
+    installHint: 'install with `rustup component add rust-analyzer`',
+  },
 };
 
 const EXT_TO_LANG: Record<string, { lang: LspLang; langId: string }> = {
@@ -97,7 +97,7 @@ const EXT_TO_LANG: Record<string, { lang: LspLang; langId: string }> = {
   '.py': { lang: 'python', langId: 'python' },
   '.pyi': { lang: 'python', langId: 'python' },
   '.go': { lang: 'go', langId: 'go' },
-  '.rs': { lang: 'rust', langId: 'rust' }
+  '.rs': { lang: 'rust', langId: 'rust' },
 };
 
 const sessions = new Map<LspLang, Session>();
@@ -159,7 +159,10 @@ function processBuffer(session: Session) {
 }
 
 function handleMessage(session: Session, message: Record<string, unknown>) {
-  if (typeof message.id === 'number' && (message.result !== undefined || message.error !== undefined)) {
+  if (
+    typeof message.id === 'number' &&
+    (message.result !== undefined || message.error !== undefined)
+  ) {
     const pending = session.pending.get(message.id);
     if (!pending) return;
     clearTimeout(pending.timer);
@@ -175,7 +178,11 @@ function handleMessage(session: Session, message: Record<string, unknown>) {
   }
 
   if (typeof message.method === 'string') {
-    if (message.method === 'textDocument/publishDiagnostics' && typeof message.params === 'object' && message.params !== null) {
+    if (
+      message.method === 'textDocument/publishDiagnostics' &&
+      typeof message.params === 'object' &&
+      message.params !== null
+    ) {
       const params = message.params as { uri?: string; diagnostics?: LspDiagnostic[] };
       if (typeof params.uri === 'string' && Array.isArray(params.diagnostics)) {
         session.diagnostics.set(params.uri, params.diagnostics);
@@ -199,7 +206,7 @@ async function startSession(spec: LspServerSpec, rootPath: string): Promise<Sess
   try {
     proc = spawn(spec.command, spec.args, {
       cwd: rootPath,
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -219,12 +226,13 @@ async function startSession(spec: LspServerSpec, rootPath: string): Promise<Sess
     openFiles: new Map(),
     diagnostics: new Map(),
     onDiagnostics: new Set(),
-    exited: false
+    exited: false,
   };
 
   proc.stdout.on('data', chunk => {
     session.buffer = Buffer.concat([session.buffer, chunk]);
-    if (session.buffer.length > MAX_BUFFER_BYTES) session.buffer = session.buffer.slice(session.buffer.length - MAX_BUFFER_BYTES);
+    if (session.buffer.length > MAX_BUFFER_BYTES)
+      session.buffer = session.buffer.slice(session.buffer.length - MAX_BUFFER_BYTES);
     processBuffer(session);
   });
 
@@ -264,10 +272,10 @@ async function startSession(spec: LspServerSpec, rootPath: string): Promise<Sess
           references: {},
           hover: { contentFormat: ['markdown', 'plaintext'] },
           rename: { prepareSupport: false },
-          publishDiagnostics: { relatedInformation: true }
+          publishDiagnostics: { relatedInformation: true },
         },
-        workspace: { workspaceFolders: true, configuration: true }
-      }
+        workspace: { workspaceFolders: true, configuration: true },
+      },
     });
     sendNotification(session, 'initialized', {});
     session.ready = true;
@@ -285,7 +293,12 @@ function sendNotification(session: Session, method: string, params: unknown) {
   }
 }
 
-function sendRequest<T = unknown>(session: Session, method: string, params: unknown, timeoutMs = REQUEST_TIMEOUT_MS): Promise<T> {
+function sendRequest<T = unknown>(
+  session: Session,
+  method: string,
+  params: unknown,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   return new Promise((resolvePromise, rejectPromise) => {
     if (session.exited) {
       rejectPromise(new Error(`${session.spec.command} not running`));
@@ -301,7 +314,7 @@ function sendRequest<T = unknown>(session: Session, method: string, params: unkn
     session.pending.set(id, {
       resolve: value => resolvePromise(value as T),
       reject: rejectPromise,
-      timer
+      timer,
     });
 
     try {
@@ -344,14 +357,14 @@ async function ensureOpen(session: Session, filePath: string, langId: string) {
 
   if (existing === undefined) {
     sendNotification(session, 'textDocument/didOpen', {
-      textDocument: { uri, languageId: langId, version: 1, text }
+      textDocument: { uri, languageId: langId, version: 1, text },
     });
     session.openFiles.set(uri, 1);
   } else {
     const nextVersion = existing + 1;
     sendNotification(session, 'textDocument/didChange', {
       textDocument: { uri, version: nextVersion },
-      contentChanges: [{ text }]
+      contentChanges: [{ text }],
     });
     session.openFiles.set(uri, nextVersion);
   }
@@ -359,7 +372,11 @@ async function ensureOpen(session: Session, filePath: string, langId: string) {
   return { uri, abs, text };
 }
 
-function waitForDiagnostics(session: Session, uri: string, timeoutMs: number): Promise<LspDiagnostic[]> {
+function waitForDiagnostics(
+  session: Session,
+  uri: string,
+  timeoutMs: number,
+): Promise<LspDiagnostic[]> {
   return new Promise(resolvePromise => {
     if (session.diagnostics.has(uri)) {
       resolvePromise(session.diagnostics.get(uri) ?? []);
@@ -422,7 +439,8 @@ function severityName(value: number | undefined): 'error' | 'warning' | 'info' |
 function renderHoverContents(contents: unknown): string {
   if (!contents) return '(no hover info)';
   if (typeof contents === 'string') return contents;
-  if (Array.isArray(contents)) return contents.map(renderHoverContents).filter(Boolean).join('\n\n');
+  if (Array.isArray(contents))
+    return contents.map(renderHoverContents).filter(Boolean).join('\n\n');
   if (typeof contents === 'object') {
     const r = contents as Record<string, unknown>;
     if (typeof r.value === 'string') return r.value;
@@ -432,10 +450,25 @@ function renderHoverContents(contents: unknown): string {
 }
 
 type WorkspaceEdit = {
-  changes?: Record<string, Array<{ range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }>>;
+  changes?: Record<
+    string,
+    Array<{
+      range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+      };
+      newText: string;
+    }>
+  >;
   documentChanges?: Array<{
     textDocument?: { uri: string };
-    edits?: Array<{ range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }>;
+    edits?: Array<{
+      range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+      };
+      newText: string;
+    }>;
   }>;
 };
 
@@ -443,9 +476,18 @@ async function applyWorkspaceEdit(
   edit: WorkspaceEdit,
   rootPath: string,
   requestApproval: ToolFactoryOptions['requestApproval'],
-  pushUndoEntry: ToolFactoryOptions['pushUndoEntry']
+  pushUndoEntry: ToolFactoryOptions['pushUndoEntry'],
 ): Promise<string> {
-  const editsByUri = new Map<string, Array<{ range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }>>();
+  const editsByUri = new Map<
+    string,
+    Array<{
+      range: {
+        start: { line: number; character: number };
+        end: { line: number; character: number };
+      };
+      newText: string;
+    }>
+  >();
 
   if (edit.documentChanges) {
     for (const change of edit.documentChanges) {
@@ -468,7 +510,12 @@ async function applyWorkspaceEdit(
 
   if (editsByUri.size === 0) return 'no edits to apply';
 
-  const pending: Array<{ path: string; previousContent: string | null; nextContent: string; fileChange: ReturnType<typeof createFileChange> }> = [];
+  const pending: Array<{
+    path: string;
+    previousContent: string | null;
+    nextContent: string;
+    fileChange: ReturnType<typeof createFileChange>;
+  }> = [];
 
   for (const [uri, edits] of editsByUri.entries()) {
     const filePath = fileURLToPath(uri);
@@ -476,7 +523,12 @@ async function applyWorkspaceEdit(
     if (previous === null) continue;
     const next = applyTextEdits(previous, edits);
     const change = createFileChange(filePath, previous, next);
-    pending.push({ path: filePath, previousContent: previous, nextContent: next, fileChange: change });
+    pending.push({
+      path: filePath,
+      previousContent: previous,
+      nextContent: next,
+      fileChange: change,
+    });
   }
 
   if (
@@ -484,7 +536,7 @@ async function applyWorkspaceEdit(
       scope: 'edit',
       title: 'Apply LSP rename',
       detail: `${pending.length} file${pending.length === 1 ? '' : 's'}`,
-      fileChanges: pending.map(item => item.fileChange)
+      fileChanges: pending.map(item => item.fileChange),
     }))
   ) {
     throw new Error('rename denied by user');
@@ -493,21 +545,33 @@ async function applyWorkspaceEdit(
   const undoFiles: UndoEntry['files'] = [];
   for (const item of pending) {
     await writeFile(item.path, item.nextContent);
-    undoFiles.push({ path: item.path, previousContent: item.previousContent, nextContent: item.nextContent });
+    undoFiles.push({
+      path: item.path,
+      previousContent: item.previousContent,
+      nextContent: item.nextContent,
+    });
   }
 
   pushUndoEntry({
     toolName: 'lsp',
     summary: `lsp rename · ${pending.length} file${pending.length === 1 ? '' : 's'}`,
-    files: undoFiles
+    files: undoFiles,
   });
 
-  return pending.map(item => `${uriToRelative(pathToFileURL(item.path).href, rootPath)} · ${describeFileChange(item.fileChange)}`).join('\n');
+  return pending
+    .map(
+      item =>
+        `${uriToRelative(pathToFileURL(item.path).href, rootPath)} · ${describeFileChange(item.fileChange)}`,
+    )
+    .join('\n');
 }
 
 function applyTextEdits(
   source: string,
-  edits: Array<{ range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }>
+  edits: Array<{
+    range: { start: { line: number; character: number }; end: { line: number; character: number } };
+    newText: string;
+  }>,
 ): string {
   const lines = source.split('\n');
   const sorted = [...edits].sort((a, b) => {
@@ -545,33 +609,39 @@ export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOpt
         action: z.literal('definition'),
         path: z.string().min(1),
         line: z.number().int().positive(),
-        column: z.number().int().positive()
+        column: z.number().int().positive(),
       }),
       z.object({
         action: z.literal('references'),
         path: z.string().min(1),
         line: z.number().int().positive(),
         column: z.number().int().positive(),
-        include_declaration: z.boolean().optional()
+        include_declaration: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('hover'),
         path: z.string().min(1),
         line: z.number().int().positive(),
-        column: z.number().int().positive()
+        column: z.number().int().positive(),
       }),
       z.object({
         action: z.literal('rename'),
         path: z.string().min(1),
         line: z.number().int().positive(),
         column: z.number().int().positive(),
-        new_name: z.string().min(1)
+        new_name: z.string().min(1),
       }),
       z.object({
         action: z.literal('diagnostics'),
         path: z.string().min(1),
-        wait_ms: z.number().int().nonnegative().max(15000).optional().describe('How long to wait for the server to publish diagnostics (default 2000).')
-      })
+        wait_ms: z
+          .number()
+          .int()
+          .nonnegative()
+          .max(15000)
+          .optional()
+          .describe('How long to wait for the server to publish diagnostics (default 2000).'),
+      }),
     ]),
     execute: async input => {
       const langInfo = langForPath(input.path);
@@ -581,15 +651,26 @@ export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOpt
       const session = await getOrStartSession(langInfo.lang, cwd);
       const { uri } = await ensureOpen(session, input.path, langInfo.langId);
 
-      if (input.action === 'definition' || input.action === 'references' || input.action === 'hover' || input.action === 'rename') {
+      if (
+        input.action === 'definition' ||
+        input.action === 'references' ||
+        input.action === 'hover' ||
+        input.action === 'rename'
+      ) {
         const position = { line: input.line - 1, character: input.column - 1 };
 
         if (input.action === 'definition') {
-          const result = await sendRequest(session, 'textDocument/definition', { textDocument: { uri }, position });
+          const result = await sendRequest(session, 'textDocument/definition', {
+            textDocument: { uri },
+            position,
+          });
           const locations = asLocations(result);
           if (locations.length === 0) return 'no definition found';
           return locations
-            .map(loc => `${uriToRelative(loc.uri, cwd)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`)
+            .map(
+              loc =>
+                `${uriToRelative(loc.uri, cwd)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`,
+            )
             .join('\n');
         }
 
@@ -597,17 +678,23 @@ export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOpt
           const result = await sendRequest(session, 'textDocument/references', {
             textDocument: { uri },
             position,
-            context: { includeDeclaration: input.include_declaration ?? true }
+            context: { includeDeclaration: input.include_declaration ?? true },
           });
           const locations = asLocations(result);
           if (locations.length === 0) return 'no references found';
           return `${locations.length} reference${locations.length === 1 ? '' : 's'}:\n${locations
-            .map(loc => `${uriToRelative(loc.uri, cwd)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`)
+            .map(
+              loc =>
+                `${uriToRelative(loc.uri, cwd)}:${loc.range.start.line + 1}:${loc.range.start.character + 1}`,
+            )
             .join('\n')}`;
         }
 
         if (input.action === 'hover') {
-          const result = (await sendRequest(session, 'textDocument/hover', { textDocument: { uri }, position })) as { contents?: unknown } | null;
+          const result = (await sendRequest(session, 'textDocument/hover', {
+            textDocument: { uri },
+            position,
+          })) as { contents?: unknown } | null;
           if (!result) return '(no hover info)';
           return truncate(renderHoverContents(result.contents), 4000);
         }
@@ -615,7 +702,7 @@ export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOpt
         const renameResult = (await sendRequest(session, 'textDocument/rename', {
           textDocument: { uri },
           position,
-          newName: input.new_name
+          newName: input.new_name,
         })) as WorkspaceEdit | null;
         if (!renameResult) return 'rename returned no edits';
         return await applyWorkspaceEdit(renameResult, cwd, requestApproval, pushUndoEntry);
@@ -623,16 +710,18 @@ export function createLspTool({ requestApproval, pushUndoEntry }: ToolFactoryOpt
 
       const diagnostics = await waitForDiagnostics(session, uri, input.wait_ms ?? 2000);
       if (diagnostics.length === 0) return `${uriToRelative(uri, cwd)}: no diagnostics`;
-      const lines = [`${uriToRelative(uri, cwd)}: ${diagnostics.length} diagnostic${diagnostics.length === 1 ? '' : 's'}`];
+      const lines = [
+        `${uriToRelative(uri, cwd)}: ${diagnostics.length} diagnostic${diagnostics.length === 1 ? '' : 's'}`,
+      ];
       for (const diag of diagnostics) {
         const code = diag.code !== undefined ? ` [${diag.code}]` : '';
         const source = diag.source ? ` (${diag.source})` : '';
         lines.push(
-          `  ${severityName(diag.severity)} ${diag.range.start.line + 1}:${diag.range.start.character + 1}${code}${source} — ${diag.message.replace(/\n/g, ' ')}`
+          `  ${severityName(diag.severity)} ${diag.range.start.line + 1}:${diag.range.start.character + 1}${code}${source} — ${diag.message.replace(/\n/g, ' ')}`,
         );
       }
       return truncate(lines.join('\n'), 8000);
-    }
+    },
   });
 }
 

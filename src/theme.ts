@@ -20,7 +20,7 @@ function mix(a: Rgb, b: Rgb, amount: number): Rgb {
   return {
     r: clampChannel(a.r * t + b.r * base),
     g: clampChannel(a.g * t + b.g * base),
-    b: clampChannel(a.b * t + b.b * base)
+    b: clampChannel(a.b * t + b.b * base),
   };
 }
 
@@ -37,7 +37,7 @@ function parseHexColor(hex: string): Rgb | null {
   return {
     r: Number.parseInt(match[1], 16),
     g: Number.parseInt(match[2], 16),
-    b: Number.parseInt(match[3], 16)
+    b: Number.parseInt(match[3], 16),
   };
 }
 
@@ -47,8 +47,14 @@ function applyCursorTint(backgroundRgb: Rgb | null, config: TintConfig) {
   const tintRgb = parseHexColor(config.tintHex);
   if (!tintRgb) return config.fallbackHex;
 
-  const luminance = (backgroundRgb.r / 255) * 0.2126 + (backgroundRgb.g / 255) * 0.7152 + (backgroundRgb.b / 255) * 0.0722;
-  const adjustedMixRatio = Math.max(0.5, config.mixRatio - (Math.abs(luminance - 0.5) / 0.5) * 0.18);
+  const luminance =
+    (backgroundRgb.r / 255) * 0.2126 +
+    (backgroundRgb.g / 255) * 0.7152 +
+    (backgroundRgb.b / 255) * 0.0722;
+  const adjustedMixRatio = Math.max(
+    0.5,
+    config.mixRatio - (Math.abs(luminance - 0.5) / 0.5) * 0.18,
+  );
 
   return toHex(mix(backgroundRgb, tintRgb, adjustedMixRatio));
 }
@@ -100,7 +106,7 @@ export function createTheme() {
       { r: 92, g: 92, b: 255 },
       { r: 255, g: 0, b: 255 },
       { r: 0, g: 255, b: 255 },
-      { r: 255, g: 255, b: 255 }
+      { r: 255, g: 255, b: 255 },
     ];
 
     return tail >= 0 && tail < palette.length ? palette[tail] : null;
@@ -146,7 +152,10 @@ export function createTheme() {
 
       const onData = (chunk: Buffer | string) => {
         buffer += chunk.toString();
-        const match = /\x1b\]11;(?:rgba?):([0-9a-fA-F]{1,4})\/([0-9a-fA-F]{1,4})\/([0-9a-fA-F]{1,4})(?:\/[0-9a-fA-F]{1,4})?(?:\x07|\x1b\\)/i.exec(buffer);
+        const match =
+          /\x1b\]11;(?:rgba?):([0-9a-fA-F]{1,4})\/([0-9a-fA-F]{1,4})\/([0-9a-fA-F]{1,4})(?:\/[0-9a-fA-F]{1,4})?(?:\x07|\x1b\\)/i.exec(
+            buffer,
+          );
         if (!match) return;
 
         const fromHex = (value: string) => {
@@ -173,24 +182,47 @@ export function createTheme() {
     const hint = envThemeHint();
     if (hint !== null) isLightTheme = hint;
 
-    const detectedBackground = (await queryTerminalBackground()) || parseColorFgbg() || defaultBackground(isLightTheme);
+    const detectedBackground =
+      (await queryTerminalBackground()) || parseColorFgbg() || defaultBackground(isLightTheme);
     backgroundRgb = detectedBackground;
 
     if (hint === null) isLightTheme = relativeLuminance(backgroundRgb) > 0.6;
   }
 
-  const cursorPanelDark = { tintHex: '#555566', mixRatio: 0.82, fallbackHex: '#242428', fallbackAnsi256: 235 };
-  const cursorPanelLight = { tintHex: '#b0b0b0', mixRatio: 0.82, fallbackHex: '#e8e8e8', fallbackAnsi256: 254 };
-  const cursorComposerDark = { tintHex: '#505050', mixRatio: 0.95, fallbackHex: '#151515', fallbackAnsi256: 233 };
-  const cursorComposerLight = { tintHex: '#d0d0d0', mixRatio: 0.9, fallbackHex: '#f2f2f2', fallbackAnsi256: 255 };
+  const cursorPanelDark = {
+    tintHex: '#555566',
+    mixRatio: 0.82,
+    fallbackHex: '#242428',
+    fallbackAnsi256: 235,
+  };
+  const cursorPanelLight = {
+    tintHex: '#b0b0b0',
+    mixRatio: 0.82,
+    fallbackHex: '#e8e8e8',
+    fallbackAnsi256: 254,
+  };
+  const cursorComposerDark = {
+    tintHex: '#505050',
+    mixRatio: 0.95,
+    fallbackHex: '#151515',
+    fallbackAnsi256: 233,
+  };
+  const cursorComposerLight = {
+    tintHex: '#d0d0d0',
+    mixRatio: 0.9,
+    fallbackHex: '#f2f2f2',
+    fallbackAnsi256: 255,
+  };
 
   return {
     sync,
-    panelBg: () => applyCursorTint(backgroundRgb, isLightTheme ? cursorPanelLight : cursorPanelDark),
-    composerBg: () => applyCursorTint(backgroundRgb, isLightTheme ? cursorComposerLight : cursorComposerDark),
+    panelBg: () =>
+      applyCursorTint(backgroundRgb, isLightTheme ? cursorPanelLight : cursorPanelDark),
+    composerBg: () =>
+      applyCursorTint(backgroundRgb, isLightTheme ? cursorComposerLight : cursorComposerDark),
     foreground: (text: string) => text,
     dimmed: (text: string) => chalk.dim(text),
     subtle: (text: string) => chalk.dim(text),
-    spinnerText: (text: string) => chalk.green(text)
+    spinnerText: (text: string) => chalk.green(text),
   };
 }

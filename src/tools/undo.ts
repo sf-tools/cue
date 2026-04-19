@@ -4,7 +4,11 @@ import { z } from 'zod';
 import { applyUndoEntry, buildUndoFileChanges } from '@/undo';
 import type { ToolFactoryOptions } from './types';
 
-export function createUndoTool({ requestApproval, peekUndoEntry, popUndoEntry }: ToolFactoryOptions) {
+export function createUndoTool({
+  requestApproval,
+  peekUndoEntry,
+  popUndoEntry,
+}: ToolFactoryOptions) {
   return tool({
     description: 'Undo the last successful write or edit tool action from this session.',
     inputSchema: z.object({}),
@@ -18,7 +22,7 @@ export function createUndoTool({ requestApproval, peekUndoEntry, popUndoEntry }:
           scope: 'edit',
           title: 'Undo last change',
           detail: entry.summary,
-          fileChanges
+          fileChanges,
         });
 
         if (!approved) throw new Error('undo denied by user');
@@ -27,6 +31,6 @@ export function createUndoTool({ requestApproval, peekUndoEntry, popUndoEntry }:
       await applyUndoEntry(entry);
       popUndoEntry();
       return `undid ${entry.summary}`;
-    }
+    },
   });
 }

@@ -7,5 +7,5 @@ export const quitSlashCommand: SlashCommand = {
   execute({ cleanup }, args) {
     if (args.argv.length > 0) throw new Error(`/${args.invocation} does not accept arguments`);
     cleanup(0);
-  }
+  },
 };

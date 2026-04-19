@@ -5,7 +5,7 @@ import type {
   SlashCommandInvocation,
   SlashCommandParseResult,
   SlashCommandQuery,
-  SlashCommandSuggestion
+  SlashCommandSuggestion,
 } from './types';
 
 function normalizeInvocation(value: string) {
@@ -29,7 +29,10 @@ function getSuggestionContext(context?: Pick<SlashCommandContext, 'getCurrentThr
   return context ?? { getCurrentThreadShareState: () => 'unknown' as const };
 }
 
-export function currentSlashCommandQuery(inputChars: string[], cursor: number): SlashCommandQuery | null {
+export function currentSlashCommandQuery(
+  inputChars: string[],
+  cursor: number,
+): SlashCommandQuery | null {
   const beforeCursor = inputChars.slice(0, cursor).join('');
   const invocationMatch = beforeCursor.match(/^\/([^\s]*)$/);
   if (invocationMatch) return { type: 'invocation', query: invocationMatch[1] };
@@ -40,13 +43,13 @@ export function currentSlashCommandQuery(inputChars: string[], cursor: number): 
   return {
     type: 'argument',
     invocation: normalizeInvocation(argumentMatch[1]),
-    query: argumentMatch[2]
+    query: argumentMatch[2],
   };
 }
 
 export function createSlashCommandRegistry(
   commands: SlashCommand[],
-  context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>
+  context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>,
 ) {
   const invocations: SlashCommandInvocation[] = [];
   const invocationMap = new Map<string, SlashCommandInvocation>();
@@ -56,7 +59,11 @@ export function createSlashCommandRegistry(
     const names = [
       { name: command.name, hidden: false, specialHidden: false },
       ...(command.aliases ?? []).map(name => ({ name, hidden: false, specialHidden: false })),
-      ...(command.specialHiddenAliases ?? []).map(name => ({ name, hidden: true, specialHidden: true }))
+      ...(command.specialHiddenAliases ?? []).map(name => ({
+        name,
+        hidden: true,
+        specialHidden: true,
+      })),
     ];
 
     for (const { name, hidden, specialHidden } of names) {
@@ -69,7 +76,7 @@ export function createSlashCommandRegistry(
         invocation: normalized,
         isAlias: normalized !== primaryInvocation,
         hidden,
-        specialHidden
+        specialHidden,
       };
 
       invocationMap.set(normalized, invocation);
@@ -77,7 +84,9 @@ export function createSlashCommandRegistry(
     }
   }
 
-  const sortedInvocations = invocations.slice().sort((a, b) => a.invocation.localeCompare(b.invocation));
+  const sortedInvocations = invocations
+    .slice()
+    .sort((a, b) => a.invocation.localeCompare(b.invocation));
 
   return {
     commands: commands.slice(),
@@ -102,7 +111,7 @@ export function createSlashCommandRegistry(
         invocation: resolved.invocation,
         isAlias: resolved.isAlias,
         argsText,
-        argv: splitArgs(argsText)
+        argv: splitArgs(argsText),
       };
     },
 
@@ -130,11 +139,13 @@ export function createSlashCommandRegistry(
           .slice(0, limit)
           .map<SlashCommandSuggestion>(suggestion => {
             const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? invocation);
-            const disabled = resolved?.command.isAvailable ? !resolved.command.isAvailable(suggestionContext) : undefined;
+            const disabled = resolved?.command.isAvailable
+              ? !resolved.command.isAvailable(suggestionContext)
+              : undefined;
             const detail =
               disabled && resolved?.command.unavailableDetail
                 ? resolved.command.unavailableDetail(suggestionContext)
-                : suggestion.detail ?? resolved?.command.description ?? '';
+                : (suggestion.detail ?? resolved?.command.description ?? '');
 
             return {
               kind: 'slash-command',
@@ -148,7 +159,7 @@ export function createSlashCommandRegistry(
               disabled,
               labelStyle: suggestion.labelStyle,
               suffixStyle: suggestion.suffixStyle,
-              detailStyle: suggestion.detailStyle
+              detailStyle: suggestion.detailStyle,
             };
           })
           .sort(compareSuggestions);
@@ -178,15 +189,17 @@ export function createSlashCommandRegistry(
             kind: 'slash-command',
             label: `/${replacementInvocation}`,
             suffix: command.suggestedInput ? ` ${command.suggestedInput}` : undefined,
-            detail: isAlias ? `Alias for /${command.name} · ${command.description}` : command.description,
+            detail: isAlias
+              ? `Alias for /${command.name} · ${command.description}`
+              : command.description,
             invocation: replacementInvocation,
             replacement: `/${replacementInvocation}`,
             commandName: command.name,
-            isAlias
+            isAlias,
           };
         });
 
       return suggestions.sort(compareSuggestions);
-    }
+    },
   };
 }

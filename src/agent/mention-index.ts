@@ -16,7 +16,7 @@ export enum MentionIndexState {
   Unstarted = 'unstarted',
   Initializing = 'initializing',
   Ready = 'ready',
-  Failed = 'failed'
+  Failed = 'failed',
 }
 
 export type MentionIndexStats = {
@@ -38,8 +38,8 @@ const FUZZY_OPTIONS: IFuseOptions<MentionIndexEntry> = {
   threshold: 0.4,
   keys: [
     { name: 'name', weight: 0.65 },
-    { name: 'searchPath', weight: 0.35 }
-  ]
+    { name: 'searchPath', weight: 0.35 },
+  ],
 };
 
 function normalizePath(value: string) {
@@ -72,7 +72,12 @@ function searchPriority(entry: MentionIndexEntry, rawQuery: string) {
 
   let priority = 0;
 
-  if (searchPath === query || `${searchPath}/` === query || `${query}/` === entry.label.toLowerCase()) priority += 1000;
+  if (
+    searchPath === query ||
+    `${searchPath}/` === query ||
+    `${query}/` === entry.label.toLowerCase()
+  )
+    priority += 1000;
   if (name === query) priority += 800;
   if (name.startsWith(query)) priority += 400;
   if (searchPath.startsWith(query)) priority += 250;
@@ -105,28 +110,41 @@ function searchEntries(entries: MentionIndexEntry[], query: string, limit: numbe
 
 function execFileText(file: string, args: string[], cwd: string) {
   return new Promise<string>((resolvePromise, rejectPromise) => {
-    execFile(file, args, { cwd, encoding: 'utf8', maxBuffer: MAX_RG_BUFFER_BYTES }, (error, stdout) => {
-      if (error) {
-        const code = (error as NodeJS.ErrnoException).code;
-        if (code === '1') {
-          resolvePromise(stdout);
+    execFile(
+      file,
+      args,
+      { cwd, encoding: 'utf8', maxBuffer: MAX_RG_BUFFER_BYTES },
+      (error, stdout) => {
+        if (error) {
+          const code = (error as NodeJS.ErrnoException).code;
+          if (code === '1') {
+            resolvePromise(stdout);
+            return;
+          }
+
+          rejectPromise(error);
           return;
         }
 
-        rejectPromise(error);
-        return;
-      }
-
-      resolvePromise(stdout);
-    });
+        resolvePromise(stdout);
+      },
+    );
   });
 }
 
 function isMissingExecutableError(error: unknown) {
-  return Boolean(error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT');
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code === 'ENOENT',
+  );
 }
 
-async function listWorkspaceFilesWithNodeFs(cwd: string, relativeDirectory = ''): Promise<string[]> {
+async function listWorkspaceFilesWithNodeFs(
+  cwd: string,
+  relativeDirectory = '',
+): Promise<string[]> {
   const directoryPath = relativeDirectory ? path.join(cwd, relativeDirectory) : cwd;
   const directoryEntries = await readdir(directoryPath, { withFileTypes: true });
   const files: string[] = [];
@@ -168,9 +186,9 @@ async function listWorkspaceFiles(cwd: string) {
         '--glob',
         '!dist/**',
         '--glob',
-        '!.DS_Store'
+        '!.DS_Store',
       ],
-      cwd
+      cwd,
     );
 
     return stdout
@@ -195,7 +213,7 @@ function buildEntries(filePaths: string[]) {
       kind: 'file',
       label: normalizedPath,
       name: path.posix.basename(normalizedPath),
-      searchPath: normalizedPath
+      searchPath: normalizedPath,
     });
 
     for (const directory of parentDirectoriesFor(normalizedPath)) {
@@ -206,7 +224,7 @@ function buildEntries(filePaths: string[]) {
         kind: 'folder',
         label: directory,
         name: path.posix.basename(searchPath),
-        searchPath
+        searchPath,
       });
     }
   }
@@ -215,7 +233,7 @@ function buildEntries(filePaths: string[]) {
   return {
     entries,
     files: files.length,
-    folders: folders.size
+    folders: folders.size,
   };
 }
 
@@ -278,7 +296,7 @@ class WorkspaceMentionIndex {
       folders: this.folderCount,
       entries: this.entries.length,
       indexedAt: this.indexedAt,
-      lastError: this.lastError
+      lastError: this.lastError,
     };
   }
 
@@ -317,16 +335,28 @@ export function getMentionIndexStats(cwd = process.cwd()) {
   return getOrCreateMentionIndex(cwd).getStats();
 }
 
-export function queryMentionIndex(query: string, limit = WORKSPACE_SEARCH_LIMIT, cwd = process.cwd()) {
+export function queryMentionIndex(
+  query: string,
+  limit = WORKSPACE_SEARCH_LIMIT,
+  cwd = process.cwd(),
+) {
   return getOrCreateMentionIndex(cwd).query(query, limit);
 }
 
-export async function queryMentionIndexAwait(query: string, limit = WORKSPACE_SEARCH_LIMIT, cwd = process.cwd()) {
+export async function queryMentionIndexAwait(
+  query: string,
+  limit = WORKSPACE_SEARCH_LIMIT,
+  cwd = process.cwd(),
+) {
   const index = getOrCreateMentionIndex(cwd);
   await index.waitForReady();
   return index.query(query, limit);
 }
 
-export function fallbackSearchMentionEntries(entries: MentionIndexEntry[], query: string, limit: number) {
+export function fallbackSearchMentionEntries(
+  entries: MentionIndexEntry[],
+  query: string,
+  limit: number,
+) {
   return searchEntries(entries, query, limit);
 }

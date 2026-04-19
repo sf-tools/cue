@@ -26,7 +26,7 @@ export function createPendingToolEntry(part: ToolCallLike): ToolHistoryEntry {
     status: 'running',
     providerExecuted: part.providerExecuted,
     title: part.title,
-    fileChanges: part.fileChanges
+    fileChanges: part.fileChanges,
   };
 }
 
@@ -40,7 +40,7 @@ export function createCompletedToolEntry(part: ToolResultLike): ToolHistoryEntry
     status: 'completed',
     providerExecuted: part.providerExecuted,
     title: part.title,
-    fileChanges: part.fileChanges
+    fileChanges: part.fileChanges,
   };
 }
 
@@ -54,6 +54,6 @@ export function createFailedToolEntry(part: ToolErrorLike): ToolHistoryEntry {
     errorText: part.error instanceof Error ? part.error.message : String(part.error),
     providerExecuted: part.providerExecuted,
     title: part.title,
-    fileChanges: part.fileChanges
+    fileChanges: part.fileChanges,
   };
 }

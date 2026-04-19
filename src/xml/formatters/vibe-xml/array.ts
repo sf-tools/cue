@@ -2,7 +2,11 @@ import type { Formatters } from '@/xml/formatters/types';
 
 export const isArray = (v: unknown): boolean => Array.isArray(v);
 
-export const formatArray = (unknownValue: unknown, llml: (data: unknown, formatters: Formatters) => string, formatters: Formatters): string => {
+export const formatArray = (
+  unknownValue: unknown,
+  llml: (data: unknown, formatters: Formatters) => string,
+  formatters: Formatters,
+): string => {
   const value = unknownValue as unknown[];
   if (value.length === 0) return '';
 

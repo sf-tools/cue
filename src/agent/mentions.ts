@@ -8,7 +8,7 @@ import {
   type MentionIndexEntry,
   MentionIndexState,
   queryMentionIndex,
-  startMentionIndex
+  startMentionIndex,
 } from './mention-index';
 
 export type MentionSuggestion = {
@@ -24,7 +24,8 @@ function currentMentionMatch(inputChars: string[], cursor: number) {
 function splitMentionQuery(query: string, cwd: string) {
   if (query && !query.endsWith('/')) {
     try {
-      if (statSync(resolve(cwd, query)).isDirectory()) return { directory: `${query}/`, fragment: '' };
+      if (statSync(resolve(cwd, query)).isDirectory())
+        return { directory: `${query}/`, fragment: '' };
     } catch {}
   }
 
@@ -33,7 +34,7 @@ function splitMentionQuery(query: string, cwd: string) {
 
   return {
     directory: query.slice(0, slashIndex + 1),
-    fragment: query.slice(slashIndex + 1)
+    fragment: query.slice(slashIndex + 1),
   };
 }
 
@@ -46,7 +47,7 @@ function listDirectoryEntries(cwd: string, directory: string) {
       label: `${directory}${entry.name}${entry.isDirectory() ? '/' : ''}`,
       name: entry.name,
       kind: entry.isDirectory() ? 'folder' : 'file',
-      searchPath: `${directory}${entry.name}`
+      searchPath: `${directory}${entry.name}`,
     }));
 }
 
@@ -72,7 +73,11 @@ export function currentMentionQuery(inputChars: string[], cursor: number) {
   return currentMentionMatch(inputChars, cursor)?.[1] ?? null;
 }
 
-export function listMentionSuggestions(inputChars: string[], cursor: number, cwd = process.cwd()): MentionSuggestion[] {
+export function listMentionSuggestions(
+  inputChars: string[],
+  cursor: number,
+  cwd = process.cwd(),
+): MentionSuggestion[] {
   const query = currentMentionQuery(inputChars, cursor);
   if (query === null) return [];
 
@@ -83,7 +88,11 @@ export function listMentionSuggestions(inputChars: string[], cursor: number, cwd
   try {
     const localEntries =
       directory || !query || stats.state !== MentionIndexState.Ready
-        ? fallbackSearchMentionEntries(listDirectoryEntries(cwd, directory), directory ? fragment : query, 24)
+        ? fallbackSearchMentionEntries(
+            listDirectoryEntries(cwd, directory),
+            directory ? fragment : query,
+            24,
+          )
         : [];
     const workspaceEntries = query ? queryMentionIndex(query, 24, cwd) : [];
 

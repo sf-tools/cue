@@ -5,7 +5,11 @@ import { repeat, truncateToWidth, widthOf } from '@/text';
 import type { Block, RenderContext } from '../types';
 import type { ComposerSuggestion } from '@/agent/composer-suggestions';
 
-export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSuggestion: number, ctx: RenderContext): Block {
+export function renderSuggestions(
+  suggestions: ComposerSuggestion[],
+  selectedSuggestion: number,
+  ctx: RenderContext,
+): Block {
   if (suggestions.length === 0) return [];
 
   const margin = LEFT_MARGIN.repeat(2);
@@ -13,14 +17,21 @@ export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSug
   const pageStart = Math.floor(selectedSuggestion / visibleCount) * visibleCount;
   const visibleSuggestions = suggestions.slice(pageStart, pageStart + visibleCount);
   const maxLabelWidth = suggestions.reduce(
-    (max, suggestion) => Math.max(max, widthOf(suggestion.label) + widthOf('suffix' in suggestion ? (suggestion.suffix ?? '') : '')),
-    0
+    (max, suggestion) =>
+      Math.max(
+        max,
+        widthOf(suggestion.label) +
+          widthOf('suffix' in suggestion ? (suggestion.suffix ?? '') : ''),
+      ),
+    0,
   );
 
   const lines = visibleSuggestions.map((suggestion, visibleIndex) => {
     const index = pageStart + visibleIndex;
     const selected = index === selectedSuggestion;
-    const prefix = selected ? [span(margin), span('→', ctx.theme.foreground), span(' ')] : [span(`${margin}  `)];
+    const prefix = selected
+      ? [span(margin), span('→', ctx.theme.foreground), span(' ')]
+      : [span(`${margin}  `)];
     const prefixWidth = widthOf(`${margin}${selected ? '→ ' : '  '}`);
     const customLabelStyle = 'labelStyle' in suggestion ? suggestion.labelStyle : undefined;
     const customSuffixStyle = 'suffixStyle' in suggestion ? suggestion.suffixStyle : undefined;
@@ -52,10 +63,18 @@ export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSug
       ...prefix,
       span(suggestion.label, lineStyle),
       ...(suffix ? [span(suffix, suffixStyle)] : []),
-      ...(visibleDetail ? [span(repeat(' ', paddingWidth)), span(visibleDetail, detailStyle)] : [])
+      ...(visibleDetail ? [span(repeat(' ', paddingWidth)), span(visibleDetail, detailStyle)] : []),
     );
   });
 
-  lines.push(line(span(`${margin}  `), span(`(${Math.min(selectedSuggestion + 1, suggestions.length)}/${suggestions.length})`, ctx.theme.dimmed)));
+  lines.push(
+    line(
+      span(`${margin}  `),
+      span(
+        `(${Math.min(selectedSuggestion + 1, suggestions.length)}/${suggestions.length})`,
+        ctx.theme.dimmed,
+      ),
+    ),
+  );
   return lines;
 }

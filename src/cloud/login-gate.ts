@@ -13,7 +13,7 @@ const LOGO = [
   '  +#+        +#+    +:+ +#++:++#      ',
   ' +#+        +#+    +#+ +#+            ',
   '+#    #+# #+#    #+# #+#             ',
-  '########   ########  ##########       '
+  '########   ########  ##########       ',
 ];
 
 const ORB_GLYPHS = ' .:-=+*#%@';
@@ -23,8 +23,10 @@ const ORB_Y_ASPECT = 0.5;
 const orbNoise = makeNoise2D(42);
 
 function openBrowser(url: string) {
-  if (process.platform === 'darwin') return spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
-  if (process.platform === 'win32') return spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
+  if (process.platform === 'darwin')
+    return spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+  if (process.platform === 'win32')
+    return spawn('cmd', ['/c', 'start', '', url], { detached: true, stdio: 'ignore' }).unref();
   return spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
 }
 
@@ -100,7 +102,8 @@ function renderMiniOrbFrame(frameIndex: number) {
       const radial = 1 - norm * norm;
       const value = (orbNoise(x / 20, y / 20 + time) + 1) * 0.5 * radial;
       const clamped = Math.max(0.12, Math.min(1, value));
-      line += ORB_GLYPHS[Math.min(ORB_GLYPHS.length - 1, Math.floor(clamped * ORB_GLYPHS.length))] || ' ';
+      line +=
+        ORB_GLYPHS[Math.min(ORB_GLYPHS.length - 1, Math.floor(clamped * ORB_GLYPHS.length))] || ' ';
     }
 
     rows.push(line);
@@ -126,7 +129,10 @@ function renderLoginGate(frameIndex: number, lines: string[]) {
     const isFooterLine = index >= logoLineCount + 1;
     if (isFooterLine) return line;
 
-    const orb = index >= orbStart && index < orbStart + orbLines.length ? (orbLines[index - orbStart] ?? '') : '';
+    const orb =
+      index >= orbStart && index < orbStart + orbLines.length
+        ? (orbLines[index - orbStart] ?? '')
+        : '';
     return `${padLeft(orb, orbWidth)}  ${line}`;
   });
 
@@ -191,9 +197,9 @@ export async function ensureCueCloudLogin() {
           ...LOGO.map(line => chalk.white(line)),
           '',
           chalk.gray(`v${APP_VERSION}`),
-          chalk.green('Press any key to log in...')
+          chalk.green('Press any key to log in...'),
         ]),
-      () => waitForAnyKey()
+      () => waitForAnyKey(),
     );
 
     const flow = await startDeviceLogin();
@@ -212,7 +218,7 @@ export async function ensureCueCloudLogin() {
           chalk.white('Signing in with the browser...'),
           chalk.white("If your browser didn't open, click this link to log in:"),
           '',
-          flow.verificationUrl
+          flow.verificationUrl,
         ]);
       },
       async () => {
@@ -231,7 +237,7 @@ export async function ensureCueCloudLogin() {
               baseUrl: 'https://cue.sf.tools',
               email: result.user.email,
               savedAt: new Date().toISOString(),
-              userId: result.user.id
+              userId: result.user.id,
             };
             await saveCueCloudAuth(auth);
             return auth;
@@ -241,7 +247,7 @@ export async function ensureCueCloudLogin() {
         }
 
         throw new Error('Login timed out.');
-      }
+      },
     );
   } finally {
     try {

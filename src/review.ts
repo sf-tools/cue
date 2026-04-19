@@ -13,6 +13,6 @@ export function buildCodebaseReviewPrompt(focus?: string) {
     normalizedFocus
       ? `Focus especially on: ${normalizedFocus}.`
       : 'Review it broadly and prioritize the highest-leverage issues first.',
-    'Report the most important correctness risks, maintainability or architecture issues, missing tests or verification gaps, and the best next improvements.'
+    'Report the most important correctness risks, maintainability or architecture issues, missing tests or verification gaps, and the best next improvements.',
   ].join('\n');
 }

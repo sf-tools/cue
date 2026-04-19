@@ -1,7 +1,13 @@
 import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
-import type { ApprovalRequest, ApprovalScope, ChoiceRequest, FileChange, HistoryEntry } from '@/types';
+import type {
+  ApprovalRequest,
+  ApprovalScope,
+  ChoiceRequest,
+  FileChange,
+  HistoryEntry,
+} from '@/types';
 import type { AgentState, QueuedSubmission } from './types';
 
 export type AgentStore = ReturnType<typeof buildAgentStore>;
@@ -147,7 +153,9 @@ function buildAgentStore(initialState: AgentState) {
 
     setPendingChoice(pendingChoice: ChoiceRequest | null, pendingChoiceIndex = 0) {
       state.pendingChoice = pendingChoice;
-      state.pendingChoiceIndex = pendingChoice ? Math.max(0, Math.min(pendingChoiceIndex, pendingChoice.options.length - 1)) : 0;
+      state.pendingChoiceIndex = pendingChoice
+        ? Math.max(0, Math.min(pendingChoiceIndex, pendingChoice.options.length - 1))
+        : 0;
       return state;
     },
 
@@ -157,7 +165,11 @@ function buildAgentStore(initialState: AgentState) {
         return state;
       }
 
-      state.pendingChoiceIndex = clamp(pendingChoiceIndex, 0, Math.max(0, state.pendingChoice.options.length - 1));
+      state.pendingChoiceIndex = clamp(
+        pendingChoiceIndex,
+        0,
+        Math.max(0, state.pendingChoice.options.length - 1),
+      );
       return state;
     },
 
@@ -167,14 +179,18 @@ function buildAgentStore(initialState: AgentState) {
     },
 
     upsertSessionFileChanges(fileChanges: FileChange[]) {
-      const next = new Map(state.sessionFileChanges.map(fileChange => [fileChange.path, fileChange]));
+      const next = new Map(
+        state.sessionFileChanges.map(fileChange => [fileChange.path, fileChange]),
+      );
 
       for (const fileChange of fileChanges) {
         if (fileChange.hasChanges) next.set(fileChange.path, fileChange);
         else next.delete(fileChange.path);
       }
 
-      state.sessionFileChanges = Array.from(next.values()).sort((left, right) => left.path.localeCompare(right.path));
+      state.sessionFileChanges = Array.from(next.values()).sort((left, right) =>
+        left.path.localeCompare(right.path),
+      );
       return state;
     },
 
@@ -287,7 +303,9 @@ function buildAgentStore(initialState: AgentState) {
     },
 
     upsertToolEntry(entry: Extract<HistoryEntry, { type: 'tool' }>) {
-      const index = state.historyEntries.findIndex(candidate => candidate.type === 'tool' && candidate.toolCallId === entry.toolCallId);
+      const index = state.historyEntries.findIndex(
+        candidate => candidate.type === 'tool' && candidate.toolCallId === entry.toolCallId,
+      );
 
       if (index === -1) state.historyEntries.push(entry);
       else state.historyEntries[index] = entry;
@@ -363,7 +381,9 @@ function buildAgentStore(initialState: AgentState) {
     insertPastedText(text: string) {
       const chars = Array.from(text);
       const start = state.cursor;
-      const existingRange = state.pasteRanges.find(range => start > range.start && start < range.end);
+      const existingRange = state.pasteRanges.find(
+        range => start > range.start && start < range.end,
+      );
 
       shiftPasteRangesForInsert(state, start, chars.length);
       state.inputChars.splice(start, 0, ...chars);
@@ -381,7 +401,9 @@ function buildAgentStore(initialState: AgentState) {
     deleteBackward() {
       if (state.cursor <= 0) return false;
 
-      const pasteRange = state.pasteRanges.find(range => state.cursor > range.start && state.cursor <= range.end);
+      const pasteRange = state.pasteRanges.find(
+        range => state.cursor > range.start && state.cursor <= range.end,
+      );
       if (pasteRange) {
         state.cursor = pasteRange.start;
         return removePasteRange(state, pasteRange);
@@ -397,7 +419,9 @@ function buildAgentStore(initialState: AgentState) {
     deleteForward() {
       if (state.cursor >= state.inputChars.length) return false;
 
-      const pasteRange = state.pasteRanges.find(range => state.cursor >= range.start && state.cursor < range.end);
+      const pasteRange = state.pasteRanges.find(
+        range => state.cursor >= range.start && state.cursor < range.end,
+      );
       if (pasteRange) {
         state.cursor = pasteRange.start;
         return removePasteRange(state, pasteRange);
@@ -407,7 +431,7 @@ function buildAgentStore(initialState: AgentState) {
       shiftPasteRangesForDelete(state, state.cursor);
       prunePasteRanges(state);
       return true;
-    }
+    },
   };
 }
 

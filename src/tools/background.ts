@@ -60,11 +60,17 @@ export function createBashBgTool({ requestApproval }: ToolFactoryOptions) {
     description:
       'Start a long-running shell command in the background (dev server, watcher, etc.). Returns an `id` you pass to `bash_output` and `bash_kill`. Output is buffered and survives across tool calls.',
     inputSchema: z.object({
-      cmd: z.string().min(1).describe('Shell command to run in the background.')
+      cmd: z.string().min(1).describe('Shell command to run in the background.'),
     }),
     execute: async ({ cmd }) => {
       const trimmed = cmd.trim() || cmd;
-      if (!(await requestApproval({ scope: 'command', title: 'Start background command', detail: trimmed }))) {
+      if (
+        !(await requestApproval({
+          scope: 'command',
+          title: 'Start background command',
+          detail: trimmed,
+        }))
+      ) {
         throw new Error('command denied by user');
       }
 
@@ -79,8 +85,8 @@ export function createBashBgTool({ requestApproval }: ToolFactoryOptions) {
           COLORTERM: process.env.COLORTERM || 'truecolor',
           FORCE_COLOR: process.env.FORCE_COLOR || '1',
           CLICOLOR: process.env.CLICOLOR || '1',
-          CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1'
-        }
+          CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1',
+        },
       });
 
       const record: BgProcess = {
@@ -93,7 +99,7 @@ export function createBashBgTool({ requestApproval }: ToolFactoryOptions) {
         exitCode: null,
         signal: null,
         buffer: '',
-        cursor: 0
+        cursor: 0,
       };
 
       proc.onData(data => {
@@ -109,7 +115,7 @@ export function createBashBgTool({ requestApproval }: ToolFactoryOptions) {
 
       processes.set(record.id, record);
       return `started ${describe(record)}\ncmd: ${trimmed}`;
-    }
+    },
   });
 }
 
@@ -120,7 +126,13 @@ export function createBashOutputTool() {
     inputSchema: z.object({
       id: z.string().min(1),
       from_start: z.boolean().optional(),
-      tail: z.number().int().positive().max(20000).optional().describe('Return only the last N chars of the requested slice.')
+      tail: z
+        .number()
+        .int()
+        .positive()
+        .max(20000)
+        .optional()
+        .describe('Return only the last N chars of the requested slice.'),
     }),
     execute: async ({ id, from_start, tail }) => {
       const record = processes.get(id);
@@ -132,20 +144,22 @@ export function createBashOutputTool() {
 
       if (tail && slice.length > tail) slice = slice.slice(-tail);
       const cleaned = plain(slice);
-      const trimmed = cleaned.length > MAX_OUTPUT_CHARS ? `…\n${cleaned.slice(-MAX_OUTPUT_CHARS)}` : cleaned;
+      const trimmed =
+        cleaned.length > MAX_OUTPUT_CHARS ? `…\n${cleaned.slice(-MAX_OUTPUT_CHARS)}` : cleaned;
 
       const header = describe(record);
       if (!trimmed.trim()) return `${header}\n(no new output)`;
       return `${header}\n---\n${trimmed.trimEnd()}`;
-    }
+    },
   });
 }
 
 export function createBashKillTool() {
   return tool({
-    description: 'Kill a background command started with `bash_bg`. Sends SIGTERM, then SIGKILL after a short grace period if still running.',
+    description:
+      'Kill a background command started with `bash_bg`. Sends SIGTERM, then SIGKILL after a short grace period if still running.',
     inputSchema: z.object({
-      id: z.string().min(1)
+      id: z.string().min(1),
     }),
     execute: async ({ id }) => {
       const record = processes.get(id);
@@ -177,7 +191,7 @@ export function createBashKillTool() {
       }
 
       return `killed ${describe(record)}`;
-    }
+    },
   });
 }
 
@@ -188,6 +202,6 @@ export function listBackgroundProcesses() {
     status: record.status,
     pid: record.proc.pid,
     startedAt: record.startedAt,
-    endedAt: record.endedAt
+    endedAt: record.endedAt,
   }));
 }

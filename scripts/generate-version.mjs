@@ -11,7 +11,9 @@ const outputPath = path.join(__dirname, '../src/config/version.ts');
 
 const buildTimeMs = Number(process.env.APP_BUILD_TIME_MS ?? Date.now());
 const buildUnixTime = Number(process.env.APP_BUILD_UNIX_TIME ?? Math.floor(buildTimeMs / 1000));
-const buildDateIso = new Date(process.env.APP_BUILD_UNIX_TIME ? buildUnixTime * 1000 : buildTimeMs).toISOString();
+const buildDateIso = new Date(
+  process.env.APP_BUILD_UNIX_TIME ? buildUnixTime * 1000 : buildTimeMs,
+).toISOString();
 
 const gitHash = process.env.APP_GIT_HASH ?? getGitHash();
 const buildVersion = `${pkg.version}.${buildUnixTime}-g${gitHash}`;
@@ -23,7 +25,7 @@ function getGitHash() {
   try {
     return execSync('git rev-parse --short HEAD', {
       encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore']
+      stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
   } catch {
     return 'unknown';

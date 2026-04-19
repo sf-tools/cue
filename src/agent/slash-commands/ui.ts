@@ -1,7 +1,10 @@
 import type { AgentStore } from '@/store';
 import type { SlashCommandSuggestion } from './types';
 
-export function acceptSlashCommandSuggestion(store: AgentStore, suggestion: SlashCommandSuggestion) {
+export function acceptSlashCommandSuggestion(
+  store: AgentStore,
+  suggestion: SlashCommandSuggestion,
+) {
   const state = store.getState();
   const beforeCursor = state.inputChars.slice(0, state.cursor).join('');
   const afterCursor = state.inputChars.slice(state.cursor).join('');

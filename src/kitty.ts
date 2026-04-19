@@ -3,7 +3,7 @@ export const kittyFlags = {
   reportEventTypes: 2,
   reportAlternateKeys: 4,
   reportAllKeysAsEscapeCodes: 8,
-  reportAssociatedText: 16
+  reportAssociatedText: 16,
 } as const;
 
 export function resolveFlags(flags: Iterable<KittyFlag>): number {
@@ -20,7 +20,7 @@ export const kittyModifiers = {
   hyper: 16,
   meta: 32,
   capsLock: 64,
-  numLock: 128
+  numLock: 128,
 } as const;
 
 export type KittyModifier = keyof typeof kittyModifiers;

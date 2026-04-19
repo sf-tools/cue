@@ -2,7 +2,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-import { DEFAULT_MODEL, getSupportedThinkingModes, normalizeOpenAIModelId, type ThinkingMode } from './models';
+import {
+  DEFAULT_MODEL,
+  getSupportedThinkingModes,
+  normalizeOpenAIModelId,
+  type ThinkingMode,
+} from './models';
 
 export type CuePreferences = {
   model: string;
@@ -16,7 +21,7 @@ export function defaultCuePreferences(): CuePreferences {
   return {
     model: DEFAULT_MODEL,
     reasoning: 'auto',
-    autoCompactEnabled: true
+    autoCompactEnabled: true,
   };
 }
 
@@ -27,14 +32,23 @@ function isThinkingMode(value: unknown): value is ThinkingMode {
 export function normalizeCuePreferences(value: unknown): CuePreferences {
   const defaults = defaultCuePreferences();
   const candidate = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
-  const model = normalizeOpenAIModelId(typeof candidate.model === 'string' ? candidate.model : defaults.model);
-  const requestedReasoning = isThinkingMode(candidate.reasoning) ? candidate.reasoning : defaults.reasoning;
+  const model = normalizeOpenAIModelId(
+    typeof candidate.model === 'string' ? candidate.model : defaults.model,
+  );
+  const requestedReasoning = isThinkingMode(candidate.reasoning)
+    ? candidate.reasoning
+    : defaults.reasoning;
   const supportedModes = getSupportedThinkingModes(model);
 
   return {
     model,
-    reasoning: supportedModes.includes(requestedReasoning) ? requestedReasoning : (supportedModes[0] ?? 'auto'),
-    autoCompactEnabled: typeof candidate.autoCompactEnabled === 'boolean' ? candidate.autoCompactEnabled : defaults.autoCompactEnabled
+    reasoning: supportedModes.includes(requestedReasoning)
+      ? requestedReasoning
+      : (supportedModes[0] ?? 'auto'),
+    autoCompactEnabled:
+      typeof candidate.autoCompactEnabled === 'boolean'
+        ? candidate.autoCompactEnabled
+        : defaults.autoCompactEnabled,
   };
 }
 
@@ -49,5 +63,9 @@ export async function loadCuePreferences(path = CUE_PREFERENCES_PATH): Promise<C
 
 export async function saveCuePreferences(preferences: CuePreferences, path = CUE_PREFERENCES_PATH) {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(normalizeCuePreferences(preferences), null, 2)}\n`, 'utf8');
+  await writeFile(
+    path,
+    `${JSON.stringify(normalizeCuePreferences(preferences), null, 2)}\n`,
+    'utf8',
+  );
 }

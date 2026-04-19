@@ -16,12 +16,19 @@ export type HistoryEntryRenderOptions = {
 function renderUserEntry(text: string, ctx: RenderContext): Block {
   return thinPanelize(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), {
     bg: ctx.theme.panelBg(),
-    width: ctx.width
+    width: ctx.width,
   });
 }
 
 const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/gi;
-const AMP_RAINBOW_COLORS = [null, [252, 228, 165], [156, 232, 150], [104, 205, 244], [128, 176, 255], [248, 186, 235]] as const;
+const AMP_RAINBOW_COLORS = [
+  null,
+  [252, 228, 165],
+  [156, 232, 150],
+  [104, 205, 244],
+  [128, 176, 255],
+  [248, 186, 235],
+] as const;
 const AMP_RAINBOW_WIDTH = 8;
 const AMP_RAINBOW_CYCLE_MS = 3_000;
 const AMP_RAINBOW_ANIMATION_MS = 2_000;
@@ -31,7 +38,8 @@ function ampRainbowStyle(position: { index: number; total: number }, now: number
   if (cycleOffset >= AMP_RAINBOW_ANIMATION_MS) return null;
 
   const animationOffset = cycleOffset / AMP_RAINBOW_ANIMATION_MS;
-  const startPos = Math.floor(animationOffset * (position.total + AMP_RAINBOW_WIDTH)) - AMP_RAINBOW_WIDTH;
+  const startPos =
+    Math.floor(animationOffset * (position.total + AMP_RAINBOW_WIDTH)) - AMP_RAINBOW_WIDTH;
   if (position.index < startPos || position.index >= startPos + AMP_RAINBOW_WIDTH) return null;
 
   const color = AMP_RAINBOW_COLORS[(position.index - startPos) % AMP_RAINBOW_COLORS.length];
@@ -53,7 +61,7 @@ function renderAssistantLines(text: string, ctx: RenderContext, animate = false)
         return {
           start,
           end: start + match[0].length,
-          total: match[0].replace(/\s/g, '').length
+          total: match[0].replace(/\s/g, '').length,
         };
       })
     : [];
@@ -79,13 +87,18 @@ function renderAssistantLines(text: string, ctx: RenderContext, animate = false)
     const charWidth = Math.max(1, widthOf(ch));
     if (segments.length > 0 && currentWidth + charWidth > width) flushLine();
 
-    const range = ranges.find(candidate => charIndex >= candidate.start && charIndex < candidate.end);
+    const range = ranges.find(
+      candidate => charIndex >= candidate.start && charIndex < candidate.end,
+    );
     const style = (() => {
       if (!range || /\s/.test(ch)) return ctx.theme.foreground;
 
       const relativeText = text.slice(range.start, charIndex + ch.length);
       const nonWhitespaceIndex = relativeText.replace(/\s/g, '').length - 1;
-      return ampRainbowStyle({ index: nonWhitespaceIndex, total: range.total }, now) ?? ctx.theme.foreground;
+      return (
+        ampRainbowStyle({ index: nonWhitespaceIndex, total: range.total }, now) ??
+        ctx.theme.foreground
+      );
     })();
 
     segments.push(span(ch, style));
@@ -104,12 +117,17 @@ function renderAssistantEntry(text: string, ctx: RenderContext, animate = false)
 
 function renderReasoningEntry(text: string, ctx: RenderContext): Block {
   const width = Math.max(1, ctx.width - 4);
-  const body = text.split('\n').flatMap(lineText => wrapTextBlock(lineText, width, ctx.theme.dimmed));
+  const body = text
+    .split('\n')
+    .flatMap(lineText => wrapTextBlock(lineText, width, ctx.theme.dimmed));
 
-  return thinPanelize([line(span('Reasoning', chalk.cyanBright)), ...(body.length > 0 ? [blankLine(), ...body] : [])], {
-    bg: ctx.theme.panelBg(),
-    width: ctx.width
-  });
+  return thinPanelize(
+    [line(span('Reasoning', chalk.cyanBright)), ...(body.length > 0 ? [blankLine(), ...body] : [])],
+    {
+      bg: ctx.theme.panelBg(),
+      width: ctx.width,
+    },
+  );
 }
 
 function renderShellEntry(text: string, ctx: RenderContext): Block {
@@ -119,7 +137,7 @@ function renderShellEntry(text: string, ctx: RenderContext): Block {
     return indent(
       wrapTextBlock(text, Math.max(1, ctx.width - 4), ctx.theme.foreground),
       [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
-      `${LEFT_MARGIN}  `
+      `${LEFT_MARGIN}  `,
     );
   }
 
@@ -129,7 +147,11 @@ function renderShellEntry(text: string, ctx: RenderContext): Block {
   const lastLine = commandLines.pop();
 
   if (!lastLine) {
-    return indent(wrapTextBlock(text, availableWidth, ctx.theme.foreground), [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)], `${LEFT_MARGIN}  `);
+    return indent(
+      wrapTextBlock(text, availableWidth, ctx.theme.foreground),
+      [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
+      `${LEFT_MARGIN}  `,
+    );
   }
 
   const block = [...commandLines, line(...lastLine.segments, span(exitText, ctx.theme.dimmed))];
@@ -138,23 +160,33 @@ function renderShellEntry(text: string, ctx: RenderContext): Block {
 }
 
 function renderErrorEntry(text: string, ctx: RenderContext): Block {
-  return indent(wrapTextBlock(text, Math.max(1, ctx.width - 4), chalk.redBright), [span(LEFT_MARGIN), span('! ', chalk.red)], `${LEFT_MARGIN}  `);
+  return indent(
+    wrapTextBlock(text, Math.max(1, ctx.width - 4), chalk.redBright),
+    [span(LEFT_MARGIN), span('! ', chalk.red)],
+    `${LEFT_MARGIN}  `,
+  );
 }
 
 function renderToolEntry(text: string, ctx: RenderContext): Block {
   return indent(
     wrapTextBlock(text, Math.max(1, ctx.width - 5), ctx.theme.dimmed),
     [span(LEFT_MARGIN), span('· ', ctx.theme.dimmed), span(' ')],
-    `${LEFT_MARGIN}   `
+    `${LEFT_MARGIN}   `,
   );
 }
 
 function renderMetaEntry(text: string, ctx: RenderContext): Block {
-  const style = text === '(steered)' ? (value: string) => chalk.italic(ctx.theme.dimmed(value)) : ctx.theme.dimmed;
+  const style =
+    text === '(steered)'
+      ? (value: string) => chalk.italic(ctx.theme.dimmed(value))
+      : ctx.theme.dimmed;
   return indent(wrapTextBlock(text, Math.max(1, ctx.width - 2), style), LEFT_MARGIN);
 }
 
-function renderCompactedEntry(entry: Extract<HistoryEntry, { type: 'compacted' }>, ctx: RenderContext): Block {
+function renderCompactedEntry(
+  entry: Extract<HistoryEntry, { type: 'compacted' }>,
+  ctx: RenderContext,
+): Block {
   const width = Math.max(1, ctx.width - 4);
   const summaryLines = entry.summary
     .split('\n')
@@ -166,28 +198,37 @@ function renderCompactedEntry(entry: Extract<HistoryEntry, { type: 'compacted' }
       line(
         span('Compacted', chalk.yellow),
         span(' · ', ctx.theme.subtle),
-        span(`${entry.previousMessageCount} → ${entry.nextMessageCount} messages`, ctx.theme.dimmed),
+        span(
+          `${entry.previousMessageCount} → ${entry.nextMessageCount} messages`,
+          ctx.theme.dimmed,
+        ),
         span(' · ', ctx.theme.subtle),
-        span(entry.automatic ? 'auto' : 'manual', ctx.theme.dimmed)
+        span(entry.automatic ? 'auto' : 'manual', ctx.theme.dimmed),
       ),
       blankLine(),
-      ...summaryLines
+      ...summaryLines,
     ],
     {
       bg: ctx.theme.panelBg(),
-      width: ctx.width
-    }
+      width: ctx.width,
+    },
   );
 }
 
-export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext, options: HistoryEntryRenderOptions = {}): Block {
+export function renderHistoryEntry(
+  entry: HistoryEntry,
+  ctx: RenderContext,
+  options: HistoryEntryRenderOptions = {},
+): Block {
   if (entry.type === 'tool') return renderToolHistoryEntry(entry, ctx);
   if (entry.type === 'compacted') return renderCompactedEntry(entry, ctx);
   if (entry.type === 'ansi') return indent(rawBlock(entry.text), LEFT_MARGIN);
-  if (entry.type === 'plain') return indent(wrapTextBlock(entry.text, Math.max(1, ctx.width)), LEFT_MARGIN);
+  if (entry.type === 'plain')
+    return indent(wrapTextBlock(entry.text, Math.max(1, ctx.width)), LEFT_MARGIN);
 
   if (entry.kind === EntryKind.User) return renderUserEntry(entry.text, ctx);
-  if (entry.kind === EntryKind.Assistant) return renderAssistantEntry(entry.text, ctx, options.animateAssistant);
+  if (entry.kind === EntryKind.Assistant)
+    return renderAssistantEntry(entry.text, ctx, options.animateAssistant);
   if (entry.kind === EntryKind.Reasoning) return renderReasoningEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Shell) return renderShellEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Error) return renderErrorEntry(entry.text, ctx);

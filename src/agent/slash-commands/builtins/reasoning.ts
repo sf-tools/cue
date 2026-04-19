@@ -5,7 +5,7 @@ import {
   getSupportedThinkingModes,
   getThinkingModeDescription,
   isReasoningCapableOpenAIModel,
-  type ThinkingMode
+  type ThinkingMode,
 } from '@/config';
 import type { SlashCommand } from '../types';
 
@@ -32,7 +32,7 @@ const REASONING_ARGUMENT_SUGGESTIONS = ARGUMENT_SUGGESTIONS.map(mode => ({
   value: mode,
   label: mode,
   detail: getThinkingModeDescription(mode),
-  labelStyle: thinkingModeStyle(mode)
+  labelStyle: thinkingModeStyle(mode),
 }));
 
 export const reasoningSlashCommand: SlashCommand = {
@@ -56,10 +56,12 @@ export const reasoningSlashCommand: SlashCommand = {
       return;
     }
 
-    if (!isThinkingMode(requested)) throw new Error(`invalid /${args.invocation} mode: ${requested}`);
-    if (!getSupportedThinkingModes(model).includes(requested)) throw new Error(`/${args.invocation} mode ${requested} is not supported for ${model}`);
+    if (!isThinkingMode(requested))
+      throw new Error(`invalid /${args.invocation} mode: ${requested}`);
+    if (!getSupportedThinkingModes(model).includes(requested))
+      throw new Error(`/${args.invocation} mode ${requested} is not supported for ${model}`);
 
     setThinkingMode(requested);
     showFooterNotice(`Reasoning set to ${formatThinkingMode(requested)}`);
-  }
+  },
 };

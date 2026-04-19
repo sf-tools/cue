@@ -41,7 +41,7 @@ const APP_SLOGANS = [
   'Softly dramatic, wildly useful',
   'Precision, but make it charming',
   'Like luck, but reproducible',
-  'Tiny fanfare for each next step'
+  'Tiny fanfare for each next step',
 ] as const;
 
 export const APP_SLOGAN = APP_SLOGANS[Math.floor(Math.random() * APP_SLOGANS.length)];

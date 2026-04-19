@@ -29,7 +29,11 @@ export function getCueSessionPath(sessionId: string, root = DEFAULT_SESSION_DIR)
   return join(root, `${sessionId}.json`);
 }
 
-export function createSnapshotFromState(sessionId: string, cwd: string, state: AgentState): CueSessionSnapshot {
+export function createSnapshotFromState(
+  sessionId: string,
+  cwd: string,
+  state: AgentState,
+): CueSessionSnapshot {
   return {
     version: 1,
     sessionId,
@@ -44,8 +48,8 @@ export function createSnapshotFromState(sessionId: string, cwd: string, state: A
       currentModel: state.currentModel,
       thinkingMode: state.thinkingMode,
       autoCompactEnabled: state.autoCompactEnabled,
-      planningMode: state.planningMode
-    }
+      planningMode: state.planningMode,
+    },
   };
 }
 
@@ -56,7 +60,7 @@ function sanitizeHistoryEntriesForResume(entries: HistoryEntry[]): HistoryEntry[
     return {
       ...entry,
       status: 'failed',
-      errorText: entry.errorText || 'interrupted when the session was resumed'
+      errorText: entry.errorText || 'interrupted when the session was resumed',
     };
   });
 }
@@ -74,17 +78,26 @@ export function hydrateStateFromSnapshot(snapshot: CueSessionSnapshot): AgentSta
     messages: snapshot.state.messages,
     planningMode: snapshot.state.planningMode,
     thinkingMode: snapshot.state.thinkingMode,
-    totalCost: snapshot.state.totalCost
+    totalCost: snapshot.state.totalCost,
   };
 }
 
-export async function saveCueSessionSnapshot(snapshot: CueSessionSnapshot, root = DEFAULT_SESSION_DIR) {
+export async function saveCueSessionSnapshot(
+  snapshot: CueSessionSnapshot,
+  root = DEFAULT_SESSION_DIR,
+) {
   const path = getCueSessionPath(snapshot.sessionId, root);
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(snapshot, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await writeFile(path, `${JSON.stringify(snapshot, null, 2)}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
 }
 
-export async function loadCueSessionSnapshot(sessionId: string, root = DEFAULT_SESSION_DIR): Promise<CueSessionSnapshot | null> {
+export async function loadCueSessionSnapshot(
+  sessionId: string,
+  root = DEFAULT_SESSION_DIR,
+): Promise<CueSessionSnapshot | null> {
   try {
     const raw = await readFile(getCueSessionPath(sessionId, root), 'utf8');
     const parsed = JSON.parse(raw) as CueSessionSnapshot;

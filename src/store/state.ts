@@ -38,5 +38,5 @@ export const createInitialState = (): AgentState => ({
   planningMode: false,
   commandApprovalSessionAllowed: false,
   editApprovalSessionAllowed: false,
-  compacting: false
+  compacting: false,
 });

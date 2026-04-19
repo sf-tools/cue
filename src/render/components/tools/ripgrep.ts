@@ -9,7 +9,8 @@ export function renderRipgrepTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const engine = output && typeof output.engine === 'string' ? output.engine : null;
   const matches = numberProp(entry.output, 'matches');
   const text = stringProp(entry.output, 'output') || '';
-  const detail = matches === null ? pattern : `${pattern} · ${matches} match${matches === 1 ? '' : 'es'}`;
+  const detail =
+    matches === null ? pattern : `${pattern} · ${matches} match${matches === 1 ? '' : 'es'}`;
   const body =
     entry.status === 'failed'
       ? [entry.errorText || 'search failed']
@@ -18,7 +19,7 @@ export function renderRipgrepTool(entry: ToolHistoryEntry, ctx: RenderContext) {
           `path: ${path}`,
           `engine: ${engine === 'grep' ? 'grep fallback' : engine || 'rg'}`,
           ...(matches === null ? [] : [`matches: ${matches}`]),
-          ...(text.trim() ? previewText(text, ctx, 8) : ['no matches'])
+          ...(text.trim() ? previewText(text, ctx, 8) : ['no matches']),
         ];
 
   return renderToolCard({ name: 'ripgrep', detail, body, status: entry.status }, ctx);

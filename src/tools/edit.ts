@@ -17,9 +17,15 @@ function previewSnippet(text: string, maxChars = 160) {
 function previewEdits(edits: EditSpec[], maxItems = 3) {
   const items = edits
     .slice(0, maxItems)
-    .flatMap((edit, index) => [`${index + 1}. - ${previewSnippet(edit.oldText)}`, `   + ${previewSnippet(edit.newText)}`]);
+    .flatMap((edit, index) => [
+      `${index + 1}. - ${previewSnippet(edit.oldText)}`,
+      `   + ${previewSnippet(edit.newText)}`,
+    ]);
 
-  if (edits.length > maxItems) items.push(`… ${edits.length - maxItems} more change${edits.length - maxItems === 1 ? '' : 's'}`);
+  if (edits.length > maxItems)
+    items.push(
+      `… ${edits.length - maxItems} more change${edits.length - maxItems === 1 ? '' : 's'}`,
+    );
   return items;
 }
 
@@ -28,7 +34,7 @@ export function createEditTool({ requestApproval, pushUndoEntry }: ToolFactoryOp
     description: 'Edit an existing file by applying exact text replacements',
     inputSchema: z.object({
       path: z.string(),
-      edits: z.array(z.object({ oldText: z.string().min(1), newText: z.string() })).min(1)
+      edits: z.array(z.object({ oldText: z.string().min(1), newText: z.string() })).min(1),
     }),
     execute: async ({ path, edits }) => {
       const previousContent = await readFile(path, 'utf8');
@@ -41,7 +47,7 @@ export function createEditTool({ requestApproval, pushUndoEntry }: ToolFactoryOp
           title: 'Edit file',
           detail: `${path} · ${describeFileChange(fileChange)}`,
           body: fileChange.hasChanges ? undefined : previewEdits(edits),
-          fileChanges: [fileChange]
+          fileChanges: [fileChange],
         }))
       ) {
         throw new Error('edit denied by user');
@@ -51,10 +57,10 @@ export function createEditTool({ requestApproval, pushUndoEntry }: ToolFactoryOp
       const undoEntry: UndoEntry = {
         toolName: 'edit',
         summary: `edit ${path}`,
-        files: [{ path, previousContent, nextContent }]
+        files: [{ path, previousContent, nextContent }],
       };
       pushUndoEntry(undoEntry);
       return `applied ${edits.length} edit${edits.length === 1 ? '' : 's'} to ${path}`;
-    }
+    },
   });
 }

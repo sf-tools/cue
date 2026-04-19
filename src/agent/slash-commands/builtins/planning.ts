@@ -3,10 +3,15 @@ import chalk from 'chalk';
 import type { SlashCommand } from '../types';
 
 const ARGUMENT_SUGGESTIONS = [
-  { value: 'on', label: 'on', detail: 'Enable planning mode (read-only agent tools)', labelStyle: chalk.greenBright },
+  {
+    value: 'on',
+    label: 'on',
+    detail: 'Enable planning mode (read-only agent tools)',
+    labelStyle: chalk.greenBright,
+  },
   { value: 'off', label: 'off', detail: 'Disable planning mode', labelStyle: chalk.redBright },
   { value: 'toggle', label: 'toggle', detail: 'Toggle planning mode' },
-  { value: 'status', label: 'status', detail: 'Show current planning mode status' }
+  { value: 'status', label: 'status', detail: 'Show current planning mode status' },
 ] as const;
 
 function parseMode(value: string | undefined) {
@@ -51,6 +56,8 @@ export const planningSlashCommand: SlashCommand = {
     const next = mode === 'status' ? current : mode === 'toggle' ? !current : mode === 'on';
 
     if (mode !== 'status') setPlanningMode(next);
-    showFooterNotice(`Planning mode ${next ? 'enabled' : 'disabled'}${next ? ' · read-only tools' : ''}`);
-  }
+    showFooterNotice(
+      `Planning mode ${next ? 'enabled' : 'disabled'}${next ? ' · read-only tools' : ''}`,
+    );
+  },
 };

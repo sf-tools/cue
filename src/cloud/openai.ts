@@ -18,7 +18,7 @@ function getCueCloudProvider(auth: CueCloudAuth) {
 
   const provider = createOpenAI({
     apiKey: auth.accessToken,
-    baseURL: joinUrl(auth.baseUrl, '/api/cli/chat')
+    baseURL: joinUrl(auth.baseUrl, '/api/cli/chat'),
   });
 
   providerCache.set(cacheKey, provider);

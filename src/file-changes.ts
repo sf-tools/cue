@@ -25,7 +25,12 @@ function asRecord(value: unknown) {
 
 function isEditSpec(value: unknown): value is EditSpec {
   const record = asRecord(value);
-  return !!record && typeof record.oldText === 'string' && record.oldText.length > 0 && typeof record.newText === 'string';
+  return (
+    !!record &&
+    typeof record.oldText === 'string' &&
+    record.oldText.length > 0 &&
+    typeof record.newText === 'string'
+  );
 }
 
 export function normalizeLineEndings(text: string) {
@@ -53,7 +58,9 @@ function diffLines(oldLines: string[], newLines: string[]): RawDiffOp[] {
     for (let diagonal = -depth; diagonal <= depth; diagonal += 2) {
       const moveDown =
         diagonal === -depth ||
-        (diagonal !== depth && (frontier.get(diagonal - 1) ?? Number.NEGATIVE_INFINITY) < (frontier.get(diagonal + 1) ?? Number.NEGATIVE_INFINITY));
+        (diagonal !== depth &&
+          (frontier.get(diagonal - 1) ?? Number.NEGATIVE_INFINITY) <
+            (frontier.get(diagonal + 1) ?? Number.NEGATIVE_INFINITY));
 
       let x = moveDown ? (frontier.get(diagonal + 1) ?? 0) : (frontier.get(diagonal - 1) ?? 0) + 1;
       let y = x - diagonal;
@@ -69,10 +76,17 @@ function diffLines(oldLines: string[], newLines: string[]): RawDiffOp[] {
     }
   }
 
-  return [...oldLines.map(line => ({ type: 'remove' as const, line })), ...newLines.map(line => ({ type: 'add' as const, line }))];
+  return [
+    ...oldLines.map(line => ({ type: 'remove' as const, line })),
+    ...newLines.map(line => ({ type: 'add' as const, line })),
+  ];
 }
 
-function backtrackDiff(trace: Map<number, number>[], oldLines: string[], newLines: string[]): RawDiffOp[] {
+function backtrackDiff(
+  trace: Map<number, number>[],
+  oldLines: string[],
+  newLines: string[],
+): RawDiffOp[] {
   let x = oldLines.length;
   let y = newLines.length;
   const ops: RawDiffOp[] = [];
@@ -82,7 +96,9 @@ function backtrackDiff(trace: Map<number, number>[], oldLines: string[], newLine
     const diagonal = x - y;
     const moveDown =
       diagonal === -depth ||
-      (diagonal !== depth && (frontier.get(diagonal - 1) ?? Number.NEGATIVE_INFINITY) < (frontier.get(diagonal + 1) ?? Number.NEGATIVE_INFINITY));
+      (diagonal !== depth &&
+        (frontier.get(diagonal - 1) ?? Number.NEGATIVE_INFINITY) <
+          (frontier.get(diagonal + 1) ?? Number.NEGATIVE_INFINITY));
     const previousDiagonal = moveDown ? diagonal + 1 : diagonal - 1;
     const previousX = frontier.get(previousDiagonal) ?? 0;
     const previousY = previousX - previousDiagonal;
@@ -115,7 +131,7 @@ function annotateDiff(ops: RawDiffOp[]): DiffOp[] {
     const annotated: DiffOp = {
       ...op,
       oldLineStart: oldLine,
-      newLineStart: newLine
+      newLineStart: newLine,
     };
 
     if (op.type === 'context') {
@@ -189,7 +205,12 @@ function computeDiffStat(ops: RawDiffOp[]): DiffStat {
   return { added, modified, removed };
 }
 
-function buildUnifiedDiff(previousContent: string | null, nextContent: string | null, path: string, contextLines = 3) {
+function buildUnifiedDiff(
+  previousContent: string | null,
+  nextContent: string | null,
+  path: string,
+  contextLines = 3,
+) {
   const oldLines = splitLines(previousContent);
   const newLines = splitLines(nextContent);
   const ops = diffLines(oldLines, newLines);
@@ -202,10 +223,13 @@ function buildUnifiedDiff(previousContent: string | null, nextContent: string | 
       diff:
         kind === 'modified'
           ? ''
-          : [`--- ${kind === 'created' ? '/dev/null' : `a/${path}`}`, `+++ ${kind === 'deleted' ? '/dev/null' : `b/${path}`}`].join('\n'),
+          : [
+              `--- ${kind === 'created' ? '/dev/null' : `a/${path}`}`,
+              `+++ ${kind === 'deleted' ? '/dev/null' : `b/${path}`}`,
+            ].join('\n'),
       stats,
       hasTextualChanges,
-      kind
+      kind,
     } as const;
   }
 
@@ -224,7 +248,9 @@ function buildUnifiedDiff(previousContent: string | null, nextContent: string | 
     const oldCount = slice.reduce((count, op) => count + (op.type === 'add' ? 0 : 1), 0);
     const newCount = slice.reduce((count, op) => count + (op.type === 'remove' ? 0 : 1), 0);
 
-    lines.push(`@@ -${formatRange(first.oldLineStart, oldCount)} +${formatRange(first.newLineStart, newCount)} @@`);
+    lines.push(
+      `@@ -${formatRange(first.oldLineStart, oldCount)} +${formatRange(first.newLineStart, newCount)} @@`,
+    );
 
     for (const op of slice) {
       const prefix = op.type === 'add' ? '+' : op.type === 'remove' ? '-' : ' ';
@@ -236,7 +262,12 @@ function buildUnifiedDiff(previousContent: string | null, nextContent: string | 
 }
 
 function isMissingFileError(error: unknown) {
-  return !!error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'ENOENT';
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
 }
 
 async function readOptionalFile(path: string) {
@@ -278,7 +309,8 @@ function ensureNonOverlapping(matches: Match[]) {
   for (let index = 1; index < sorted.length; index += 1) {
     const previous = sorted[index - 1];
     const current = sorted[index];
-    if (current && previous && current.index < previous.index + previous.oldText.length) throw new Error('edits overlap');
+    if (current && previous && current.index < previous.index + previous.oldText.length)
+      throw new Error('edits overlap');
   }
 
   return sorted;
@@ -289,8 +321,8 @@ export function applyEdits(content: string, edits: EditSpec[]) {
     edits.map(edit => ({
       index: findUniqueMatch(content, edit.oldText),
       oldText: edit.oldText,
-      newText: edit.newText
-    }))
+      newText: edit.newText,
+    })),
   );
 
   let output = content;
@@ -303,16 +335,21 @@ export function applyEdits(content: string, edits: EditSpec[]) {
   return output;
 }
 
-export function createFileChange(path: string, previousContent: string | null, nextContent: string | null): FileChange {
+export function createFileChange(
+  path: string,
+  previousContent: string | null,
+  nextContent: string | null,
+): FileChange {
   const result = buildUnifiedDiff(previousContent, nextContent, path);
-  const hasChanges = previousContent === null || nextContent === null || previousContent !== nextContent;
+  const hasChanges =
+    previousContent === null || nextContent === null || previousContent !== nextContent;
 
   return {
     path,
     diff: result.diff,
     stats: result.stats,
     changeKind: result.kind,
-    hasChanges
+    hasChanges,
   };
 }
 
@@ -327,7 +364,10 @@ export async function buildEditFileChange(path: string, edits: EditSpec[]) {
   return createFileChange(path, previousContent, nextContent);
 }
 
-export async function previewFileChangesForToolCall(toolName: string, input: unknown): Promise<FileChange[] | undefined> {
+export async function previewFileChangesForToolCall(
+  toolName: string,
+  input: unknown,
+): Promise<FileChange[] | undefined> {
   const record = asRecord(input);
   if (!record) return undefined;
 
@@ -366,7 +406,7 @@ export function summarizeFileChanges(fileChanges: FileChange[]) {
     fileCount: paths.size,
     added: active.reduce((sum, fileChange) => sum + fileChange.stats.added, 0),
     modified: active.reduce((sum, fileChange) => sum + fileChange.stats.modified, 0),
-    removed: active.reduce((sum, fileChange) => sum + fileChange.stats.removed, 0)
+    removed: active.reduce((sum, fileChange) => sum + fileChange.stats.removed, 0),
   };
 }
 
@@ -375,7 +415,7 @@ export function formatDiffStat(stat: DiffStat, options: { showZeros?: boolean } 
   const parts = [
     ['+', stat.added],
     ['~', stat.modified],
-    ['-', stat.removed]
+    ['-', stat.removed],
   ] as const;
 
   const text = parts

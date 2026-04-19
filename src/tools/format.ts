@@ -29,7 +29,7 @@ async function detectFormatters(cwd: string): Promise<Formatter[]> {
       label: 'biome format',
       buildCmd: (paths, check) =>
         `bunx --bun @biomejs/biome format ${check ? '' : '--write '}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
-      defaultPaths: ['.']
+      defaultPaths: ['.'],
     });
   }
 
@@ -46,8 +46,9 @@ async function detectFormatters(cwd: string): Promise<Formatter[]> {
     found.push({
       id: 'prettier',
       label: 'prettier',
-      buildCmd: (paths, check) => `bunx --bun prettier ${check ? '--check' : '--write'} ${paths.length === 0 ? '.' : quotePaths(paths)}`,
-      defaultPaths: ['.']
+      buildCmd: (paths, check) =>
+        `bunx --bun prettier ${check ? '--check' : '--write'} ${paths.length === 0 ? '.' : quotePaths(paths)}`,
+      defaultPaths: ['.'],
     });
   }
 
@@ -57,15 +58,17 @@ async function detectFormatters(cwd: string): Promise<Formatter[]> {
       found.push({
         id: 'ruff',
         label: 'ruff format',
-        buildCmd: (paths, check) => `ruff format ${check ? '--check ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
-        defaultPaths: ['.']
+        buildCmd: (paths, check) =>
+          `ruff format ${check ? '--check ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
+        defaultPaths: ['.'],
       });
     } else if (/\[tool\.black\]/.test(pyproject)) {
       found.push({
         id: 'black',
         label: 'black',
-        buildCmd: (paths, check) => `black ${check ? '--check ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
-        defaultPaths: ['.']
+        buildCmd: (paths, check) =>
+          `black ${check ? '--check ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
+        defaultPaths: ['.'],
       });
     }
   }
@@ -79,7 +82,7 @@ async function detectFormatters(cwd: string): Promise<Formatter[]> {
         if (paths.length === 0) return `cargo fmt --all${checkFlag ? ' --' : ''}${checkFlag}`;
         return `cargo fmt --${checkFlag} ${quotePaths(paths)}`;
       },
-      defaultPaths: []
+      defaultPaths: [],
     });
   }
 
@@ -91,7 +94,7 @@ async function detectFormatters(cwd: string): Promise<Formatter[]> {
         const flags = check ? '-l' : '-w';
         return `gofmt ${flags} ${paths.length === 0 ? '.' : quotePaths(paths)}`;
       },
-      defaultPaths: ['.']
+      defaultPaths: ['.'],
     });
   }
 
@@ -103,17 +106,25 @@ export function createFormatTool({ runUserShell, requestApproval }: ToolFactoryO
     description:
       'Auto-detect the project formatter (biome / prettier / ruff / black / rustfmt / gofmt) and run it. Use `check: true` to verify without writing. Writes require approval.',
     inputSchema: z.object({
-      paths: z.array(z.string()).optional().describe('Paths to format. Omit for the whole project.'),
+      paths: z
+        .array(z.string())
+        .optional()
+        .describe('Paths to format. Omit for the whole project.'),
       check: z.boolean().optional().describe('Only check; do not modify files.'),
-      formatter: z.enum(['biome', 'prettier', 'ruff', 'black', 'rustfmt', 'gofmt']).optional().describe('Force a specific formatter.')
+      formatter: z
+        .enum(['biome', 'prettier', 'ruff', 'black', 'rustfmt', 'gofmt'])
+        .optional()
+        .describe('Force a specific formatter.'),
     }),
     execute: async ({ paths, check, formatter }) => {
       const cwd = process.cwd();
       const formatters = await detectFormatters(cwd);
-      if (formatters.length === 0) return 'no formatter detected (looked for biome, prettier, ruff/black, rustfmt, gofmt)';
+      if (formatters.length === 0)
+        return 'no formatter detected (looked for biome, prettier, ruff/black, rustfmt, gofmt)';
 
       const chosen = formatter ? formatters.find(item => item.id === formatter) : formatters[0];
-      if (!chosen) return `formatter \`${formatter}\` not detected. found: ${formatters.map(f => f.id).join(', ')}`;
+      if (!chosen)
+        return `formatter \`${formatter}\` not detected. found: ${formatters.map(f => f.id).join(', ')}`;
 
       const targets = paths ?? chosen.defaultPaths;
       const cmd = chosen.buildCmd(targets, Boolean(check));
@@ -123,7 +134,7 @@ export function createFormatTool({ runUserShell, requestApproval }: ToolFactoryO
           !(await requestApproval({
             scope: 'command',
             title: `Run ${chosen.label}`,
-            detail: cmd
+            detail: cmd,
           }))
         ) {
           throw new Error('command denied by user');
@@ -135,6 +146,6 @@ export function createFormatTool({ runUserShell, requestApproval }: ToolFactoryO
       const header = `${chosen.label}${check ? ' --check' : ''} · exit ${exitCode}`;
       if (!text) return `${header}\n(no output)`;
       return `${header}\n${truncate(text, 8000)}`;
-    }
+    },
   });
 }

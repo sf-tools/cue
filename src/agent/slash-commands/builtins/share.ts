@@ -12,5 +12,5 @@ export const shareSlashCommand: SlashCommand = {
     const result = await context.shareCurrentThread();
     context.persistEntry(EntryKind.Meta, `shared thread: ${result.share.url}`);
     context.showFooterNotice('thread shared');
-  }
+  },
 };

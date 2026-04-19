@@ -35,7 +35,7 @@ export function createOracleTool(options: ToolFactoryOptions, inspectionTools: T
       'Consult the oracle for a skeptical second opinion. Best for reviewing a patch, plan, bug hypothesis, architecture choice, or test strategy. Provide a self-contained task and optional relevant file paths. The oracle can inspect the workspace but cannot modify it.',
     inputSchema: z.object({
       task: z.string().min(1),
-      files: z.array(z.string().min(1)).max(24).optional()
+      files: z.array(z.string().min(1)).max(24).optional(),
     }),
     execute: async ({ task, files }) => {
       const hintedFiles = normalizeFiles(files);
@@ -44,7 +44,7 @@ export function createOracleTool(options: ToolFactoryOptions, inspectionTools: T
       const prompt = [
         `Task:\n${task.trim()}`,
         hintedFiles.length > 0 ? `Relevant file paths:\n- ${hintedFiles.join('\n- ')}` : null,
-        `Workspace:\n${process.cwd()}`
+        `Workspace:\n${process.cwd()}`,
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -79,7 +79,9 @@ export function createOracleTool(options: ToolFactoryOptions, inspectionTools: T
             - Recommended next steps: bullet list.
           `,
           prompt,
-          providerOptions: createOpenAIProviderOptions(model, thinkingMode, { includeReasoningSummary: false })
+          providerOptions: createOpenAIProviderOptions(model, thinkingMode, {
+            includeReasoningSummary: false,
+          }),
         });
 
         const answer = plain(text).trim();
@@ -87,8 +89,10 @@ export function createOracleTool(options: ToolFactoryOptions, inspectionTools: T
 
         return truncate(answer);
       } catch (error: unknown) {
-        throw new Error(`oracle failed: ${plain(error instanceof Error ? error.message : String(error))}`);
+        throw new Error(
+          `oracle failed: ${plain(error instanceof Error ? error.message : String(error))}`,
+        );
       }
-    }
+    },
   });
 }

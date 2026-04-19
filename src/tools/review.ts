@@ -2,7 +2,15 @@ import { tool } from 'ai';
 import { z } from 'zod';
 
 import type { ToolFactoryOptions } from './types';
-import { classifyPath, joinAddedLines, joinRemovedLines, parseUnifiedDiff, totalLineChanges, type DiffFile, type FileKind } from './diff-analysis';
+import {
+  classifyPath,
+  joinAddedLines,
+  joinRemovedLines,
+  parseUnifiedDiff,
+  totalLineChanges,
+  type DiffFile,
+  type FileKind,
+} from './diff-analysis';
 
 export type ChangeCategory =
   | 'feature'
@@ -24,7 +32,15 @@ const MAX_STEPS = 30;
 const DEFAULT_MAX_QUESTIONS = 10;
 const MAX_QUESTIONS = 25;
 const MAX_DIFF_LENGTH = 400_000;
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WEEKDAY_NAMES = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
 
 function uniqueNonEmpty(values: string[], maxCount: number) {
   const seen = new Set<string>();
@@ -66,9 +82,12 @@ function categoryFor(file: DiffFile): ChangeCategory {
     .toLowerCase();
 
   if (/\bfix\b|\bbug\b|regression|crash|null pointer|off[- ]by[- ]one/.test(added)) return 'fix';
-  if (/\bperf\b|\bperformance\b|optimi[sz]e|throughput|latency|cache/.test(added)) return 'performance';
-  if (file.isNew || /\bfeat\b|\bfeature\b|\bintroduce\b|\benable\b|\badd\b/.test(added)) return 'feature';
-  if (added.length > 0 && removed.length > 0 && file.additions <= file.deletions * 1.5) return 'refactor';
+  if (/\bperf\b|\bperformance\b|optimi[sz]e|throughput|latency|cache/.test(added))
+    return 'performance';
+  if (file.isNew || /\bfeat\b|\bfeature\b|\bintroduce\b|\benable\b|\badd\b/.test(added))
+    return 'feature';
+  if (added.length > 0 && removed.length > 0 && file.additions <= file.deletions * 1.5)
+    return 'refactor';
   return 'chore';
 }
 
@@ -107,9 +126,17 @@ function pathToHumanArea(path: string) {
 }
 
 function summarizeFile(file: DiffFile) {
-  const verb = file.isNew ? 'adds' : file.isDeleted ? 'removes' : file.isRename ? `renames from \`${file.oldPath}\` to` : 'updates';
+  const verb = file.isNew
+    ? 'adds'
+    : file.isDeleted
+      ? 'removes'
+      : file.isRename
+        ? `renames from \`${file.oldPath}\` to`
+        : 'updates';
   const sizeNote =
-    file.additions + file.deletions > 200 ? ` (large change: +${file.additions}/-${file.deletions})` : ` (+${file.additions}/-${file.deletions})`;
+    file.additions + file.deletions > 200
+      ? ` (large change: +${file.additions}/-${file.deletions})`
+      : ` (+${file.additions}/-${file.deletions})`;
   return `${verb} \`${file.path}\`${sizeNote}`;
 }
 
@@ -134,8 +161,12 @@ function buildReleaseNotes(files: DiffFile[], prTitle: string | null, projectNam
 
   const added = joinAddedLines(files);
   const removed = joinRemovedLines(files);
-  if (/\bremoved\s+(?:export|public api|deprecated)/i.test(removed)) breaking.push('Public API surface reduced -- check imports.');
-  if (/\b(BREAKING|breaking change)\b/.test(added) || /\b(BREAKING|breaking change)\b/i.test(prTitle ?? '')) {
+  if (/\bremoved\s+(?:export|public api|deprecated)/i.test(removed))
+    breaking.push('Public API surface reduced -- check imports.');
+  if (
+    /\b(BREAKING|breaking change)\b/.test(added) ||
+    /\b(BREAKING|breaking change)\b/i.test(prTitle ?? '')
+  ) {
     breaking.push('Marked as a breaking change by the author.');
   }
 
@@ -146,7 +177,7 @@ function buildReleaseNotes(files: DiffFile[], prTitle: string | null, projectNam
   return {
     headline: projectName ? `${projectName}: ${subject}` : subject,
     bullets,
-    breaking_changes: uniqueNonEmpty(breaking, 5)
+    breaking_changes: uniqueNonEmpty(breaking, 5),
   };
 }
 
@@ -169,14 +200,17 @@ function buildInternalChangelog(files: DiffFile[]) {
     'docs',
     'build_or_deps',
     'infrastructure',
-    'chore'
+    'chore',
   ];
   const sections = order
     .map(category => {
       const items = buckets.get(category);
       return items && items.length > 0 ? { category, title: categoryTitle(category), items } : null;
     })
-    .filter((value): value is { category: ChangeCategory; title: string; items: string[] } => value !== null);
+    .filter(
+      (value): value is { category: ChangeCategory; title: string; items: string[] } =>
+        value !== null,
+    );
 
   return { sections };
 }
@@ -216,15 +250,21 @@ function scrutinizeForFile(file: DiffFile) {
   const kind = classifyPath(file.path);
 
   if (kind === 'migration') out.push('Verify the migration is backward-compatible during rollout.');
-  if (kind === 'security') out.push('Walk through every code path that hits this file -- security-sensitive surface.');
-  if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added)) out.push('eval/exec/spawn introduced -- confirm every input is trusted.');
+  if (kind === 'security')
+    out.push('Walk through every code path that hits this file -- security-sensitive surface.');
+  if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added))
+    out.push('eval/exec/spawn introduced -- confirm every input is trusted.');
   if (/\bcatch\s*\([^)]*\)\s*\{\s*\}|except\s+[A-Za-z][\w.]*:\s*pass\b/.test(added))
     out.push('Caught error appears to be silenced -- confirm intent and add observability.');
-  if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip/.test(added)) out.push('Test is skipped -- confirm tracking issue and re-enable plan.');
+  if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip/.test(added))
+    out.push('Test is skipped -- confirm tracking issue and re-enable plan.');
   if (file.isDeleted) out.push('Confirm no remaining imports or runtime references to this path.');
-  if (file.isRename) out.push('Search for any string-based references that did not follow the rename.');
-  if (file.additions + file.deletions > 300) out.push('Large change -- request the author to highlight the 2-3 most important hunks.');
-  if (out.length === 0) out.push('Skim for naming, error handling, and unexpected behavior changes.');
+  if (file.isRename)
+    out.push('Search for any string-based references that did not follow the rename.');
+  if (file.additions + file.deletions > 300)
+    out.push('Large change -- request the author to highlight the 2-3 most important hunks.');
+  if (out.length === 0)
+    out.push('Skim for naming, error handling, and unexpected behavior changes.');
   return out;
 }
 
@@ -252,8 +292,8 @@ function buildWalkthrough(files: DiffFile[], maxSteps: number) {
       area: file.path,
       what_changed: `${file.isNew ? 'introduces a new file' : file.isDeleted ? 'removes a file' : file.isRename ? `renames from \`${file.oldPath}\`` : `edits ${file.additions + file.deletions} line(s)`} (+${file.additions}/-${file.deletions}).`,
       why_it_matters: whyForKind(classifyPath(file.path)),
-      scrutinize: scrutinizeForFile(file)
-    }))
+      scrutinize: scrutinizeForFile(file),
+    })),
   };
 }
 
@@ -278,35 +318,71 @@ function scoreRisk(
   added: string,
   totals: { additions: number; deletions: number },
   coverageDelta: number | null,
-  bugDensity: Map<string, number>
+  bugDensity: Map<string, number>,
 ) {
   const drivers: Array<{ signal: string; weight: number; evidence: string }> = [];
   const kinds = countByKind(files);
-  const pushDriver = (signal: string, weight: number, evidence: string) => drivers.push({ signal, weight, evidence });
+  const pushDriver = (signal: string, weight: number, evidence: string) =>
+    drivers.push({ signal, weight, evidence });
 
-  if (kinds.migration) pushDriver('database migration changed', 25, `${kinds.migration} migration file(s) modified`);
+  if (kinds.migration)
+    pushDriver('database migration changed', 25, `${kinds.migration} migration file(s) modified`);
   if (/\b(DROP|TRUNCATE|ALTER\s+TABLE\s+\S+\s+DROP)\b/i.test(added))
     pushDriver('destructive schema change', 30, 'added lines contain DROP/TRUNCATE/ALTER ... DROP');
-  if (kinds.security) pushDriver('security-sensitive path touched', 20, `${kinds.security} file(s) under auth/security/permission paths`);
-  if (kinds.deps) pushDriver('dependency manifest changed', 10, `${kinds.deps} dependency manifest file(s) changed`);
+  if (kinds.security)
+    pushDriver(
+      'security-sensitive path touched',
+      20,
+      `${kinds.security} file(s) under auth/security/permission paths`,
+    );
+  if (kinds.deps)
+    pushDriver(
+      'dependency manifest changed',
+      10,
+      `${kinds.deps} dependency manifest file(s) changed`,
+    );
   if (kinds.lockfile && (kinds.deps ?? 0) === 0)
-    pushDriver('lockfile changed without manifest update', 8, `${kinds.lockfile} lockfile(s) updated; manifest unchanged`);
-  if (kinds.infra) pushDriver('infrastructure or deploy config touched', 18, `${kinds.infra} infra/deploy file(s) modified`);
+    pushDriver(
+      'lockfile changed without manifest update',
+      8,
+      `${kinds.lockfile} lockfile(s) updated; manifest unchanged`,
+    );
+  if (kinds.infra)
+    pushDriver(
+      'infrastructure or deploy config touched',
+      18,
+      `${kinds.infra} infra/deploy file(s) modified`,
+    );
   if (kinds.ci) pushDriver('CI configuration changed', 8, `${kinds.ci} CI file(s) modified`);
-  if (kinds.config) pushDriver('app configuration changed', 6, `${kinds.config} config file(s) modified`);
+  if (kinds.config)
+    pushDriver('app configuration changed', 6, `${kinds.config} config file(s) modified`);
 
   const srcChanged = (kinds.src ?? 0) + (kinds.security ?? 0);
   const testChanged = kinds.test ?? 0;
   if (srcChanged > 0 && testChanged === 0)
-    pushDriver('source changes without test changes', 14, `${srcChanged} source file(s) changed, 0 test file(s) changed`);
+    pushDriver(
+      'source changes without test changes',
+      14,
+      `${srcChanged} source file(s) changed, 0 test file(s) changed`,
+    );
 
   const totalLines = totals.additions + totals.deletions;
-  if (totalLines > 1000) pushDriver('very large diff', 18, `${totalLines} total line changes across ${files.length} file(s)`);
-  else if (totalLines > 400) pushDriver('large diff', 10, `${totalLines} total line changes across ${files.length} file(s)`);
+  if (totalLines > 1000)
+    pushDriver(
+      'very large diff',
+      18,
+      `${totalLines} total line changes across ${files.length} file(s)`,
+    );
+  else if (totalLines > 400)
+    pushDriver('large diff', 10, `${totalLines} total line changes across ${files.length} file(s)`);
   if (files.length > 25) pushDriver('wide blast radius', 10, `${files.length} files touched`);
 
   if (coverageDelta !== null && coverageDelta < 0)
-    pushDriver('test coverage dropped', coverageDelta <= -3 ? 12 : 6, `coverage delta = ${coverageDelta.toFixed(2)}pp`);
+    pushDriver(
+      'test coverage dropped',
+      coverageDelta <= -3 ? 12 : 6,
+      `coverage delta = ${coverageDelta.toFixed(2)}pp`,
+    );
 
   if (bugDensity.size) {
     let hot = 0;
@@ -324,22 +400,28 @@ function scoreRisk(
       pushDriver(
         'historically bug-prone files touched',
         Math.min(15, 4 + hot * 2),
-        `${hot} touched file(s) have prior bugs (top: ${topPath} @ ${topCount})`
+        `${hot} touched file(s) have prior bugs (top: ${topPath} @ ${topCount})`,
       );
   }
 
-  if (/\b(?:TODO|FIXME|XXX)\b/.test(added)) pushDriver('new TODO/FIXME markers', 3, 'added lines contain TODO/FIXME/XXX');
+  if (/\b(?:TODO|FIXME|XXX)\b/.test(added))
+    pushDriver('new TODO/FIXME markers', 3, 'added lines contain TODO/FIXME/XXX');
   if (/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip|t\.skip\(/.test(added))
     pushDriver('tests skipped or disabled', 8, 'added lines disable a test');
-  if (/\b(?:console\.log|debugger|print\()/.test(added)) pushDriver('debug output left in', 4, 'added lines contain console.log/print/debugger');
+  if (/\b(?:console\.log|debugger|print\()/.test(added))
+    pushDriver('debug output left in', 4, 'added lines contain console.log/print/debugger');
   if (/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/.test(added))
     pushDriver('shell or eval execution introduced', 12, 'added lines invoke eval/exec');
-  if (/\b(?:setTimeout|sleep|retry|backoff|Promise\.all|asyncio\.gather|goroutine|sync\.(Mutex|RWMutex))/i.test(added))
+  if (
+    /\b(?:setTimeout|sleep|retry|backoff|Promise\.all|asyncio\.gather|goroutine|sync\.(Mutex|RWMutex))/i.test(
+      added,
+    )
+  )
     pushDriver('concurrency or timing primitives introduced', 6, 'async/lock/retry usage');
 
   const score = Math.min(
     100,
-    drivers.reduce((sum, driver) => sum + driver.weight, 0)
+    drivers.reduce((sum, driver) => sum + driver.weight, 0),
   );
   return {
     score,
@@ -348,103 +430,120 @@ function scoreRisk(
     files_changed: files.length,
     additions: totals.additions,
     deletions: totals.deletions,
-    file_kinds: kinds
+    file_kinds: kinds,
   };
 }
 
-function buildQuestions(files: DiffFile[], added: string, prTitle: string | null, prDescription: string | null) {
+function buildQuestions(
+  files: DiffFile[],
+  added: string,
+  prTitle: string | null,
+  prDescription: string | null,
+) {
   const out: Array<{ topic: string; question: string; why: string; evidence: string | null }> = [];
   const has = (re: RegExp) => re.test(added);
   const kinds = countByKind(files);
 
-  if (kinds.migration || has(/\bALTER\s+TABLE|CREATE\s+TABLE|DROP\s+TABLE|ADD\s+COLUMN|RENAME\s+COLUMN/i)) {
+  if (
+    kinds.migration ||
+    has(/\bALTER\s+TABLE|CREATE\s+TABLE|DROP\s+TABLE|ADD\s+COLUMN|RENAME\s+COLUMN/i)
+  ) {
     out.push({
       topic: 'schema migration',
       question:
         'Is this migration backward-compatible during a rolling deploy? What is the order: ship code that tolerates both shapes, then migrate, then drop the old shape?',
       why: 'Schema and code must overlap safely while old and new pods run side-by-side.',
-      evidence: 'migration files or ALTER/CREATE/DROP TABLE in the diff'
+      evidence: 'migration files or ALTER/CREATE/DROP TABLE in the diff',
     });
   }
 
   if (has(/process\.env\.[A-Z0-9_]+|os\.environ\[|os\.getenv\(/)) {
     out.push({
       topic: 'configuration',
-      question: 'New environment variables appear here -- where are they set in each deployment environment, and what is the default for local dev?',
+      question:
+        'New environment variables appear here -- where are they set in each deployment environment, and what is the default for local dev?',
       why: 'Missing env vars cause silent fallbacks or crash-on-boot in production.',
-      evidence: 'process.env / os.environ access added'
+      evidence: 'process.env / os.environ access added',
     });
   }
 
   if (has(/(it|describe|test)\.skip\b|\bxit\b|@pytest\.mark\.skip|t\.skip\(/)) {
     out.push({
       topic: 'tests',
-      question: 'Why is this test being skipped? Is there a tracking issue, and what guarantees the underlying behavior?',
+      question:
+        'Why is this test being skipped? Is there a tracking issue, and what guarantees the underlying behavior?',
       why: 'Skipped tests rot quickly and hide regressions.',
-      evidence: 'test skip marker added in diff'
+      evidence: 'test skip marker added in diff',
     });
   }
 
   if (has(/\bcatch\s*\([^)]*\)\s*\{\s*\}|except\s+[A-Za-z][\w.]*:\s*pass\b|\b_\s*=\s*err\b/)) {
     out.push({
       topic: 'error handling',
-      question: 'These caught errors look swallowed. Is silencing them intentional, and if so, are we logging or metricizing the suppression?',
+      question:
+        'These caught errors look swallowed. Is silencing them intentional, and if so, are we logging or metricizing the suppression?',
       why: 'Silent catches are a frequent source of debuggability outages.',
-      evidence: 'empty catch / except pass / discarded error'
+      evidence: 'empty catch / except pass / discarded error',
     });
   }
 
   if (has(/\b(?:eval\(|child_process|spawn\(|exec\(|os\.system\()/)) {
     out.push({
       topic: 'security',
-      question: 'eval/exec/spawn is being introduced -- is every input here strictly trusted, and how is injection prevented?',
+      question:
+        'eval/exec/spawn is being introduced -- is every input here strictly trusted, and how is injection prevented?',
       why: 'Shell or eval surfaces are the highest-leverage RCE vectors.',
-      evidence: 'eval/exec/spawn call in added lines'
+      evidence: 'eval/exec/spawn call in added lines',
     });
   }
 
   if (has(/\b(?:console\.log|debugger|print\()/)) {
     out.push({
       topic: 'cleanup',
-      question: 'Is the new console.log / print / debugger intended to ship? If yes, should it be a structured log instead?',
+      question:
+        'Is the new console.log / print / debugger intended to ship? If yes, should it be a structured log instead?',
       why: 'Stray debug output confuses log search and pollutes user devtools.',
-      evidence: 'console.log / debugger / print in added lines'
+      evidence: 'console.log / debugger / print in added lines',
     });
   }
 
   if (kinds.deps && !kinds.lockfile) {
     out.push({
       topic: 'dependencies',
-      question: 'Manifest changed without a lockfile update -- did the install step run and was the lockfile committed?',
+      question:
+        'Manifest changed without a lockfile update -- did the install step run and was the lockfile committed?',
       why: 'Drift between manifest and lockfile produces non-reproducible builds.',
-      evidence: `${kinds.deps} dependency file(s) changed; 0 lockfiles updated`
+      evidence: `${kinds.deps} dependency file(s) changed; 0 lockfiles updated`,
     });
   }
 
   if (kinds.lockfile && !kinds.deps) {
     out.push({
       topic: 'dependencies',
-      question: 'Lockfile-only change -- which transitive packages moved, and did anything pull in a major version?',
+      question:
+        'Lockfile-only change -- which transitive packages moved, and did anything pull in a major version?',
       why: 'Silent transitive bumps are a classic source of “works locally” failures.',
-      evidence: `${kinds.lockfile} lockfile(s) modified, manifests unchanged`
+      evidence: `${kinds.lockfile} lockfile(s) modified, manifests unchanged`,
     });
   }
 
   if (has(/\b(?:setTimeout|sleep|retry|backoff)\b|Promise\.all|asyncio\.gather/i)) {
     out.push({
       topic: 'reliability',
-      question: 'New async/timer/retry logic appears -- what bounds the retry budget and what happens on partial success?',
+      question:
+        'New async/timer/retry logic appears -- what bounds the retry budget and what happens on partial success?',
       why: 'Unbounded retries amplify outages; partial-success paths are easy to forget.',
-      evidence: 'retry/timeout/parallel-await primitive added'
+      evidence: 'retry/timeout/parallel-await primitive added',
     });
   }
 
   if (has(/\bfeature_?flag|flag\.[A-Za-z_]+\.enabled|\bunleash|\blaunchdarkly/i)) {
     out.push({
       topic: 'feature flag',
-      question: 'Is this guarded by a flag with a known rollout plan, and is there an off-switch we can flip without redeploy?',
+      question:
+        'Is this guarded by a flag with a known rollout plan, and is there an off-switch we can flip without redeploy?',
       why: 'Flag-guarded changes are far safer to roll forward than code-deploy-only changes.',
-      evidence: 'feature flag reference in diff'
+      evidence: 'feature flag reference in diff',
     });
   }
 
@@ -454,7 +553,7 @@ function buildQuestions(files: DiffFile[], added: string, prTitle: string | null
         topic: 'deletion',
         question: `\`${file.path}\` is deleted -- where are its callers, and have all references been updated?`,
         why: 'Removed modules often leave dangling imports or runtime lookups behind.',
-        evidence: 'file marked as deleted in diff'
+        evidence: 'file marked as deleted in diff',
       });
       break;
     }
@@ -466,7 +565,7 @@ function buildQuestions(files: DiffFile[], added: string, prTitle: string | null
         topic: 'rename',
         question: `\`${file.oldPath}\` was renamed to \`${file.path}\` -- are all imports, configs, and docs updated?`,
         why: 'Renames break implicit references that grep would catch but the type checker may not.',
-        evidence: 'git rename detected'
+        evidence: 'git rename detected',
       });
       break;
     }
@@ -477,17 +576,21 @@ function buildQuestions(files: DiffFile[], added: string, prTitle: string | null
       topic: 'scope',
       question: `Title says "${prTitle.trim()}" but ${files.length} files are touched -- is this scoped how the title implies?`,
       why: 'Scope mismatches are the easiest-to-miss reviewer trap.',
-      evidence: 'title language vs diff size'
+      evidence: 'title language vs diff size',
     });
   }
 
-  if (prDescription && !/\bhow|risk|test|rollback|deploy|migration|flag\b/i.test(prDescription) && files.length > 3) {
+  if (
+    prDescription &&
+    !/\bhow|risk|test|rollback|deploy|migration|flag\b/i.test(prDescription) &&
+    files.length > 3
+  ) {
     out.push({
       topic: 'description',
       question:
         'The PR description does not mention testing, risk, rollback, or migration steps. Can we add a “How to verify” and “Rollback” section?',
       why: 'A short structured description makes review and on-call escalation faster.',
-      evidence: 'PR description lacks risk/test/rollback keywords'
+      evidence: 'PR description lacks risk/test/rollback keywords',
     });
   }
 
@@ -514,7 +617,13 @@ function applyOffset(date: Date, offsetMinutes: number) {
   return { hour, weekday, iso };
 }
 
-function buildTiming(now: Date, offsetMinutes: number, riskScore: number | null, oncall: boolean | null, freeze: boolean | null) {
+function buildTiming(
+  now: Date,
+  offsetMinutes: number,
+  riskScore: number | null,
+  oncall: boolean | null,
+  freeze: boolean | null,
+) {
   const { hour, weekday, iso } = applyOffset(now, offsetMinutes);
   const factors: Array<{ factor: string; weight: number; recommendation: string }> = [];
 
@@ -522,31 +631,66 @@ function buildTiming(now: Date, offsetMinutes: number, riskScore: number | null,
     factors.push({
       factor: 'code freeze in effect',
       weight: -60,
-      recommendation: 'Hold the deploy until the freeze window closes or get an explicit exception.'
+      recommendation:
+        'Hold the deploy until the freeze window closes or get an explicit exception.',
     });
   if (weekday === 5 && hour >= 14)
-    factors.push({ factor: 'late Friday', weight: -25, recommendation: 'Defer to Monday morning unless the change is itself reverting an outage.' });
+    factors.push({
+      factor: 'late Friday',
+      weight: -25,
+      recommendation: 'Defer to Monday morning unless the change is itself reverting an outage.',
+    });
   else if (weekday === 0 || weekday === 6)
-    factors.push({ factor: 'weekend', weight: -20, recommendation: 'Weekend deploys have thin coverage -- defer or page in extra reviewers.' });
+    factors.push({
+      factor: 'weekend',
+      weight: -20,
+      recommendation: 'Weekend deploys have thin coverage -- defer or page in extra reviewers.',
+    });
   if (hour < 7 || hour >= 22)
-    factors.push({ factor: 'outside core hours', weight: -10, recommendation: 'Out-of-hours deploys delay rollback if anything regresses.' });
+    factors.push({
+      factor: 'outside core hours',
+      weight: -10,
+      recommendation: 'Out-of-hours deploys delay rollback if anything regresses.',
+    });
   else if (hour >= 9 && hour <= 15)
-    factors.push({ factor: 'within core hours', weight: 8, recommendation: 'Core hours have the broadest reviewer + on-call coverage.' });
+    factors.push({
+      factor: 'within core hours',
+      weight: 8,
+      recommendation: 'Core hours have the broadest reviewer + on-call coverage.',
+    });
   if (oncall === false)
-    factors.push({ factor: 'on-call not available', weight: -20, recommendation: 'Confirm an on-call before shipping; otherwise hold.' });
+    factors.push({
+      factor: 'on-call not available',
+      weight: -20,
+      recommendation: 'Confirm an on-call before shipping; otherwise hold.',
+    });
   else if (oncall === true)
-    factors.push({ factor: 'on-call present', weight: 6, recommendation: 'On-call coverage in place -- proceed with normal deploy gating.' });
+    factors.push({
+      factor: 'on-call present',
+      weight: 6,
+      recommendation: 'On-call coverage in place -- proceed with normal deploy gating.',
+    });
 
   if (riskScore !== null) {
     if (riskScore >= 75)
       factors.push({
         factor: 'critical risk score',
         weight: -30,
-        recommendation: 'Split the change, ship behind a flag, or schedule for a low-traffic window.'
+        recommendation:
+          'Split the change, ship behind a flag, or schedule for a low-traffic window.',
       });
     else if (riskScore >= 50)
-      factors.push({ factor: 'high risk score', weight: -15, recommendation: 'Pair the deploy with active monitoring of relevant dashboards.' });
-    else if (riskScore <= 15) factors.push({ factor: 'low risk score', weight: 8, recommendation: 'Risk profile supports a normal-cadence deploy.' });
+      factors.push({
+        factor: 'high risk score',
+        weight: -15,
+        recommendation: 'Pair the deploy with active monitoring of relevant dashboards.',
+      });
+    else if (riskScore <= 15)
+      factors.push({
+        factor: 'low risk score',
+        weight: 8,
+        recommendation: 'Risk profile supports a normal-cadence deploy.',
+      });
   }
 
   const score = factors.reduce((sum, factor) => sum + factor.weight, 0);
@@ -564,7 +708,7 @@ function buildTiming(now: Date, offsetMinutes: number, riskScore: number | null,
     local_time: iso,
     local_weekday: WEEKDAY_NAMES[weekday]!,
     factors: factors.sort((a, b) => a.weight - b.weight),
-    summary
+    summary,
   };
 }
 
@@ -575,9 +719,10 @@ function buildRollback(
   flagDefaultOff: boolean | null,
   externalDeps: boolean | null,
   breakingApi: boolean | null,
-  dataMigration: boolean | null
+  dataMigration: boolean | null,
 ) {
-  const blockers: Array<{ factor: string; severity: 'low' | 'medium' | 'high'; detail: string }> = [];
+  const blockers: Array<{ factor: string; severity: 'low' | 'medium' | 'high'; detail: string }> =
+    [];
   const reversible: string[] = [];
   let score = 100;
 
@@ -585,14 +730,14 @@ function buildRollback(
     blockers.push({
       factor: 'destructive migration',
       severity: 'high',
-      detail: 'Migration drops or rewrites data irreversibly -- a true one-way door.'
+      detail: 'Migration drops or rewrites data irreversibly -- a true one-way door.',
     });
     score -= 70;
   } else if (migrations.length > 0) {
     blockers.push({
       factor: 'schema migration',
       severity: 'medium',
-      detail: `${migrations.length} migration(s) included; rollback requires a forward fix or a tested down-migration.`
+      detail: `${migrations.length} migration(s) included; rollback requires a forward fix or a tested down-migration.`,
     });
     score -= 25;
   }
@@ -601,7 +746,7 @@ function buildRollback(
     blockers.push({
       factor: 'data migration',
       severity: 'high',
-      detail: 'Data has been rewritten -- reverting code does not restore the prior data shape.'
+      detail: 'Data has been rewritten -- reverting code does not restore the prior data shape.',
     });
     score -= 30;
   }
@@ -610,7 +755,7 @@ function buildRollback(
     blockers.push({
       factor: 'breaking API change',
       severity: 'high',
-      detail: 'External consumers may have already adopted the new contract; rollback breaks them.'
+      detail: 'External consumers may have already adopted the new contract; rollback breaks them.',
     });
     score -= 25;
   }
@@ -619,46 +764,82 @@ function buildRollback(
     blockers.push({
       factor: 'external dependency change',
       severity: 'low',
-      detail: 'Lockfile / package update means the rollback build needs the prior pin pulled fresh.'
+      detail:
+        'Lockfile / package update means the rollback build needs the prior pin pulled fresh.',
     });
     score -= 8;
   }
 
   if (flags.length > 0) {
     if (flagDefaultOff === true) {
-      reversible.push(`${flags.length} feature flag(s) introduced default-off -- toggle is a no-deploy rollback path.`);
+      reversible.push(
+        `${flags.length} feature flag(s) introduced default-off -- toggle is a no-deploy rollback path.`,
+      );
       score += 10;
     } else {
-      reversible.push(`${flags.length} feature flag(s) modified -- confirm each can be flipped at runtime.`);
+      reversible.push(
+        `${flags.length} feature flag(s) modified -- confirm each can be flipped at runtime.`,
+      );
     }
   }
 
   score = Math.max(0, Math.min(100, score));
-  const level = destructive === true || dataMigration === true ? 'one_way_door' : score >= 80 ? 'easy' : score >= 50 ? 'moderate' : 'hard';
+  const level =
+    destructive === true || dataMigration === true
+      ? 'one_way_door'
+      : score >= 80
+        ? 'easy'
+        : score >= 50
+          ? 'moderate'
+          : 'hard';
 
   const steps = ['Identify the deploy artifact (commit SHA, image tag, or release ID).'];
-  if (flags.length > 0 && flagDefaultOff === true) steps.push('First, toggle the relevant feature flag(s) off and verify recovery.');
+  if (flags.length > 0 && flagDefaultOff === true)
+    steps.push('First, toggle the relevant feature flag(s) off and verify recovery.');
   if (migrations.length > 0 || dataMigration === true)
-    steps.push('Decide between revert-with-down-migration and forward-fix; document the decision in the incident channel.');
-  if (breakingApi === true) steps.push('Notify downstream consumers before reverting, or ship a compatibility shim.');
-  if (externalDeps === true) steps.push('Re-run the install/build with the prior lockfile to reproduce the previous artifact.');
+    steps.push(
+      'Decide between revert-with-down-migration and forward-fix; document the decision in the incident channel.',
+    );
+  if (breakingApi === true)
+    steps.push('Notify downstream consumers before reverting, or ship a compatibility shim.');
+  if (externalDeps === true)
+    steps.push(
+      'Re-run the install/build with the prior lockfile to reproduce the previous artifact.',
+    );
   steps.push('Watch service-level dashboards for at least one full request cycle after rollback.');
 
-  return { score, level, blockers, reversible_changes: reversible, recommended_runbook_steps: steps };
+  return {
+    score,
+    level,
+    blockers,
+    reversible_changes: reversible,
+    recommended_runbook_steps: steps,
+  };
 }
 
 export function createChangeExplainerTool(_: ToolFactoryOptions) {
   return tool({
-    description: 'Turn a unified diff into release notes, an internal changelog, and a reviewer walkthrough.',
+    description:
+      'Turn a unified diff into release notes, an internal changelog, and a reviewer walkthrough.',
     inputSchema: z.object({
       diff: z.string().min(1),
-      audience: z.enum(['release_notes', 'internal_changelog', 'reviewer_walkthrough', 'all']).optional().default('all'),
+      audience: z
+        .enum(['release_notes', 'internal_changelog', 'reviewer_walkthrough', 'all'])
+        .optional()
+        .default('all'),
       tone: z.string().optional(),
       project_name: z.string().optional(),
       pr_title: z.string().optional(),
-      max_walkthrough_steps: z.number().int().positive().max(MAX_STEPS).optional()
+      max_walkthrough_steps: z.number().int().positive().max(MAX_STEPS).optional(),
     }),
-    execute: async ({ diff, audience = 'all', tone, project_name, pr_title, max_walkthrough_steps }) => {
+    execute: async ({
+      diff,
+      audience = 'all',
+      tone,
+      project_name,
+      pr_title,
+      max_walkthrough_steps,
+    }) => {
       ensureDiff(diff);
       const files = parseUnifiedDiff(diff);
       const totals = totalLineChanges(files);
@@ -670,11 +851,20 @@ export function createChangeExplainerTool(_: ToolFactoryOptions) {
         files_changed: files.length,
         additions: totals.additions,
         deletions: totals.deletions,
-        release_notes: audience === 'all' || audience === 'release_notes' ? buildReleaseNotes(files, pr_title ?? null, project_name ?? null) : null,
-        internal_changelog: audience === 'all' || audience === 'internal_changelog' ? buildInternalChangelog(files) : null,
-        reviewer_walkthrough: audience === 'all' || audience === 'reviewer_walkthrough' ? buildWalkthrough(files, maxSteps) : null
+        release_notes:
+          audience === 'all' || audience === 'release_notes'
+            ? buildReleaseNotes(files, pr_title ?? null, project_name ?? null)
+            : null,
+        internal_changelog:
+          audience === 'all' || audience === 'internal_changelog'
+            ? buildInternalChangelog(files)
+            : null,
+        reviewer_walkthrough:
+          audience === 'all' || audience === 'reviewer_walkthrough'
+            ? buildWalkthrough(files, maxSteps)
+            : null,
       };
-    }
+    },
   });
 }
 
@@ -688,29 +878,50 @@ export function createPrReviewAnalyzerTool(_: ToolFactoryOptions) {
       coverage_delta_pct: z.number().optional(),
       historical_bug_density: z.record(z.string(), z.number().int().nonnegative()).optional(),
       mode: z.enum(['risk', 'reviewer_questions', 'both']).optional().default('both'),
-      max_questions: z.number().int().positive().max(MAX_QUESTIONS).optional()
+      max_questions: z.number().int().positive().max(MAX_QUESTIONS).optional(),
     }),
-    execute: async ({ diff, pr_title, pr_description, coverage_delta_pct, historical_bug_density, mode = 'both', max_questions }) => {
+    execute: async ({
+      diff,
+      pr_title,
+      pr_description,
+      coverage_delta_pct,
+      historical_bug_density,
+      mode = 'both',
+      max_questions,
+    }) => {
       ensureDiff(diff);
       const files = parseUnifiedDiff(diff);
       const totals = totalLineChanges(files);
       const added = joinAddedLines(files);
       const bugDensity = new Map(Object.entries(historical_bug_density ?? {}));
-      const maxQuestions = Math.min(MAX_QUESTIONS, Math.max(1, max_questions ?? DEFAULT_MAX_QUESTIONS));
+      const maxQuestions = Math.min(
+        MAX_QUESTIONS,
+        Math.max(1, max_questions ?? DEFAULT_MAX_QUESTIONS),
+      );
 
       return {
         mode,
         files_changed: files.length,
-        risk: mode === 'reviewer_questions' ? null : scoreRisk(files, added, totals, coverage_delta_pct ?? null, bugDensity),
-        reviewer_questions: mode === 'risk' ? null : buildQuestions(files, added, pr_title ?? null, pr_description ?? null).slice(0, maxQuestions)
+        risk:
+          mode === 'reviewer_questions'
+            ? null
+            : scoreRisk(files, added, totals, coverage_delta_pct ?? null, bugDensity),
+        reviewer_questions:
+          mode === 'risk'
+            ? null
+            : buildQuestions(files, added, pr_title ?? null, pr_description ?? null).slice(
+                0,
+                maxQuestions,
+              ),
       };
-    }
+    },
   });
 }
 
 export function createDeploySafetyAdvisorTool(_: ToolFactoryOptions) {
   return tool({
-    description: 'Combine change risk and operational context into deploy timing and rollback guidance.',
+    description:
+      'Combine change risk and operational context into deploy timing and rollback guidance.',
     inputSchema: z.object({
       risk_score: z.number().min(0).max(100).optional(),
       risk_summary: z.string().optional(),
@@ -726,7 +937,7 @@ export function createDeploySafetyAdvisorTool(_: ToolFactoryOptions) {
       external_dependency_change: z.boolean().optional(),
       breaking_api_change: z.boolean().optional(),
       has_data_migration: z.boolean().optional(),
-      mode: z.enum(['timing', 'rollback', 'both']).optional().default('both')
+      mode: z.enum(['timing', 'rollback', 'both']).optional().default('both'),
     }),
     execute: async ({
       risk_score,
@@ -741,13 +952,22 @@ export function createDeploySafetyAdvisorTool(_: ToolFactoryOptions) {
       external_dependency_change,
       breaking_api_change,
       has_data_migration,
-      mode = 'both'
+      mode = 'both',
     }) => {
       const date = parseNow(now ?? null);
       const offset = timezone_offset_minutes ?? 0;
       return {
         mode,
-        timing: mode === 'rollback' ? null : buildTiming(date, offset, risk_score ?? null, oncall_present ?? null, freeze_window ?? null),
+        timing:
+          mode === 'rollback'
+            ? null
+            : buildTiming(
+                date,
+                offset,
+                risk_score ?? null,
+                oncall_present ?? null,
+                freeze_window ?? null,
+              ),
         rollback:
           mode === 'timing'
             ? null
@@ -758,9 +978,9 @@ export function createDeploySafetyAdvisorTool(_: ToolFactoryOptions) {
                 flag_default_off ?? null,
                 external_dependency_change ?? null,
                 breaking_api_change ?? null,
-                has_data_migration ?? null
-              )
+                has_data_migration ?? null,
+              ),
       };
-    }
+    },
   });
 }

@@ -1,7 +1,12 @@
 import chalk from 'chalk';
 import approx from 'approximate-number';
 
-import { formatThinkingMode, getContextWindow, getOpenAIModelDisplayName, isReasoningCapableOpenAIModel } from '@/config';
+import {
+  formatThinkingMode,
+  getContextWindow,
+  getOpenAIModelDisplayName,
+  isReasoningCapableOpenAIModel,
+} from '@/config';
 import { summarizeFileChanges } from '@/file-changes';
 import { widthOf } from '@/text';
 import { line, span } from '../primitives';
@@ -53,10 +58,13 @@ function fileChangeSummarySegments(state: AgentState, ctx: RenderContext): Segme
   if (summary.fileCount === 0) return [];
 
   return [
-    span(`${summary.fileCount} file${summary.fileCount === 1 ? '' : 's'} changed`, ctx.theme.dimmed),
+    span(
+      `${summary.fileCount} file${summary.fileCount === 1 ? '' : 's'} changed`,
+      ctx.theme.dimmed,
+    ),
     ...(summary.added > 0 ? [span(' '), span(`+${summary.added}`, chalk.greenBright)] : []),
     ...(summary.modified > 0 ? [span(' '), span(`~${summary.modified}`, chalk.yellowBright)] : []),
-    ...(summary.removed > 0 ? [span(' '), span(`-${summary.removed}`, chalk.redBright)] : [])
+    ...(summary.removed > 0 ? [span(' '), span(`-${summary.removed}`, chalk.redBright)] : []),
   ];
 }
 
@@ -90,7 +98,7 @@ function formatUsageSummary(state: AgentState) {
 
   return {
     text: `↑${input} ↓${output} / ${context} (${pctLabel})`,
-    pct
+    pct,
   };
 }
 
@@ -112,7 +120,7 @@ function buildStatsLine(
   footerPrefix: Segment[],
   usage: { text: string; pct: number } | null,
   cost: string,
-  autoCompact: string
+  autoCompact: string,
 ) {
   const modelName = getOpenAIModelDisplayName(state.currentModel);
   const statsSegments = [...footerPrefix];
@@ -135,33 +143,60 @@ function buildStatsLine(
         span(' · ', ctx.theme.subtle),
         span(modelName, chalk.white),
         ...(isReasoningCapableOpenAIModel(state.currentModel)
-          ? [span(' · ', ctx.theme.subtle), span(formatThinkingMode(state.thinkingMode), thinkingModeStyle(state.thinkingMode))]
-          : [])
+          ? [
+              span(' · ', ctx.theme.subtle),
+              span(formatThinkingMode(state.thinkingMode), thinkingModeStyle(state.thinkingMode)),
+            ]
+          : []),
       )
     : line(
         ...footerPrefix,
         span(modelName, chalk.white),
         ...(isReasoningCapableOpenAIModel(state.currentModel)
-          ? [span(' · ', ctx.theme.subtle), span(formatThinkingMode(state.thinkingMode), thinkingModeStyle(state.thinkingMode))]
-          : [])
+          ? [
+              span(' · ', ctx.theme.subtle),
+              span(formatThinkingMode(state.thinkingMode), thinkingModeStyle(state.thinkingMode)),
+            ]
+          : []),
       );
 }
 
-function buildModeLine(state: AgentState, ctx: RenderContext, footerPrefix: Segment[], queued: string, statsLine: StyledLine) {
+function buildModeLine(
+  state: AgentState,
+  ctx: RenderContext,
+  footerPrefix: Segment[],
+  queued: string,
+  statsLine: StyledLine,
+) {
   if (state.pendingApproval) {
-    return line(...footerPrefix, span(joinFooterParts('Approval required', state.pendingApproval.title, queued), chalk.yellow));
+    return line(
+      ...footerPrefix,
+      span(joinFooterParts('Approval required', state.pendingApproval.title, queued), chalk.yellow),
+    );
   }
 
   if (state.pendingChoice) {
-    return line(...footerPrefix, span(joinFooterParts('Choice required', state.pendingChoice.title, queued), chalk.yellow));
+    return line(
+      ...footerPrefix,
+      span(joinFooterParts('Choice required', state.pendingChoice.title, queued), chalk.yellow),
+    );
   }
 
   if (state.compacting) {
-    return line(...footerPrefix, span(joinFooterParts(`${ctx.commandSpinnerFrame} Compacting...`, queued), chalk.yellow));
+    return line(
+      ...footerPrefix,
+      span(joinFooterParts(`${ctx.commandSpinnerFrame} Compacting...`, queued), chalk.yellow),
+    );
   }
 
   if (state.busy && state.busyStatusText) {
-    return line(...footerPrefix, span(joinFooterParts(`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued), chalk.yellow));
+    return line(
+      ...footerPrefix,
+      span(
+        joinFooterParts(`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued),
+        chalk.yellow,
+      ),
+    );
   }
 
   return statsLine;
@@ -192,7 +227,7 @@ function buildNoticeLine(state: AgentState, ctx: RenderContext, queued: string) 
     return line(
       span(LEFT_MARGIN),
       span(`${ctx.spinnerFrame} Thinking...`, ctx.theme.spinnerText),
-      ...(queued ? [span(' · ', ctx.theme.subtle), span(queued, chalk.yellow)] : [])
+      ...(queued ? [span(' · ', ctx.theme.subtle), span(queued, chalk.yellow)] : []),
     );
   }
 
@@ -200,19 +235,27 @@ function buildNoticeLine(state: AgentState, ctx: RenderContext, queued: string) 
 }
 
 export function renderFooter(state: AgentState, ctx: RenderContext): Block {
-  const queued = state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
+  const queued =
+    state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
   const usage = formatUsageSummary(state);
   const cost = state.totalCost > 0 ? `$${state.totalCost.toFixed(4)}` : '';
   const autoCompact = state.autoCompactEnabled ? '' : 'auto-compact off';
-  const footerPrefix = [span(LEFT_MARGIN), ...(state.autoRunEnabled ? [span('!', chalk.redBright), span(' ')] : [])];
+  const footerPrefix = [
+    span(LEFT_MARGIN),
+    ...(state.autoRunEnabled ? [span('!', chalk.redBright), span(' ')] : []),
+  ];
   const statsLine = buildStatsLine(state, ctx, footerPrefix, usage, cost, autoCompact);
   const modeLine = buildModeLine(state, ctx, footerPrefix, queued, statsLine);
 
   const leftSegments = [
     span(LEFT_MARGIN),
     span(ctx.cwd, ctx.theme.subtle),
-    ...(ctx.gitBranch ? [span(' · ', ctx.theme.subtle), span(ctx.gitBranch, ctx.theme.subtle)] : []),
-    ...(state.planningMode ? [span(' · ', ctx.theme.subtle), span('plan mode', chalk.magentaBright)] : [])
+    ...(ctx.gitBranch
+      ? [span(' · ', ctx.theme.subtle), span(ctx.gitBranch, ctx.theme.subtle)]
+      : []),
+    ...(state.planningMode
+      ? [span(' · ', ctx.theme.subtle), span('plan mode', chalk.magentaBright)]
+      : []),
   ];
   const rightSegments = fileChangeSummarySegments(state, ctx);
   const locationLine = justifyLine(leftSegments, rightSegments, Math.max(1, ctx.width));

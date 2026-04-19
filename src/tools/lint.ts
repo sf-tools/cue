@@ -75,7 +75,7 @@ function parseEslint(result: LinterRunResult): Diagnostic[] | null {
         severity: m.severity === 2 ? 'error' : m.severity === 1 ? 'warning' : 'info',
         rule: asString(m.ruleId) ?? undefined,
         message: asString(m.message) ?? '',
-        fixable: Boolean(m.fix)
+        fixable: Boolean(m.fix),
       });
     }
   }
@@ -100,9 +100,15 @@ function parseBiome(result: LinterRunResult): Diagnostic[] | null {
       file: asString(path.file) ?? asString(path.filePath) ?? '',
       line: span && typeof span[0] === 'number' ? span[0] : 0,
       severity:
-        (d.severity === 'error' ? 'error' : d.severity === 'warning' ? 'warning' : d.severity === 'information' ? 'info' : 'warning'),
+        d.severity === 'error'
+          ? 'error'
+          : d.severity === 'warning'
+            ? 'warning'
+            : d.severity === 'information'
+              ? 'info'
+              : 'warning',
       rule: asString(d.category) ?? undefined,
-      message: asString(d.description) ?? asString(d.message) ?? ''
+      message: asString(d.description) ?? asString(d.message) ?? '',
     });
   }
   return diags;
@@ -125,7 +131,7 @@ function parseRuff(result: LinterRunResult): Diagnostic[] | null {
       severity: 'warning',
       rule: asString(d.code) ?? undefined,
       message: asString(d.message) ?? '',
-      fixable: typeof d.fix === 'object' && d.fix !== null
+      fixable: typeof d.fix === 'object' && d.fix !== null,
     });
   }
   return diags;
@@ -145,7 +151,11 @@ function parseClippy(result: LinterRunResult): Diagnostic[] | null {
     const m = message as Record<string, unknown>;
     const spans = m.spans;
     if (!Array.isArray(spans) || spans.length === 0) continue;
-    const span = spans.find((s: unknown) => typeof s === 'object' && s !== null && (s as Record<string, unknown>).is_primary) ?? spans[0];
+    const span =
+      spans.find(
+        (s: unknown) =>
+          typeof s === 'object' && s !== null && (s as Record<string, unknown>).is_primary,
+      ) ?? spans[0];
     if (typeof span !== 'object' || span === null) continue;
     const sp = span as Record<string, unknown>;
     diags.push({
@@ -153,8 +163,11 @@ function parseClippy(result: LinterRunResult): Diagnostic[] | null {
       line: asNumber(sp.line_start) ?? 0,
       column: asNumber(sp.column_start),
       severity: m.level === 'error' ? 'error' : m.level === 'warning' ? 'warning' : 'info',
-      rule: typeof m.code === 'object' && m.code !== null ? asString((m.code as Record<string, unknown>).code) : undefined,
-      message: asString(m.message) ?? ''
+      rule:
+        typeof m.code === 'object' && m.code !== null
+          ? asString((m.code as Record<string, unknown>).code)
+          : undefined,
+      message: asString(m.message) ?? '',
     });
   }
   return diags.length > 0 ? diags : null;
@@ -170,7 +183,7 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
       buildCmd: (paths, fix) =>
         `bunx --bun @biomejs/biome lint --reporter json ${fix ? '--apply ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
       defaultPaths: ['.'],
-      parse: parseBiome
+      parse: parseBiome,
     });
   }
 
@@ -189,9 +202,10 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
     found.push({
       id: 'eslint',
       label: 'eslint',
-      buildCmd: (paths, fix) => `bunx --bun eslint --format json ${fix ? '--fix ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`,
+      buildCmd: (paths, fix) =>
+        `bunx --bun eslint --format json ${fix ? '--fix ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`,
       defaultPaths: ['.'],
-      parse: parseEslint
+      parse: parseEslint,
     });
   }
 
@@ -204,7 +218,7 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
         buildCmd: (paths, fix) =>
           `ruff check --output-format json ${fix ? '--fix ' : ''}${paths.length === 0 ? '.' : quotePaths(paths)}`.trim(),
         defaultPaths: ['.'],
-        parse: parseRuff
+        parse: parseRuff,
       });
     }
     if (/\[tool\.mypy\]/.test(pyproject)) {
@@ -212,7 +226,7 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
         id: 'mypy',
         label: 'mypy',
         buildCmd: paths => `mypy ${paths.length === 0 ? '.' : quotePaths(paths)}`,
-        defaultPaths: ['.']
+        defaultPaths: ['.'],
       });
     }
     if (/\[tool\.pyright\]/.test(pyproject)) {
@@ -220,7 +234,7 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
         id: 'pyright',
         label: 'pyright',
         buildCmd: paths => `pyright ${paths.length === 0 ? '' : quotePaths(paths)}`.trim(),
-        defaultPaths: []
+        defaultPaths: [],
       });
     }
   }
@@ -235,11 +249,15 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
         return `cargo clippy ${fixFlag}--message-format=json --quiet${pathSpec}`.trim();
       },
       defaultPaths: [],
-      parse: parseClippy
+      parse: parseClippy,
     });
   }
 
-  if ((await exists(`${cwd}/.golangci.yml`)) || (await exists(`${cwd}/.golangci.yaml`)) || (await exists(`${cwd}/go.mod`))) {
+  if (
+    (await exists(`${cwd}/.golangci.yml`)) ||
+    (await exists(`${cwd}/.golangci.yaml`)) ||
+    (await exists(`${cwd}/go.mod`))
+  ) {
     found.push({
       id: 'golangci',
       label: 'golangci-lint',
@@ -248,7 +266,7 @@ async function detectLinters(cwd: string): Promise<Linter[]> {
         const target = paths.length === 0 ? './...' : quotePaths(paths);
         return `golangci-lint run ${fixFlag}--out-format json ${target}`.trim();
       },
-      defaultPaths: []
+      defaultPaths: [],
     });
   }
 
@@ -260,14 +278,17 @@ const SEVERITY_ORDER = { error: 0, warning: 1, info: 2 } as const;
 function renderDiagnostics(label: string, diags: Diagnostic[], limit: number) {
   if (diags.length === 0) return `${label}: no findings`;
   const sorted = [...diags].sort(
-    (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] || a.file.localeCompare(b.file) || a.line - b.line
+    (a, b) =>
+      SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity] ||
+      a.file.localeCompare(b.file) ||
+      a.line - b.line,
   );
   const counts = { error: 0, warning: 0, info: 0 };
   for (const d of sorted) counts[d.severity] += 1;
   const summary = [
     counts.error ? `${counts.error} error${counts.error === 1 ? '' : 's'}` : null,
     counts.warning ? `${counts.warning} warning${counts.warning === 1 ? '' : 's'}` : null,
-    counts.info ? `${counts.info} info` : null
+    counts.info ? `${counts.info} info` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -276,7 +297,9 @@ function renderDiagnostics(label: string, diags: Diagnostic[], limit: number) {
     const loc = diag.column ? `${diag.line}:${diag.column}` : `${diag.line}`;
     const rule = diag.rule ? ` [${diag.rule}]` : '';
     const fixable = diag.fixable ? ' (fixable)' : '';
-    lines.push(`  ${diag.severity[0].toUpperCase()} ${diag.file}:${loc}${rule}${fixable} — ${diag.message}`);
+    lines.push(
+      `  ${diag.severity[0].toUpperCase()} ${diag.file}:${loc}${rule}${fixable} — ${diag.message}`,
+    );
   }
   if (sorted.length > limit) lines.push(`  … ${sorted.length - limit} more`);
   return lines.join('\n');
@@ -289,16 +312,21 @@ export function createLintTool({ runUserShell, requestApproval }: ToolFactoryOpt
     inputSchema: z.object({
       paths: z.array(z.string()).optional().describe('Paths to lint. Omit for the whole project.'),
       fix: z.boolean().optional().describe('Apply auto-fixes (requires command approval).'),
-      linter: z.enum(['biome', 'eslint', 'ruff', 'clippy', 'golangci', 'mypy', 'pyright']).optional().describe('Force a specific linter.'),
-      max_diagnostics: z.number().int().positive().max(500).optional()
+      linter: z
+        .enum(['biome', 'eslint', 'ruff', 'clippy', 'golangci', 'mypy', 'pyright'])
+        .optional()
+        .describe('Force a specific linter.'),
+      max_diagnostics: z.number().int().positive().max(500).optional(),
     }),
     execute: async ({ paths, fix, linter, max_diagnostics }) => {
       const cwd = process.cwd();
       const linters = await detectLinters(cwd);
-      if (linters.length === 0) return 'no linter detected (looked for biome, eslint, ruff, clippy, golangci-lint, mypy, pyright)';
+      if (linters.length === 0)
+        return 'no linter detected (looked for biome, eslint, ruff, clippy, golangci-lint, mypy, pyright)';
 
       const chosen = linter ? linters.find(item => item.id === linter) : linters[0];
-      if (!chosen) return `linter \`${linter}\` not detected. found: ${linters.map(l => l.id).join(', ')}`;
+      if (!chosen)
+        return `linter \`${linter}\` not detected. found: ${linters.map(l => l.id).join(', ')}`;
 
       const targets = paths ?? chosen.defaultPaths;
       const cmd = chosen.buildCmd(targets, Boolean(fix));
@@ -308,7 +336,7 @@ export function createLintTool({ runUserShell, requestApproval }: ToolFactoryOpt
           !(await requestApproval({
             scope: 'command',
             title: `Run ${chosen.label} --fix`,
-            detail: cmd
+            detail: cmd,
           }))
         ) {
           throw new Error('command denied by user');
@@ -330,6 +358,6 @@ export function createLintTool({ runUserShell, requestApproval }: ToolFactoryOpt
       const trimmed = cleaned.trim();
       if (!trimmed) return `${header}\n(no output)`;
       return `${header}\n${truncate(trimmed, 8000)}`;
-    }
+    },
   });
 }

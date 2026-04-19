@@ -14,7 +14,7 @@ const earlyStdin: EarlyStdinState = {
   buffer: [],
   listener: null,
   stream: null,
-  takenOver: false
+  takenOver: false,
 };
 
 function isOldBunWithTTYBug() {

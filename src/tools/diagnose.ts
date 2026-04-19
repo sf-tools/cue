@@ -68,7 +68,13 @@ function parseSearchLine(line: string): SearchMatch | null {
 
 async function searchWorkspace(
   runUserShell: ToolFactoryOptions['runUserShell'],
-  options: { query: string; root?: string; glob?: string | null; caseSensitive?: boolean; fixedString?: boolean }
+  options: {
+    query: string;
+    root?: string;
+    glob?: string | null;
+    caseSensitive?: boolean;
+    fixedString?: boolean;
+  },
 ) {
   const query = options.query;
   const root = options.root ?? '.';
@@ -78,7 +84,7 @@ async function searchWorkspace(
     '--no-heading',
     '--color=never',
     options.caseSensitive ? '' : '-i',
-    options.fixedString ? '--fixed-strings' : ''
+    options.fixedString ? '--fixed-strings' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -270,7 +276,7 @@ function extractSearchTerms(question: string) {
     'look',
     'want',
     'give',
-    'take'
+    'take',
   ]);
 
   const terms: string[] = [];
@@ -331,7 +337,10 @@ function uniqueNonEmpty(values: Array<string | null | undefined>, maxCount: numb
   return out;
 }
 
-function buildSummary(question: string, citations: Array<{ file: string; line: number; text: string }>) {
+function buildSummary(
+  question: string,
+  citations: Array<{ file: string; line: number; text: string }>,
+) {
   if (citations.length === 0) return `No relevant code locations found for: "${question}".`;
   const grouped = new Map<string, Array<{ line: number; text: string }>>();
   for (const citation of citations) {
@@ -340,103 +349,123 @@ function buildSummary(question: string, citations: Array<{ file: string; line: n
     grouped.set(citation.file, items);
   }
 
-  const parts = [`Found ${citations.length} relevant location(s) across ${grouped.size} file(s):\n`];
+  const parts = [
+    `Found ${citations.length} relevant location(s) across ${grouped.size} file(s):\n`,
+  ];
   for (const [file, fileCitations] of grouped.entries()) {
     const refs = fileCitations
-      .map(citation => `  - L${citation.line}: ${citation.text.slice(0, 120)}${citation.text.length > 120 ? '…' : ''}`)
+      .map(
+        citation =>
+          `  - L${citation.line}: ${citation.text.slice(0, 120)}${citation.text.length > 120 ? '…' : ''}`,
+      )
       .join('\n');
     parts.push(`• ${file}\n${refs}`);
   }
   return parts.join('\n');
 }
 
-const CI_PATTERNS: Array<{ re: RegExp; classification: CiClassification; weight: number; description: string }> = [
+const CI_PATTERNS: Array<{
+  re: RegExp;
+  classification: CiClassification;
+  weight: number;
+  description: string;
+}> = [
   {
     re: /\b(AssertionError|assertion failed|expected\b.*\bto (equal|be|contain)|toEqual|toBe\(|assert\.\w+)/i,
     classification: 'your_change',
     weight: 8,
-    description: 'test assertion failure'
+    description: 'test assertion failure',
   },
   {
     re: /\b(TypeError|ReferenceError|NullPointerException|AttributeError|NameError|UndefinedFieldError)\b/,
     classification: 'your_change',
     weight: 7,
-    description: 'runtime exception thrown by the code under test'
+    description: 'runtime exception thrown by the code under test',
   },
   {
     re: /Cannot find module ['"][^'"]+['"]|ModuleNotFoundError: No module named/,
     classification: 'dependency',
     weight: 8,
-    description: 'missing module at import time'
+    description: 'missing module at import time',
   },
   {
     re: /\b(npm ERR!|yarn error|pnpm ERR_|pip install\b.*\b(failed|ERROR)|cargo (build|fetch).*error)\b/i,
     classification: 'dependency',
     weight: 8,
-    description: 'package manager install/build failure'
+    description: 'package manager install/build failure',
   },
   {
     re: /(EINTEGRITY|integrity check failed|signature mismatch|checksum mismatch)/i,
     classification: 'dependency',
     weight: 9,
-    description: 'package integrity / checksum failure'
+    description: 'package integrity / checksum failure',
   },
   {
     re: /\b(ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|read ECONNRESET|getaddrinfo ENOTFOUND)\b/,
     classification: 'infra',
     weight: 8,
-    description: 'network error reaching a remote host'
+    description: 'network error reaching a remote host',
   },
   {
     re: /(JavaScript heap out of memory|OutOfMemoryError|MemoryError|killed: 9|Killed\b.*signal 9|oom-killer)/i,
     classification: 'infra',
     weight: 8,
-    description: 'process killed by the runner (out of memory)'
+    description: 'process killed by the runner (out of memory)',
   },
-  { re: /(no space left on device|disk quota exceeded|ENOSPC)/i, classification: 'infra', weight: 9, description: 'CI runner out of disk space' },
+  {
+    re: /(no space left on device|disk quota exceeded|ENOSPC)/i,
+    classification: 'infra',
+    weight: 9,
+    description: 'CI runner out of disk space',
+  },
   {
     re: /(rate ?limit(ed)?|429 Too Many Requests|GH008|abuse detection)/i,
     classification: 'infra',
     weight: 6,
-    description: 'upstream rate limit or abuse detection'
+    description: 'upstream rate limit or abuse detection',
   },
   {
     re: /\b(Timeout|Timed out|exceeded\s+\d+\s*(ms|s|seconds)|Test timeout of)\b/i,
     classification: 'flaky_test',
     weight: 5,
-    description: 'test or step timed out'
+    description: 'test or step timed out',
   },
   {
     re: /\b(retry|retried|attempt \d+ of \d+|flaky|intermittent)\b/i,
     classification: 'flaky_test',
     weight: 4,
-    description: 'log mentions retries or flakiness'
+    description: 'log mentions retries or flakiness',
   },
   {
     re: /Element (not|is not) (visible|attached|interactable)|StaleElementReferenceException/i,
     classification: 'flaky_test',
     weight: 5,
-    description: 'browser/UI race condition'
+    description: 'browser/UI race condition',
   },
   {
     re: /\b(snapshot does not match|snapshot file does not match|toMatchSnapshot)\b/i,
     classification: 'your_change',
     weight: 6,
-    description: 'snapshot test diff -- usually intentional and needs updating'
+    description: 'snapshot test diff -- usually intentional and needs updating',
   },
-  { re: /(Permission denied|EACCES|sudo: required)/i, classification: 'infra', weight: 6, description: 'permission/access error on the CI runner' },
+  {
+    re: /(Permission denied|EACCES|sudo: required)/i,
+    classification: 'infra',
+    weight: 6,
+    description: 'permission/access error on the CI runner',
+  },
   {
     re: /\bdocker (pull|push|build).*\b(error|failed|denied)\b/i,
     classification: 'infra',
     weight: 7,
-    description: 'docker registry or build failure'
+    description: 'docker registry or build failure',
   },
   {
     re: /\bSegmentation fault|SIGSEGV|fatal error: runtime: \w+\b/,
     classification: 'your_change',
     weight: 7,
-    description: 'native crash or runtime fatal error'
-  }
+    description: 'native crash or runtime fatal error',
+  },
 ];
 
 function lineMentioning(text: string, re: RegExp) {
@@ -470,29 +499,46 @@ function triageCi(text: string, recentChanges: string | null) {
 
   const totalScore = Array.from(tally.values()).reduce((a, b) => a + b, 0);
   const confidence = totalScore === 0 ? 0 : Math.min(0.99, bestScore / totalScore);
-  if (bestClass === 'unknown' && recentChanges) signals.push(`no diagnostic patterns matched; recent change context: ${recentChanges}`);
+  if (bestClass === 'unknown' && recentChanges)
+    signals.push(`no diagnostic patterns matched; recent change context: ${recentChanges}`);
 
   const nextSteps: string[] = [];
   switch (bestClass) {
     case 'your_change':
       nextSteps.push('Reproduce the failing test locally and confirm it fails on the head commit.');
-      nextSteps.push('Bisect within the PR if multiple commits are present, then fix or update the assertion.');
+      nextSteps.push(
+        'Bisect within the PR if multiple commits are present, then fix or update the assertion.',
+      );
       break;
     case 'flaky_test':
-      nextSteps.push('Re-run the failing job once. If it passes, file or update a flaky-test ticket and quarantine if it has flaked recently.');
-      nextSteps.push('If it fails again, treat as a real failure and inspect for race conditions or timing assumptions.');
+      nextSteps.push(
+        'Re-run the failing job once. If it passes, file or update a flaky-test ticket and quarantine if it has flaked recently.',
+      );
+      nextSteps.push(
+        'If it fails again, treat as a real failure and inspect for race conditions or timing assumptions.',
+      );
       break;
     case 'infra':
-      nextSteps.push('Check CI runner status / provider status page; the failure is likely outside the code.');
-      nextSteps.push('Re-run after confirming the runner has recovered; do not patch the code blindly.');
+      nextSteps.push(
+        'Check CI runner status / provider status page; the failure is likely outside the code.',
+      );
+      nextSteps.push(
+        'Re-run after confirming the runner has recovered; do not patch the code blindly.',
+      );
       break;
     case 'dependency':
-      nextSteps.push('Verify the lockfile and registry availability; reproduce the install locally.');
+      nextSteps.push(
+        'Verify the lockfile and registry availability; reproduce the install locally.',
+      );
       nextSteps.push('If a dependency moved, pin the prior version or update affected call sites.');
       break;
     case 'unknown':
-      nextSteps.push('Open the full job log and search for the first ERROR / FAIL line; the patterns here did not match.');
-      nextSteps.push('If you can share more of the log, re-run this triage with the surrounding context.');
+      nextSteps.push(
+        'Open the full job log and search for the first ERROR / FAIL line; the patterns here did not match.',
+      );
+      nextSteps.push(
+        'If you can share more of the log, re-run this triage with the surrounding context.',
+      );
       break;
   }
 
@@ -501,13 +547,14 @@ function triageCi(text: string, recentChanges: string | null) {
     confidence: Number(confidence.toFixed(2)),
     signals: uniqueNonEmpty(signals, 12),
     highlighted_lines: uniqueNonEmpty(highlighted, 8),
-    next_steps: nextSteps
+    next_steps: nextSteps,
   };
 }
 
 function parseConflictMarkers(text: string, defaultOurs: string, defaultTheirs: string) {
   const lines = text.split(/\r?\n/);
-  const out: Array<{ oursLabel: string; theirsLabel: string; ours: string[]; theirs: string[] }> = [];
+  const out: Array<{ oursLabel: string; theirsLabel: string; ours: string[]; theirs: string[] }> =
+    [];
   let index = 0;
   while (index < lines.length) {
     const line = lines[index]!;
@@ -554,8 +601,10 @@ function summarizeIntent(lines: string[]) {
   if (trimmed.length === 0) return 'leaves only whitespace in this region';
   const head = trimmed[0]!;
   if (/^(import|from|require|use\s)/.test(head)) return 'adjusts imports / declarations';
-  if (/^(export\s|public\s|def\s|fn\s|function\s|class\s|interface\s|type\s)/.test(head)) return 'changes a top-level declaration';
-  if (/^(if|else|switch|case|for|while|return|throw|raise|try|catch|except)\b/.test(head)) return 'rewrites control flow';
+  if (/^(export\s|public\s|def\s|fn\s|function\s|class\s|interface\s|type\s)/.test(head))
+    return 'changes a top-level declaration';
+  if (/^(if|else|switch|case|for|while|return|throw|raise|try|catch|except)\b/.test(head))
+    return 'rewrites control flow';
   if (/[=:]/.test(head)) return 'updates an assignment / configuration value';
   if (lines.length > 8) return `replaces this block with ~${lines.length} lines`;
   return `applies a small edit (${lines.length} line(s))`;
@@ -575,27 +624,53 @@ function classifyOverlap(ours: string[], theirs: string[]) {
   return 'logical';
 }
 
-function recommendStrategy(ours: string[], theirs: string[], overlap: 'logical' | 'whitespace' | 'cosmetic' | 'unknown') {
-  if (overlap === 'whitespace') return { strategy: 'pick_ours', rationale: 'Both sides are equivalent ignoring whitespace.' };
+function recommendStrategy(
+  ours: string[],
+  theirs: string[],
+  overlap: 'logical' | 'whitespace' | 'cosmetic' | 'unknown',
+) {
+  if (overlap === 'whitespace')
+    return { strategy: 'pick_ours', rationale: 'Both sides are equivalent ignoring whitespace.' };
   if (overlap === 'cosmetic')
-    return { strategy: 'pick_ours', rationale: 'Sides differ only in case/punctuation -- pick either, prefer the side with newer style guide.' };
+    return {
+      strategy: 'pick_ours',
+      rationale:
+        'Sides differ only in case/punctuation -- pick either, prefer the side with newer style guide.',
+    };
   if (ours.length === 0)
     return {
       strategy: 'pick_theirs',
-      rationale: 'Our side removed the region; theirs added content. Keep theirs unless the removal was deliberate.'
+      rationale:
+        'Our side removed the region; theirs added content. Keep theirs unless the removal was deliberate.',
     };
   if (theirs.length === 0)
-    return { strategy: 'pick_ours', rationale: 'Their side removed the region; ours added content. Keep ours unless the removal was deliberate.' };
+    return {
+      strategy: 'pick_ours',
+      rationale:
+        'Their side removed the region; ours added content. Keep ours unless the removal was deliberate.',
+    };
   const looksAdditive = (values: string[]) =>
-    values.length > 0 && values.every(value => /^(import|from|require|use\s|export\s|"\w[^"]*"\s*:|\s*\w[\w-]*\s*:)/.test(value.trim()));
+    values.length > 0 &&
+    values.every(value =>
+      /^(import|from|require|use\s|export\s|"\w[^"]*"\s*:|\s*\w[\w-]*\s*:)/.test(value.trim()),
+    );
   if (looksAdditive(ours) && looksAdditive(theirs)) {
-    return { strategy: 'merge_both', rationale: 'Both sides look additive (imports / config entries). Combine and dedupe.' };
+    return {
+      strategy: 'merge_both',
+      rationale: 'Both sides look additive (imports / config entries). Combine and dedupe.',
+    };
   }
-  return { strategy: 'manual', rationale: 'Sides express different logical intents -- read both summaries and craft a deliberate merge.' };
+  return {
+    strategy: 'manual',
+    rationale:
+      'Sides express different logical intents -- read both summaries and craft a deliberate merge.',
+  };
 }
 
 function parseJsFrame(line: string): StackFrame | null {
-  const match = /^\s*at\s+(?:(.*?)\s+\()?(.*?):(\d+):(\d+)\)?\s*$/.exec(line) ?? /^\s*at\s+(.*?):(\d+):(\d+)\s*$/.exec(line);
+  const match =
+    /^\s*at\s+(?:(.*?)\s+\()?(.*?):(\d+):(\d+)\)?\s*$/.exec(line) ??
+    /^\s*at\s+(.*?):(\d+):(\d+)\s*$/.exec(line);
   if (!match) return null;
 
   if (match.length === 5) {
@@ -604,7 +679,7 @@ function parseJsFrame(line: string): StackFrame | null {
       functionName: match[1] ? match[1].trim() || null : null,
       file: match[2] ? match[2].trim() : null,
       line: Number.parseInt(match[3]!, 10),
-      column: Number.parseInt(match[4]!, 10)
+      column: Number.parseInt(match[4]!, 10),
     };
   }
 
@@ -613,7 +688,7 @@ function parseJsFrame(line: string): StackFrame | null {
     functionName: null,
     file: match[1] ? match[1].trim() : null,
     line: Number.parseInt(match[2]!, 10),
-    column: Number.parseInt(match[3]!, 10)
+    column: Number.parseInt(match[3]!, 10),
   };
 }
 
@@ -625,7 +700,7 @@ function parsePythonFrame(line: string): StackFrame | null {
     functionName: match[3]?.trim() || null,
     file: match[1]!.trim(),
     line: Number.parseInt(match[2]!, 10),
-    column: null
+    column: null,
   };
 }
 
@@ -647,16 +722,27 @@ function extractMessageCandidates(stacktrace: string) {
     .filter(line => !/^\s*at\s+/.test(line))
     .filter(line => !/^\s*File ".+?", line \d+/.test(line));
 
-  const weighted = lines.filter(line => /(error|exception|panic|failed|failure|cannot|undefined|null)/i.test(line));
-  return uniqueNonEmpty(weighted.length > 0 ? weighted : lines.slice(-MAX_MESSAGE_CANDIDATES), MAX_MESSAGE_CANDIDATES);
+  const weighted = lines.filter(line =>
+    /(error|exception|panic|failed|failure|cannot|undefined|null)/i.test(line),
+  );
+  return uniqueNonEmpty(
+    weighted.length > 0 ? weighted : lines.slice(-MAX_MESSAGE_CANDIDATES),
+    MAX_MESSAGE_CANDIDATES,
+  );
 }
 
-function buildSignals(messages: string[], functions: string[], files: string[], contextHint: string | null) {
+function buildSignals(
+  messages: string[],
+  functions: string[],
+  files: string[],
+  contextHint: string | null,
+) {
   const signals: Array<{ kind: SearchEvidence['kind']; query: string; weight: number }> = [];
   for (const message of messages) signals.push({ kind: 'message', query: message, weight: 1.0 });
   for (const fn of functions) signals.push({ kind: 'function', query: fn, weight: 0.75 });
   for (const file of files) signals.push({ kind: 'file', query: file, weight: 0.5 });
-  if (contextHint && contextHint.trim() !== '') signals.push({ kind: 'context_hint', query: contextHint.trim(), weight: 0.35 });
+  if (contextHint && contextHint.trim() !== '')
+    signals.push({ kind: 'context_hint', query: contextHint.trim(), weight: 0.35 });
   return signals;
 }
 
@@ -677,10 +763,16 @@ async function safeReadSnippet(path: string, lineNumber: number): Promise<Snippe
 }
 
 function summarizeCandidate(path: string, evidence: Array<SearchEvidence | SnippetEvidence>) {
-  const messageEvidence = evidence.find((item): item is SearchEvidence => 'kind' in item && item.kind === 'message');
-  if (messageEvidence) return `Code near ${path} directly references the traced error text "${messageEvidence.query}".`;
-  const functionEvidence = evidence.find((item): item is SearchEvidence => 'kind' in item && item.kind === 'function');
-  if (functionEvidence) return `Code in ${path} matches traced function or symbol "${functionEvidence.query}".`;
+  const messageEvidence = evidence.find(
+    (item): item is SearchEvidence => 'kind' in item && item.kind === 'message',
+  );
+  if (messageEvidence)
+    return `Code near ${path} directly references the traced error text "${messageEvidence.query}".`;
+  const functionEvidence = evidence.find(
+    (item): item is SearchEvidence => 'kind' in item && item.kind === 'function',
+  );
+  if (functionEvidence)
+    return `Code in ${path} matches traced function or symbol "${functionEvidence.query}".`;
   return `Code in ${path} aligns with files referenced by the stacktrace.`;
 }
 
@@ -693,19 +785,25 @@ function normalizeConfidence(score: number, topScore: number) {
 
 export function createGitLogTool({ runUserShell }: ToolFactoryOptions) {
   return tool({
-    description: 'Show recent commit history for the repository, or for a specific file or directory.',
+    description:
+      'Show recent commit history for the repository, or for a specific file or directory.',
     inputSchema: z.object({
       path: z.string().nullable().optional(),
-      limit: z.number().int().positive().max(100).nullable().optional()
+      limit: z.number().int().positive().max(100).nullable().optional(),
     }),
     execute: async ({ path, limit }) => {
       const cwd = process.cwd();
       const target = path ? resolve(cwd, path) : cwd;
-      const rootResult = await runUserShell(`git -C ${shellEscape(target)} rev-parse --show-toplevel`);
-      if (rootResult.exitCode !== 0) throw new Error(plain(rootResult.output).trim() || 'not inside a git repository');
+      const rootResult = await runUserShell(
+        `git -C ${shellEscape(target)} rev-parse --show-toplevel`,
+      );
+      if (rootResult.exitCode !== 0)
+        throw new Error(plain(rootResult.output).trim() || 'not inside a git repository');
       const root = plain(rootResult.output).trim();
 
-      const args = [`git -C ${shellEscape(root)} log --date=iso --pretty=format:${shellEscape(LOG_FORMAT)}`];
+      const args = [
+        `git -C ${shellEscape(root)} log --date=iso --pretty=format:${shellEscape(LOG_FORMAT)}`,
+      ];
       if (limit) args.push(`-${limit}`);
       if (path) args.push('--', shellEscape(path));
       const result = await runUserShell(args.join(' '));
@@ -725,20 +823,21 @@ export function createGitLogTool({ runUserShell }: ToolFactoryOptions) {
         path: path ?? null,
         limit: limit ?? null,
         count: commits.length,
-        commits
+        commits,
       };
-    }
+    },
   });
 }
 
 export function createCodebaseQATool({ runUserShell }: ToolFactoryOptions) {
   return tool({
-    description: 'Answer a natural-language question about the codebase with exact file:line citations.',
+    description:
+      'Answer a natural-language question about the codebase with exact file:line citations.',
     inputSchema: z.object({
       question: z.string().min(1),
       root: z.string().optional().default('.'),
       glob: z.string().nullable().optional(),
-      max_citations: z.number().int().positive().max(MAX_CITATIONS_CAP).optional()
+      max_citations: z.number().int().positive().max(MAX_CITATIONS_CAP).optional(),
     }),
     execute: async ({ question, root = '.', glob, max_citations }) => {
       const searchTerms = extractSearchTerms(question);
@@ -748,18 +847,32 @@ export function createCodebaseQATool({ runUserShell }: ToolFactoryOptions) {
           question,
           search_terms: [],
           citations: [],
-          summary: `Could not extract meaningful search terms from: "${question}". Try rephrasing with specific symbol or feature names.`
+          summary: `Could not extract meaningful search terms from: "${question}". Try rephrasing with specific symbol or feature names.`,
         };
       }
 
       const hitMap = new Map<
         string,
-        { file: string; line: number; ref: string; text: string; snippet: string; matched_term: string; relevance: number }
+        {
+          file: string;
+          line: number;
+          ref: string;
+          text: string;
+          snippet: string;
+          matched_term: string;
+          relevance: number;
+        }
       >();
       const rootPath = resolve(root);
 
       for (const term of searchTerms) {
-        const result = await searchWorkspace(runUserShell, { query: term, root, glob: glob ?? null, caseSensitive: false, fixedString: true });
+        const result = await searchWorkspace(runUserShell, {
+          query: term,
+          root,
+          glob: glob ?? null,
+          caseSensitive: false,
+          fixedString: true,
+        });
         for (const match of result.matches.slice(0, MAX_SEARCH_HITS_PER_TERM)) {
           const key = `${match.path}:${match.line}`;
           const existing = hitMap.get(key);
@@ -780,60 +893,86 @@ export function createCodebaseQATool({ runUserShell }: ToolFactoryOptions) {
             text: match.text.trim(),
             snippet: '',
             matched_term: term,
-            relevance: addedRelevance
+            relevance: addedRelevance,
           });
         }
       }
 
       const ranked = [...hitMap.values()]
-        .sort((a, b) => b.relevance - a.relevance || a.file.localeCompare(b.file) || a.line - b.line)
+        .sort(
+          (a, b) => b.relevance - a.relevance || a.file.localeCompare(b.file) || a.line - b.line,
+        )
         .slice(0, maxCitations);
 
       await Promise.all(
         ranked.map(async citation => {
           citation.snippet = await readSnippet(resolve(root, citation.file), citation.line);
           citation.relevance = Math.round(citation.relevance * 100) / 100;
-        })
+        }),
       );
 
       return {
         question,
         search_terms: searchTerms,
         citations: ranked,
-        summary: buildSummary(question, ranked)
+        summary: buildSummary(question, ranked),
       };
-    }
+    },
   });
 }
 
 export function createStacktraceRootCauseTool({ runUserShell }: ToolFactoryOptions) {
   return tool({
-    description: 'Analyze a pasted stacktrace, search the repository for supporting evidence, and rank likely root causes.',
+    description:
+      'Analyze a pasted stacktrace, search the repository for supporting evidence, and rank likely root causes.',
     inputSchema: z.object({
       stacktrace: z.string().min(1),
       limit: z.number().int().positive().max(MAX_ROOT_CAUSE_LIMIT).optional(),
-      context_hint: z.string().optional()
+      context_hint: z.string().optional(),
     }),
     execute: async ({ stacktrace, limit, context_hint }) => {
       const frames = parseFrames(stacktrace);
       const messageCandidates = extractMessageCandidates(stacktrace);
       const functionCandidates = uniqueNonEmpty(
         frames.map(frame => frame.functionName),
-        MAX_FUNCTION_CANDIDATES
+        MAX_FUNCTION_CANDIDATES,
       );
       const fileCandidates = uniqueNonEmpty(
         frames.map(frame => (frame.file ? basename(frame.file) : null)),
-        MAX_FILE_CANDIDATES
+        MAX_FILE_CANDIDATES,
       );
-      const signals = buildSignals(messageCandidates, functionCandidates, fileCandidates, context_hint ?? null);
-      const candidates = new Map<string, { path: string; score: number; evidence: Array<SearchEvidence | SnippetEvidence> }>();
+      const signals = buildSignals(
+        messageCandidates,
+        functionCandidates,
+        fileCandidates,
+        context_hint ?? null,
+      );
+      const candidates = new Map<
+        string,
+        { path: string; score: number; evidence: Array<SearchEvidence | SnippetEvidence> }
+      >();
 
       for (const signal of signals) {
-        const result = await searchWorkspace(runUserShell, { query: signal.query, root: '.', caseSensitive: false, fixedString: true });
+        const result = await searchWorkspace(runUserShell, {
+          query: signal.query,
+          root: '.',
+          caseSensitive: false,
+          fixedString: true,
+        });
         for (const match of result.matches.slice(0, MAX_QUERY_RESULTS)) {
-          const existing = candidates.get(match.path) ?? { path: match.path, score: 0, evidence: [] };
+          const existing = candidates.get(match.path) ?? {
+            path: match.path,
+            score: 0,
+            evidence: [],
+          };
           existing.score += signal.weight;
-          existing.evidence.push({ path: match.path, line: match.line, kind: signal.kind, query: signal.query, text: match.text });
+          existing.evidence.push({
+            path: match.path,
+            line: match.line,
+            kind: signal.kind,
+            query: signal.query,
+            text: match.text,
+          });
           candidates.set(match.path, existing);
         }
       }
@@ -859,18 +998,18 @@ export function createStacktraceRootCauseTool({ runUserShell }: ToolFactoryOptio
           message_candidates: messageCandidates,
           frame_count: frames.length,
           file_candidates: fileCandidates,
-          function_candidates: functionCandidates
+          function_candidates: functionCandidates,
         },
         likely_causes: ranked.map(candidate => {
           const evidence = candidate.evidence.slice(0, 4);
           return {
             summary: summarizeCandidate(candidate.path, evidence),
             confidence: normalizeConfidence(candidate.score, topScore),
-            evidence
+            evidence,
           };
-        })
+        }),
       };
-    }
+    },
   });
 }
 
@@ -883,11 +1022,20 @@ export function createFailureTriagerTool(_: ToolFactoryOptions) {
       file_path: z.string().optional(),
       ours_label: z.string().optional(),
       theirs_label: z.string().optional(),
-      recent_changes_summary: z.string().optional()
+      recent_changes_summary: z.string().optional(),
     }),
-    execute: async ({ kind, text, file_path, ours_label, theirs_label, recent_changes_summary }) => {
+    execute: async ({
+      kind,
+      text,
+      file_path,
+      ours_label,
+      theirs_label,
+      recent_changes_summary,
+    }) => {
       if (text.length > MAX_TEXT_LENGTH) {
-        throw new Error(`text is too long (${text.length} chars); max supported is ${MAX_TEXT_LENGTH}`);
+        throw new Error(
+          `text is too long (${text.length} chars); max supported is ${MAX_TEXT_LENGTH}`,
+        );
       }
 
       if (kind === 'ci') {
@@ -905,10 +1053,13 @@ export function createFailureTriagerTool(_: ToolFactoryOptions) {
           ours_label: ours_label ?? conflict.oursLabel,
           theirs_label: theirs_label ?? conflict.theirsLabel,
           ours: { intent: summarizeIntent(conflict.ours), key_lines: conflict.ours.slice(0, 6) },
-          theirs: { intent: summarizeIntent(conflict.theirs), key_lines: conflict.theirs.slice(0, 6) },
+          theirs: {
+            intent: summarizeIntent(conflict.theirs),
+            key_lines: conflict.theirs.slice(0, 6),
+          },
           overlap,
           recommended_strategy: strategy,
-          rationale
+          rationale,
         };
       });
 
@@ -918,9 +1069,9 @@ export function createFailureTriagerTool(_: ToolFactoryOptions) {
         merge_conflict: {
           file_path: file_path ?? null,
           total_conflicts: conflicts.length,
-          conflicts
-        }
+          conflicts,
+        },
       };
-    }
+    },
   });
 }

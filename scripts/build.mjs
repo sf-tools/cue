@@ -9,7 +9,7 @@ await build({
   packages: 'external',
   outfile: 'dist/cue.js',
   tsconfig: 'tsconfig.json',
-  logLevel: 'info'
+  logLevel: 'info',
 });
 
 await import('./prepare-package-bin.mjs');

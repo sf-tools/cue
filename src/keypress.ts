@@ -96,13 +96,15 @@ const keyName: Record<string, string> = {
   '[6^': 'pagedown',
   '[7^': 'home',
   '[8^': 'end',
-  '[Z': 'tab'
+  '[Z': 'tab',
 };
 
 export const nonAlphanumericKeys: string[] = [...Object.values(keyName), 'backspace'];
 
 const isShiftKey = (code: string): boolean => {
-  return ['[a', '[b', '[c', '[d', '[e', '[2$', '[3$', '[5$', '[6$', '[7$', '[8$', '[Z'].includes(code);
+  return ['[a', '[b', '[c', '[d', '[e', '[2$', '[3$', '[5$', '[6$', '[7$', '[8$', '[Z'].includes(
+    code,
+  );
 };
 
 const isCtrlKey = (code: string): boolean => {
@@ -123,7 +125,7 @@ const kittySpecialLetterKeys: Record<string, string> = {
   P: 'f1',
   Q: 'f2',
   R: 'f3',
-  S: 'f4'
+  S: 'f4',
 };
 
 const kittySpecialNumberKeys: Record<number, string> = {
@@ -144,7 +146,7 @@ const kittySpecialNumberKeys: Record<number, string> = {
   20: 'f9',
   21: 'f10',
   23: 'f11',
-  24: 'f12'
+  24: 'f12',
 };
 
 const kittyCodepointNames: Record<number, string> = {
@@ -236,11 +238,13 @@ const kittyCodepointNames: Record<number, string> = {
   57451: 'righthyper',
   57452: 'rightmeta',
   57453: 'isoLevel3Shift',
-  57454: 'isoLevel5Shift'
+  57454: 'isoLevel5Shift',
 };
 
-const isValidCodepoint = (cp: number): boolean => cp >= 0 && cp <= 0x10_ffff && !(cp >= 0xd8_00 && cp <= 0xdf_ff);
-const safeFromCodePoint = (cp: number): string => (isValidCodepoint(cp) ? String.fromCodePoint(cp) : '?');
+const isValidCodepoint = (cp: number): boolean =>
+  cp >= 0 && cp <= 0x10_ffff && !(cp >= 0xd8_00 && cp <= 0xdf_ff);
+const safeFromCodePoint = (cp: number): string =>
+  isValidCodepoint(cp) ? String.fromCodePoint(cp) : '?';
 
 function resolveEventType(value: number): KeyEventType {
   if (value === 3) return 'release';
@@ -248,7 +252,9 @@ function resolveEventType(value: number): KeyEventType {
   return 'press';
 }
 
-function parseKittyModifiers(modifiers: number): Pick<ParsedKeypress, 'ctrl' | 'shift' | 'meta' | 'super' | 'hyper' | 'capsLock' | 'numLock'> {
+function parseKittyModifiers(
+  modifiers: number,
+): Pick<ParsedKeypress, 'ctrl' | 'shift' | 'meta' | 'super' | 'hyper' | 'capsLock' | 'numLock'> {
   return {
     ctrl: !!(modifiers & kittyModifiers.ctrl),
     shift: !!(modifiers & kittyModifiers.shift),
@@ -256,7 +262,7 @@ function parseKittyModifiers(modifiers: number): Pick<ParsedKeypress, 'ctrl' | '
     super: !!(modifiers & kittyModifiers.super),
     hyper: !!(modifiers & kittyModifiers.hyper),
     capsLock: !!(modifiers & kittyModifiers.capsLock),
-    numLock: !!(modifiers & kittyModifiers.numLock)
+    numLock: !!(modifiers & kittyModifiers.numLock),
   };
 }
 
@@ -312,7 +318,7 @@ const parseKittyKeypress = (s: string): ParsedKeypress | null => {
     raw: s,
     isKittyProtocol: true,
     isPrintable,
-    text
+    text,
   };
 };
 
@@ -324,7 +330,8 @@ const parseKittySpecialKey = (s: string): ParsedKeypress | null => {
   const modifiers = Math.max(0, parseInt(match[2], 10) - 1);
   const eventType = parseInt(match[3], 10);
   const terminator = match[4];
-  const name = terminator === '~' ? kittySpecialNumberKeys[number] : kittySpecialLetterKeys[terminator];
+  const name =
+    terminator === '~' ? kittySpecialNumberKeys[number] : kittySpecialLetterKeys[terminator];
 
   if (!name) return null;
 
@@ -335,7 +342,7 @@ const parseKittySpecialKey = (s: string): ParsedKeypress | null => {
     sequence: s,
     raw: s,
     isKittyProtocol: true,
-    isPrintable: false
+    isPrintable: false,
   };
 };
 
@@ -370,7 +377,7 @@ const parseKeypress = (input: string | Uint8Array = ''): ParsedKeypress => {
       sequence: s,
       raw: s,
       isKittyProtocol: true,
-      isPrintable: false
+      isPrintable: false,
     };
   }
 
@@ -380,7 +387,7 @@ const parseKeypress = (input: string | Uint8Array = ''): ParsedKeypress => {
     meta: false,
     shift: false,
     sequence: s,
-    raw: s
+    raw: s,
   };
 
   key.sequence = key.sequence || s || key.name;
@@ -424,7 +431,9 @@ const parseKeypress = (input: string | Uint8Array = ''): ParsedKeypress => {
       key.meta = true;
     }
 
-    const code = [parts[1], parts[2], parts[4], parts[6]].filter((part): part is string => Boolean(part)).join('');
+    const code = [parts[1], parts[2], parts[4], parts[6]]
+      .filter((part): part is string => Boolean(part))
+      .join('');
     const modifier = Number(parts[3] ?? parts[5] ?? 1) - 1;
 
     key.ctrl = !!(modifier & 4);

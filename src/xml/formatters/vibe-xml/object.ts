@@ -1,10 +1,19 @@
 import dedent from 'dedent';
 import type { Formatters } from '@/xml/formatters/types';
 
-export const isObject = (v: unknown): boolean => typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
+export const isObject = (v: unknown): boolean =>
+  typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date);
 
-export const formatObject = (value: unknown, llml: (data: unknown, formatters: Formatters) => string, formatters: Formatters): string => {
-  if (value && typeof value.toString === 'function' && value.toString !== Object.prototype.toString) {
+export const formatObject = (
+  value: unknown,
+  llml: (data: unknown, formatters: Formatters) => string,
+  formatters: Formatters,
+): string => {
+  if (
+    value &&
+    typeof value.toString === 'function' &&
+    value.toString !== Object.prototype.toString
+  ) {
     return value.toString();
   }
 
@@ -29,7 +38,12 @@ export const formatObject = (value: unknown, llml: (data: unknown, formatters: F
   return results.join('');
 };
 
-function formatKeyValue(key: string, value: unknown, llml: (data: unknown, formatters: Formatters) => string, formatters: Formatters): string {
+function formatKeyValue(
+  key: string,
+  value: unknown,
+  llml: (data: unknown, formatters: Formatters) => string,
+  formatters: Formatters,
+): string {
   if (Array.isArray(value)) {
     if (value.length === 0) return '';
 

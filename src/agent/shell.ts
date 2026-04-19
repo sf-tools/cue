@@ -20,8 +20,8 @@ export async function runUserShell(cmd: string): Promise<ShellResult> {
           COLORTERM: process.env.COLORTERM || 'truecolor',
           FORCE_COLOR: process.env.FORCE_COLOR || '1',
           CLICOLOR: process.env.CLICOLOR || '1',
-          CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1'
-        }
+          CLICOLOR_FORCE: process.env.CLICOLOR_FORCE || '1',
+        },
       });
 
       const dataDisposable = proc.onData(data => {
@@ -36,7 +36,7 @@ export async function runUserShell(cmd: string): Promise<ShellResult> {
 
         resolve({
           exitCode,
-          output: normalizePtyOutput(chunks.join(''))
+          output: normalizePtyOutput(chunks.join('')),
         });
       });
     } catch (error) {

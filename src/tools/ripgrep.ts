@@ -17,7 +17,7 @@ function trimOutput(value: string) {
 
   return {
     text: `${trimmed.slice(0, MAX_OUTPUT_CHARS)}\n… truncated ${trimmed.length - MAX_OUTPUT_CHARS} chars`,
-    truncated: true
+    truncated: true,
   };
 }
 
@@ -26,7 +26,7 @@ export function createRipgrepTool({ runUserShell }: ToolFactoryOptions) {
     description: 'Search workspace text with ripgrep; falls back to grep when rg is unavailable',
     inputSchema: z.object({
       pattern: z.string().min(1),
-      path: z.string().default('.')
+      path: z.string().default('.'),
     }),
     execute: async ({ pattern, path = '.' }) => {
       const escapedPattern = shellEscape(pattern);
@@ -37,8 +37,12 @@ export function createRipgrepTool({ runUserShell }: ToolFactoryOptions) {
         const { output, exitCode } = await runUserShell(command);
         const normalized = plain(output).trimEnd();
         const [firstLine = '', ...restLines] = normalized ? normalized.split('\n') : [''];
-        const engine = firstLine.startsWith(ENGINE_PREFIX) ? firstLine.slice(ENGINE_PREFIX.length) : 'grep';
-        const rawOutput = firstLine.startsWith(ENGINE_PREFIX) ? restLines.join('\n').trimEnd() : normalized;
+        const engine = firstLine.startsWith(ENGINE_PREFIX)
+          ? firstLine.slice(ENGINE_PREFIX.length)
+          : 'grep';
+        const rawOutput = firstLine.startsWith(ENGINE_PREFIX)
+          ? restLines.join('\n').trimEnd()
+          : normalized;
 
         if (exitCode !== 0 && exitCode !== 1) {
           throw new Error(rawOutput || `search exited with code ${exitCode}`);
@@ -53,11 +57,11 @@ export function createRipgrepTool({ runUserShell }: ToolFactoryOptions) {
           path,
           matches,
           truncated,
-          output: text
+          output: text,
         };
       } catch (error: unknown) {
         throw new Error(plain(error instanceof Error ? error.message : String(error)));
       }
-    }
+    },
   });
 }

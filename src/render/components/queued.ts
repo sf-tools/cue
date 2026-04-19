@@ -18,7 +18,11 @@ function truncate(text: string, width: number) {
   return `${out}…`;
 }
 
-export function renderQueuedSubmissions(queuedSubmissions: QueuedSubmission[], ctx: RenderContext, maxLines = Number.POSITIVE_INFINITY): Block {
+export function renderQueuedSubmissions(
+  queuedSubmissions: QueuedSubmission[],
+  ctx: RenderContext,
+  maxLines = Number.POSITIVE_INFINITY,
+): Block {
   if (queuedSubmissions.length === 0 || maxLines <= 0) return [];
 
   const limit = Math.max(1, Math.floor(maxLines));
@@ -26,7 +30,10 @@ export function renderQueuedSubmissions(queuedSubmissions: QueuedSubmission[], c
   const previewLimit = Math.min(2, limit, queuedSubmissions.length);
 
   for (let index = 0; index < previewLimit; index += 1) {
-    const text = truncate(queuedSubmissions[index]?.text.trim() || '(empty message)', Math.max(1, ctx.width - 6));
+    const text = truncate(
+      queuedSubmissions[index]?.text.trim() || '(empty message)',
+      Math.max(1, ctx.width - 6),
+    );
     block.push(line(span(`${index + 1}. `, ctx.theme.subtle), span(text, ctx.theme.dimmed)));
   }
 

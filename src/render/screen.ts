@@ -14,7 +14,7 @@ export function createRenderContext(
   commandSpinnerFrame: string,
   expandPreviews = false,
   columns = process.stdout.columns || 100,
-  rows = process.stdout.rows || 30
+  rows = process.stdout.rows || 30,
 ): RenderContext {
   const cwd = process.cwd();
   void refreshGitBranch(cwd);
@@ -27,6 +27,6 @@ export function createRenderContext(
     spinnerFrame,
     commandSpinnerFrame,
     theme,
-    expandPreviews
+    expandPreviews,
   };
 }

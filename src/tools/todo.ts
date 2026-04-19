@@ -13,7 +13,7 @@ const STATUS_GLYPH: Record<TodoStatus, string> = {
   pending: '[ ]',
   in_progress: '[~]',
   completed: '[x]',
-  cancelled: '[-]'
+  cancelled: '[-]',
 };
 
 const todos: TodoItem[] = [];
@@ -48,10 +48,10 @@ export function createTodoTool() {
           z.object({
             id: z.string().min(1),
             content: z.string().min(1),
-            status: z.enum(['pending', 'in_progress', 'completed', 'cancelled'])
-          })
+            status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']),
+          }),
         )
-        .max(100)
+        .max(100),
     }),
     execute: async ({ items }) => {
       const seenIds = new Set<string>();
@@ -67,6 +67,6 @@ export function createTodoTool() {
       todos.push(...items);
 
       return `${summarize(todos)}\n\n${renderList(todos)}`;
-    }
+    },
   });
 }

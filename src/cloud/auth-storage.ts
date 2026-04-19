@@ -32,7 +32,7 @@ export async function loadCueCloudAuth(path = CUE_CLOUD_AUTH_PATH): Promise<CueC
       baseUrl: parsed.baseUrl,
       email: typeof parsed.email === 'string' ? parsed.email : null,
       savedAt: typeof parsed.savedAt === 'string' ? parsed.savedAt : new Date().toISOString(),
-      userId: typeof parsed.userId === 'string' ? parsed.userId : null
+      userId: typeof parsed.userId === 'string' ? parsed.userId : null,
     };
   } catch {
     return null;

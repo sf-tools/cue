@@ -76,7 +76,10 @@ export type ResolvedSlashCommand = {
   argv: string[];
 };
 
-export type SlashCommandParseResult = { type: 'empty' } | { type: 'unknown'; invocation: string } | ({ type: 'resolved' } & ResolvedSlashCommand);
+export type SlashCommandParseResult =
+  | { type: 'empty' }
+  | { type: 'unknown'; invocation: string }
+  | ({ type: 'resolved' } & ResolvedSlashCommand);
 
 export type SlashCommandSuggestion = {
   kind: 'slash-command';
@@ -93,7 +96,9 @@ export type SlashCommandSuggestion = {
   detailStyle?: TextStyle;
 };
 
-export type SlashCommandQuery = { type: 'invocation'; query: string } | { type: 'argument'; invocation: string; query: string };
+export type SlashCommandQuery =
+  | { type: 'invocation'; query: string }
+  | { type: 'argument'; invocation: string; query: string };
 
 export type SlashCommandRegistry = {
   commands: SlashCommand[];

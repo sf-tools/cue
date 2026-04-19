@@ -1,6 +1,12 @@
 import approx from 'approximate-number';
 
-import { OPENAI_MODEL_OPTIONS, getOpenAIContextWindow, getOpenAIModelDescription, getOpenAIModelDisplayName, normalizeOpenAIModelId } from '@/config';
+import {
+  OPENAI_MODEL_OPTIONS,
+  getOpenAIContextWindow,
+  getOpenAIModelDescription,
+  getOpenAIModelDisplayName,
+  normalizeOpenAIModelId,
+} from '@/config';
 import type { SlashCommand } from '../types';
 
 function findModel(value: string) {
@@ -20,7 +26,12 @@ function truncateDescription(text: string | null, maxLength = 58) {
 const MODEL_ARGUMENT_SUGGESTIONS = OPENAI_MODEL_OPTIONS.map(option => ({
   value: option.id,
   label: getOpenAIModelDisplayName(option.id),
-  detail: [truncateDescription(getOpenAIModelDescription(option.id)), formatContextWindow(getOpenAIContextWindow(option.id))].filter(Boolean).join(' · ')
+  detail: [
+    truncateDescription(getOpenAIModelDescription(option.id)),
+    formatContextWindow(getOpenAIContextWindow(option.id)),
+  ]
+    .filter(Boolean)
+    .join(' · '),
 }));
 
 export const modelSlashCommand: SlashCommand = {
@@ -42,5 +53,5 @@ export const modelSlashCommand: SlashCommand = {
 
     setCurrentModel(model.id);
     showFooterNotice(`Model set to ${getOpenAIModelDisplayName(model.id)}`);
-  }
+  },
 };

@@ -53,7 +53,8 @@ function parsePatch(patch: string): PatchFile[] {
     if (line.startsWith('--- ')) {
       const oldPath = stripPrefix(line.slice(4));
       const next = lines[i + 1];
-      if (!next?.startsWith('+++ ')) throw new Error(`malformed patch: expected '+++' after '---' at line ${i + 1}`);
+      if (!next?.startsWith('+++ '))
+        throw new Error(`malformed patch: expected '+++' after '---' at line ${i + 1}`);
       const newPath = stripPrefix(next.slice(4));
       current = { oldPath, newPath, hunks: [] };
       files.push(current);
@@ -71,7 +72,7 @@ function parsePatch(patch: string): PatchFile[] {
         oldCount: header[2] ? Number(header[2]) : 1,
         newStart: Number(header[3]),
         newCount: header[4] ? Number(header[4]) : 1,
-        lines: []
+        lines: [],
       };
 
       i += 1;
@@ -150,7 +151,9 @@ function locateAndApply(source: string[], hunk: Hunk): string[] {
     if (after) return after;
   }
 
-  throw new Error(`hunk @ -${hunk.oldStart},${hunk.oldCount} could not be located (context mismatch)`);
+  throw new Error(
+    `hunk @ -${hunk.oldStart},${hunk.oldCount} could not be located (context mismatch)`,
+  );
 }
 
 function splitForPatch(content: string | null): string[] {
@@ -170,7 +173,8 @@ async function readMaybe(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf8');
   } catch (error) {
-    if (error && typeof error === 'object' && (error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    if (error && typeof error === 'object' && (error as NodeJS.ErrnoException).code === 'ENOENT')
+      return null;
     throw error;
   }
 }
@@ -182,7 +186,8 @@ async function buildPending(file: PatchFile): Promise<PendingFile> {
   if (!targetPath) throw new Error('patch entry missing both old and new paths');
 
   const previousContent = isCreate ? null : await readMaybe(targetPath);
-  if (!isCreate && previousContent === null) throw new Error(`cannot patch missing file: ${targetPath}`);
+  if (!isCreate && previousContent === null)
+    throw new Error(`cannot patch missing file: ${targetPath}`);
 
   const trailingNewline = previousContent !== null && previousContent.endsWith('\n');
   let working = splitForPatch(previousContent);
@@ -191,7 +196,9 @@ async function buildPending(file: PatchFile): Promise<PendingFile> {
     working = locateAndApply(working, hunk);
   }
 
-  const nextContent = isDelete ? null : joinForPatch(working, trailingNewline || previousContent === null);
+  const nextContent = isDelete
+    ? null
+    : joinForPatch(working, trailingNewline || previousContent === null);
   const fileChange = createFileChange(targetPath, previousContent, nextContent);
 
   return { path: targetPath, previousContent, nextContent, fileChange };
@@ -207,7 +214,7 @@ export function createApplyPatchTool({ requestApproval, pushUndoEntry }: ToolFac
     description:
       'Apply a multi-file unified diff atomically. Patch must contain `--- a/path` and `+++ b/path` headers per file, plus `@@ -old,n +new,n @@` hunks. Use `/dev/null` for create or delete. Best for batched edits across many files; for a single small change prefer `edit`.',
     inputSchema: z.object({
-      patch: z.string().min(1).describe('Unified diff text with file headers and hunks.')
+      patch: z.string().min(1).describe('Unified diff text with file headers and hunks.'),
     }),
     execute: async ({ patch }) => {
       const files = parsePatch(patch);
@@ -223,7 +230,7 @@ export function createApplyPatchTool({ requestApproval, pushUndoEntry }: ToolFac
           title: 'Apply patch',
           detail,
           body: summarize(pending).split('\n'),
-          fileChanges
+          fileChanges,
         }))
       ) {
         throw new Error('patch denied by user');
@@ -237,16 +244,20 @@ export function createApplyPatchTool({ requestApproval, pushUndoEntry }: ToolFac
           await mkdir(dirname(item.path), { recursive: true });
           await writeFile(item.path, item.nextContent);
         }
-        undoFiles.push({ path: item.path, previousContent: item.previousContent, nextContent: item.nextContent });
+        undoFiles.push({
+          path: item.path,
+          previousContent: item.previousContent,
+          nextContent: item.nextContent,
+        });
       }
 
       pushUndoEntry({
         toolName: 'apply_patch',
         summary: `apply_patch ${pending.length} file${pending.length === 1 ? '' : 's'}`,
-        files: undoFiles
+        files: undoFiles,
       });
 
       return `applied patch to ${pending.length} file${pending.length === 1 ? '' : 's'}:\n${summarize(pending)}`;
-    }
+    },
   });
 }

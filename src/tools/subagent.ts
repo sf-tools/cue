@@ -14,7 +14,7 @@ const MAX_MAX_STEPS = 12;
 const MAX_CONTEXT_CHARS = 3_000;
 
 const SUBAGENT_MODE = {
-  research: 'research'
+  research: 'research',
 } as const;
 
 type SubagentMode = keyof typeof SUBAGENT_MODE;
@@ -34,7 +34,14 @@ function contentToText(content: ModelMessage['content']): string {
     return content
       .map(part => {
         if (typeof part === 'string') return part;
-        if (part && typeof part === 'object' && 'type' in part && part.type === 'text' && 'text' in part && typeof part.text === 'string') {
+        if (
+          part &&
+          typeof part === 'object' &&
+          'type' in part &&
+          part.type === 'text' &&
+          'text' in part &&
+          typeof part.text === 'string'
+        ) {
           return part.text;
         }
 
@@ -81,20 +88,21 @@ function getSubagentTools(options: ToolFactoryOptions) {
     read: createReadTool(options),
     ripgrep: createRipgrepTool(options),
     rg: createRipgrepTool(options),
-    web_search: createWebSearchTool()
+    web_search: createWebSearchTool(),
   };
 }
 
 function getSubagentSystemPrompt(mode: SubagentMode) {
-  const focus = mode === 'research'
-    ? [
-        'You are a focused research subagent working for a parent coding agent.',
-        'Investigate the delegated task and return a concise handoff for the parent agent.',
-        'Use tools aggressively for code search and file inspection, but do not edit files.',
-        'Keep the delegated task narrow, gather concrete evidence, and cite file paths and symbols when relevant.',
-        'Your final answer should be brief and structured with: findings, evidence, and recommended next step.'
-      ]
-    : ['You are a focused subagent.'];
+  const focus =
+    mode === 'research'
+      ? [
+          'You are a focused research subagent working for a parent coding agent.',
+          'Investigate the delegated task and return a concise handoff for the parent agent.',
+          'Use tools aggressively for code search and file inspection, but do not edit files.',
+          'Keep the delegated task narrow, gather concrete evidence, and cite file paths and symbols when relevant.',
+          'Your final answer should be brief and structured with: findings, evidence, and recommended next step.',
+        ]
+      : ['You are a focused subagent.'];
 
   return `${SYSTEM_PROMPT}\n\n<subagent mode="${mode}">\n${focus.map(line => `- ${line}`).join('\n')}\n</subagent>`;
 }
@@ -110,11 +118,12 @@ export function createSubagentTool(options: ToolFactoryOptions) {
       context: z.string().optional(),
       files: z.array(z.string()).max(20).optional(),
       mode: z.enum(['research']).default('research'),
-      maxSteps: z.number().int().positive().max(MAX_MAX_STEPS).optional()
+      maxSteps: z.number().int().positive().max(MAX_MAX_STEPS).optional(),
     }),
     execute: async ({ task, context, files = [], mode = 'research', maxSteps }, execOptions) => {
       const currentContext = (asRecord(execOptions.experimental_context) ?? {}) as SubagentContext;
-      const currentDepth = typeof currentContext.subagentDepth === 'number' ? currentContext.subagentDepth : 0;
+      const currentDepth =
+        typeof currentContext.subagentDepth === 'number' ? currentContext.subagentDepth : 0;
 
       if (currentDepth >= 1) {
         throw new Error('nested subagents are currently disabled');
@@ -126,9 +135,11 @@ export function createSubagentTool(options: ToolFactoryOptions) {
       const delegatedPrompt = [
         `Delegated task:\n${task.trim()}`,
         context?.trim() ? `Extra context:\n${truncate(context.trim())}` : null,
-        files.length > 0 ? `Files to inspect first:\n${files.map(file => `- ${file}`).join('\n')}` : null,
+        files.length > 0
+          ? `Files to inspect first:\n${files.map(file => `- ${file}`).join('\n')}`
+          : null,
         recentUserRequest ? `Latest user request:\n${truncate(recentUserRequest)}` : null,
-        'Return a concise handoff to the parent agent. Prefer concrete evidence over speculation.'
+        'Return a concise handoff to the parent agent. Prefer concrete evidence over speculation.',
       ]
         .filter(Boolean)
         .join('\n\n');
@@ -141,7 +152,7 @@ export function createSubagentTool(options: ToolFactoryOptions) {
           tools,
           stopWhen: stepCountIs(clampMaxSteps(maxSteps)),
           providerOptions: createOpenAIProviderOptions(model, thinkingMode),
-          experimental_context: { subagentDepth: currentDepth + 1 }
+          experimental_context: { subagentDepth: currentDepth + 1 },
         });
 
         return {
@@ -150,11 +161,11 @@ export function createSubagentTool(options: ToolFactoryOptions) {
           summary: result.text.trim() || 'Subagent completed without a final written summary.',
           steps: result.steps.length,
           toolCalls: result.steps.flatMap(step => step.toolCalls.map(call => call.toolName)),
-          files
+          files,
         };
       } catch (error: unknown) {
         throw new Error(plain(error instanceof Error ? error.message : String(error)));
       }
-    }
+    },
   });
 }

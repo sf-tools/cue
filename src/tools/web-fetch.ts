@@ -37,7 +37,7 @@ const BLOCK_TAGS = new Set([
   'th',
   'thead',
   'tr',
-  'ul'
+  'ul',
 ]);
 
 const STRIP_TAGS = new Set(['script', 'style', 'noscript', 'svg', 'iframe', 'template', 'head']);
@@ -54,7 +54,7 @@ const ENTITY_MAP: Record<string, string> = {
   hellip: '…',
   copy: '©',
   reg: '®',
-  trade: '™'
+  trade: '™',
 };
 
 function decodeEntities(text: string) {
@@ -176,10 +176,11 @@ function looksLikeHtml(contentType: string | null, body: string) {
 
 export function createWebFetchTool() {
   return tool({
-    description: 'Fetch a URL over HTTP and return its content as markdown (HTML stripped). Use for docs pages, RFCs, blog posts, raw text/json.',
+    description:
+      'Fetch a URL over HTTP and return its content as markdown (HTML stripped). Use for docs pages, RFCs, blog posts, raw text/json.',
     inputSchema: z.object({
       url: z.string().url(),
-      max_chars: z.number().int().positive().max(200000).optional()
+      max_chars: z.number().int().positive().max(200000).optional(),
     }),
     execute: async ({ url, max_chars }) => {
       const controller = new AbortController();
@@ -191,8 +192,8 @@ export function createWebFetchTool() {
           signal: controller.signal,
           headers: {
             'user-agent': 'cue-coding-agent/1.0',
-            accept: 'text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5'
-          }
+            accept: 'text/html,application/xhtml+xml,text/plain,application/json;q=0.9,*/*;q=0.5',
+          },
         });
 
         const contentType = response.headers.get('content-type');
@@ -208,6 +209,6 @@ export function createWebFetchTool() {
       } finally {
         clearTimeout(timer);
       }
-    }
+    },
   });
 }

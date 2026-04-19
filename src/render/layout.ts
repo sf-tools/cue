@@ -38,7 +38,11 @@ export function styleText(text: string, style?: Style) {
   return style ? style(text) : text;
 }
 
-export function indent(block: Block, firstPrefix: PrefixValue, restPrefix: PrefixValue = firstPrefix): Block {
+export function indent(
+  block: Block,
+  firstPrefix: PrefixValue,
+  restPrefix: PrefixValue = firstPrefix,
+): Block {
   return block.map((entry, index) => {
     const prefix = normalizePrefix(index === 0 ? firstPrefix : restPrefix);
 
@@ -56,7 +60,7 @@ export function thinPanelize(block: Block, { bg, width }: PanelOptions): Block {
   return [
     rawLine(`${LEFT_MARGIN}${border(repeat('▄', width))}`),
     ...block.map(entry => panelBodyLine(entry, { bg, width })),
-    rawLine(`${LEFT_MARGIN}${border(repeat('▀', width))}`)
+    rawLine(`${LEFT_MARGIN}${border(repeat('▀', width))}`),
   ];
 }
 

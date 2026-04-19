@@ -32,7 +32,15 @@ function parseWorktreeList(stdout: string): WorktreeRecord[] {
     const value = rest.join(' ');
 
     if (key === 'worktree') {
-      current = { path: value, head: null, branch: null, detached: false, bare: false, locked: false, prunable: false };
+      current = {
+        path: value,
+        head: null,
+        branch: null,
+        detached: false,
+        bare: false,
+        locked: false,
+        prunable: false,
+      };
     } else if (current) {
       if (key === 'HEAD') current.head = value;
       else if (key === 'branch') current.branch = value.replace(/^refs\/heads\//, '');
@@ -66,7 +74,7 @@ function shellQuote(value: string) {
 export function createWorktreeTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
   return tool({
     description:
-      'Manage git worktrees: list/add/remove/prune/lock/unlock. Use worktrees for isolated parallel work (subagent exploration, build matrix testing) without touching the user\'s working tree.',
+      "Manage git worktrees: list/add/remove/prune/lock/unlock. Use worktrees for isolated parallel work (subagent exploration, build matrix testing) without touching the user's working tree.",
     inputSchema: z.discriminatedUnion('action', [
       z.object({ action: z.literal('list') }),
       z.object({
@@ -74,32 +82,37 @@ export function createWorktreeTool({ runUserShell, requestApproval }: ToolFactor
         path: z.string().min(1).describe('Path for the new worktree (relative or absolute).'),
         branch: z.string().min(1).optional().describe('Existing branch to check out.'),
         new_branch: z.string().min(1).optional().describe('New branch to create at the worktree.'),
-        ref: z.string().min(1).optional().describe('Commit/ref to base the new branch on (defaults to HEAD).'),
-        force: z.boolean().optional()
+        ref: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Commit/ref to base the new branch on (defaults to HEAD).'),
+        force: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('remove'),
         path: z.string().min(1),
-        force: z.boolean().optional()
+        force: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('prune'),
-        dry_run: z.boolean().optional()
+        dry_run: z.boolean().optional(),
       }),
       z.object({
         action: z.literal('lock'),
         path: z.string().min(1),
-        reason: z.string().optional()
+        reason: z.string().optional(),
       }),
       z.object({
         action: z.literal('unlock'),
-        path: z.string().min(1)
-      })
+        path: z.string().min(1),
+      }),
     ]),
     execute: async input => {
       if (input.action === 'list') {
         const result = await runUserShell('git worktree list --porcelain');
-        if (result.exitCode !== 0) return `error: ${plain(result.output).trim() || `git exited ${result.exitCode}`}`;
+        if (result.exitCode !== 0)
+          return `error: ${plain(result.output).trim() || `git exited ${result.exitCode}`}`;
         const records = parseWorktreeList(plain(result.output));
         if (records.length === 0) return '(no worktrees)';
         return records.map(describeRecord).join('\n');
@@ -137,8 +150,9 @@ export function createWorktreeTool({ runUserShell, requestApproval }: ToolFactor
 
       const result = await runUserShell(cmd);
       const output = plain(result.output).trim();
-      if (result.exitCode !== 0) return `error (exit ${result.exitCode}):\n${truncate(output) || '(no output)'}`;
+      if (result.exitCode !== 0)
+        return `error (exit ${result.exitCode}):\n${truncate(output) || '(no output)'}`;
       return truncate(output) || `ok (${cmd})`;
-    }
+    },
   });
 }

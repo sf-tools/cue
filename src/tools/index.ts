@@ -24,12 +24,37 @@ import type { ToolFactoryOptions } from './types';
 import { createPlanningModeTool } from './planning-mode';
 import { createChoiceSelectorTool } from './choice-selector';
 import { createCiRunsTool, createCiWorkflowsTool } from './ci';
-import { createChangeExplainerTool, createDeploySafetyAdvisorTool, createPrReviewAnalyzerTool } from './review';
-import { createCodebaseQATool, createFailureTriagerTool, createGitLogTool, createStacktraceRootCauseTool } from './diagnose';
+import {
+  createChangeExplainerTool,
+  createDeploySafetyAdvisorTool,
+  createPrReviewAnalyzerTool,
+} from './review';
+import {
+  createCodebaseQATool,
+  createFailureTriagerTool,
+  createGitLogTool,
+  createStacktraceRootCauseTool,
+} from './diagnose';
 
-import { createTestAnalyzeTool, createTestDetectTool, createTestRunTool, createTestScaffoldTool } from './test';
-import { createGitConflictsTool, createGitIntegrateTool, createGitProgressTool, createGitStatusTool } from './gitops';
-import { createDepsImpactTool, createDepsPackagesTool, createDepsScanTool, createSymbolRenameTool, createVerifyChangesTool } from './deps';
+import {
+  createTestAnalyzeTool,
+  createTestDetectTool,
+  createTestRunTool,
+  createTestScaffoldTool,
+} from './test';
+import {
+  createGitConflictsTool,
+  createGitIntegrateTool,
+  createGitProgressTool,
+  createGitStatusTool,
+} from './gitops';
+import {
+  createDepsImpactTool,
+  createDepsPackagesTool,
+  createDepsScanTool,
+  createSymbolRenameTool,
+  createVerifyChangesTool,
+} from './deps';
 
 import {
   createCommitSearchTool,
@@ -38,7 +63,7 @@ import {
   createListDirectoryGitHubTool,
   createListRepositoriesTool,
   createReadGitHubTool,
-  createSearchGitHubTool
+  createSearchGitHubTool,
 } from './librarian';
 
 export type { ToolFactoryOptions } from './types';
@@ -86,7 +111,7 @@ export function createTools(options: ToolFactoryOptions) {
   const oracle = createOracleTool(options, {
     read,
     ripgrep,
-    web_search: webSearch
+    web_search: webSearch,
   });
   const planningMode = createPlanningModeTool(options);
   const subagent = createSubagentTool(options);
@@ -162,6 +187,6 @@ export function createTools(options: ToolFactoryOptions) {
     failure_triager: failureTriager,
     change_explainer: changeExplainer,
     pr_review_analyzer: prReviewAnalyzer,
-    deploy_safety_advisor: deploySafetyAdvisor
+    deploy_safety_advisor: deploySafetyAdvisor,
   };
 }

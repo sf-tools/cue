@@ -11,7 +11,9 @@ function previewSnippet(text: string, maxChars = 120) {
 export function renderEditTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const path = stringProp(entry.input, 'path') || stringProp(entry.input, 'filePath') || 'file';
   const edits = arrayProp(entry.input, 'edits');
-  const detail = edits?.length ? `${path} · ${edits.length} change${edits.length === 1 ? '' : 's'}` : path;
+  const detail = edits?.length
+    ? `${path} · ${edits.length} change${edits.length === 1 ? '' : 's'}`
+    : path;
   const body =
     entry.status === 'failed'
       ? [entry.errorText || 'edit failed']
@@ -20,7 +22,10 @@ export function renderEditTool(entry: ToolHistoryEntry, ctx: RenderContext) {
             const edit = asRecord(value);
             const oldText = edit && typeof edit.oldText === 'string' ? edit.oldText : '';
             const newText = edit && typeof edit.newText === 'string' ? edit.newText : '';
-            return [`${index + 1}. - ${previewSnippet(oldText)}`, `   + ${previewSnippet(newText)}`];
+            return [
+              `${index + 1}. - ${previewSnippet(oldText)}`,
+              `   + ${previewSnippet(newText)}`,
+            ];
           })
         : [`path: ${path}`];
   const bodyBlock = entry.fileChanges?.length ? renderFileChanges(entry.fileChanges, ctx) : [];

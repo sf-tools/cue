@@ -10,5 +10,5 @@ export const toggleAutoCompactSlashCommand: SlashCommand = {
     const next = !store.getState().autoCompactEnabled;
     setAutoCompactEnabled(next);
     showFooterNotice(`Auto compact ${next ? 'enabled' : 'disabled'}`);
-  }
+  },
 };

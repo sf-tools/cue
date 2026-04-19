@@ -10,5 +10,5 @@ export const reviewSlashCommand: SlashCommand = {
 
     enqueueSubmission(buildCodebaseReviewPrompt(focus), { planningMode: true });
     showFooterNotice(focus ? `Queued codebase review · focus: ${focus}` : 'Queued codebase review');
-  }
+  },
 };

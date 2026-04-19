@@ -21,12 +21,14 @@ export const toolsSlashCommand: SlashCommand = {
     const tools = getActiveToolSummaries();
     const header = `Available tools (${tools.length} active${planningMode ? ' · planning mode' : ''})`;
     const lines = tools.map(tool => {
-      const description = tool.description ? truncate(tool.description) : 'No description available.';
+      const description = tool.description
+        ? truncate(tool.description)
+        : 'No description available.';
       return `- ${formatToolNames(tool.names)} — ${description}`;
     });
 
     if (planningMode) lines.push('', 'Tip: run /planning off to restore the full toolset.');
 
     persistPlain([header, '', ...lines].join('\n'));
-  }
+  },
 };

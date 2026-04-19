@@ -5,7 +5,7 @@ export enum EntryKind {
   Tool = 'tool',
   Shell = 'shell',
   Error = 'error',
-  Meta = 'meta'
+  Meta = 'meta',
 }
 
 export type DiffStat = {

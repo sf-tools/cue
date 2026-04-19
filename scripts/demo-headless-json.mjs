@@ -13,7 +13,7 @@ const prompt =
 
 const child = spawn('bun', ['src/cue.ts', '--json', '--prompt', prompt], {
   cwd: repoRoot,
-  stdio: ['ignore', 'pipe', 'inherit']
+  stdio: ['ignore', 'pipe', 'inherit'],
 });
 
 let assistantText = '';
@@ -68,7 +68,9 @@ for await (const line of rl) {
     console.log('---');
     console.log(`done in ${event.duration_ms}ms`);
     if (event.usage) {
-      console.log(`tokens input=${event.usage.input_tokens} output=${event.usage.output_tokens} reasoning=${event.usage.reasoning_tokens}`);
+      console.log(
+        `tokens input=${event.usage.input_tokens} output=${event.usage.output_tokens} reasoning=${event.usage.reasoning_tokens}`,
+      );
     }
     if (typeof event.cost_usd === 'number') console.log(`cost    $${event.cost_usd.toFixed(6)}`);
     process.exit(0);

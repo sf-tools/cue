@@ -13,7 +13,7 @@ import {
   loadCuePreferences,
   normalizeOpenAIModelId,
   pricingUsageFromLanguageModelUsage,
-  type ThinkingMode
+  type ThinkingMode,
 } from '@/config';
 import { createTools } from '@/tools';
 import { loadCueCloudModel } from '@/cloud/openai';
@@ -126,7 +126,7 @@ const PLANNING_MODE_PROMPT = [
   '- Use read-only tools only.',
   '- If the plan depends on a meaningful product or architecture choice, use choice_selector before committing to the plan.',
   '- End with a concise recommendation and plan.',
-  '</session-mode>'
+  '</session-mode>',
 ].join('\n');
 
 function getActiveTools(tools: ReturnType<typeof createTools>, planningMode: boolean) {
@@ -161,7 +161,7 @@ function usageToJson(usage: Awaited<ReturnType<Awaited<ReturnType<typeof streamT
     input_tokens: inputTokens,
     output_tokens: outputTokens,
     reasoning_tokens: reasoningTokens,
-    total_tokens: inputTokens + outputTokens
+    total_tokens: inputTokens + outputTokens,
   };
 }
 
@@ -224,12 +224,15 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
         is_error: true,
         duration_ms: Date.now() - startedAt,
         num_steps: 0,
-        error: 'Headless JSON mode requires a prompt via --prompt, positional text, or piped stdin.'
+        error:
+          'Headless JSON mode requires a prompt via --prompt, positional text, or piped stdin.',
       });
       return 1;
     }
 
-    const prompt = isCodebaseReviewShortcut(rawPrompt) ? buildCodebaseReviewPrompt() : rawPrompt.trim();
+    const prompt = isCodebaseReviewShortcut(rawPrompt)
+      ? buildCodebaseReviewPrompt()
+      : rawPrompt.trim();
     if (isCodebaseReviewShortcut(rawPrompt)) planningMode = true;
 
     const preferences = await loadCuePreferences();
@@ -245,7 +248,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
         scope: request.scope,
         title: request.title,
         detail: request.detail,
-        decision
+        decision,
       });
 
       if (decision === 'allow') return true;
@@ -255,7 +258,9 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
     };
 
     const requestChoice = async (request: ChoiceRequest): Promise<ChoiceSelection> => {
-      const index = request.recommendedValue ? request.options.findIndex(option => option.value === request.recommendedValue) : 0;
+      const index = request.recommendedValue
+        ? request.options.findIndex(option => option.value === request.recommendedValue)
+        : 0;
       const selectedIndex = index >= 0 ? index : 0;
       const selected = request.options[selectedIndex] ?? request.options[0];
 
@@ -273,8 +278,8 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
           value: selection.value,
           label: selection.label,
           detail: selection.detail,
-          index: selection.index
-        }
+          index: selection.index,
+        },
       });
 
       return selection;
@@ -295,7 +300,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
         undoStack.push(entry);
       },
       peekUndoEntry: () => undoStack[undoStack.length - 1] ?? null,
-      popUndoEntry: () => undoStack.pop() ?? null
+      popUndoEntry: () => undoStack.pop() ?? null,
     });
 
     await emit({
@@ -308,7 +313,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
       include_thinking: options.includeThinking,
       approval_mode: options.allowAll ? 'allow_all' : 'deny_all',
       prompt_source: promptSource,
-      tools: Object.keys(getActiveTools(tools, planningMode)).sort()
+      tools: Object.keys(getActiveTools(tools, planningMode)).sort(),
     });
 
     const controller = new AbortController();
@@ -318,7 +323,10 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
     process.once('SIGTERM', handleSignal);
 
     try {
-      const messages: ModelMessage[] = [...createInitialMessages(), { role: 'user', content: await expandPrompt(prompt) }];
+      const messages: ModelMessage[] = [
+        ...createInitialMessages(),
+        { role: 'user', content: await expandPrompt(prompt) },
+      ];
 
       const result = streamText({
         model: await loadCueCloudModel(model),
@@ -326,8 +334,10 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
         tools: getActiveTools(tools, planningMode),
         stopWhen: stepCountIs(20),
         abortSignal: controller.signal,
-        providerOptions: createOpenAIProviderOptions(model, reasoning, { includeReasoningSummary: options.includeThinking }),
-        experimental_context: { subagentDepth: 0 }
+        providerOptions: createOpenAIProviderOptions(model, reasoning, {
+          includeReasoningSummary: options.includeThinking,
+        }),
+        experimental_context: { subagentDepth: 0 },
       });
 
       for await (const part of result.fullStream) {
@@ -341,7 +351,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
               type: 'assistant',
               subtype: 'reasoning_delta',
               session_id: sessionId,
-              delta: part.text
+              delta: part.text,
             });
             break;
           case 'text-delta':
@@ -351,7 +361,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
               type: 'assistant',
               subtype: 'text_delta',
               session_id: sessionId,
-              delta: part.text
+              delta: part.text,
             });
             break;
           case 'finish-step':
@@ -364,7 +374,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
               session_id: sessionId,
               tool_call_id: part.toolCallId,
               tool_name: part.toolName,
-              input: part.input
+              input: part.input,
             });
             break;
           case 'tool-result':
@@ -376,7 +386,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
               tool_call_id: part.toolCallId,
               tool_name: part.toolName,
               input: part.input,
-              output: part.output
+              output: part.output,
             });
             break;
           case 'tool-error':
@@ -387,7 +397,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
               tool_call_id: part.toolCallId,
               tool_name: part.toolName,
               input: part.input,
-              error: errorMessage(part.error)
+              error: errorMessage(part.error),
             });
             break;
         }
@@ -396,7 +406,9 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
       controller.signal.throwIfAborted();
 
       const usage = await result.usage;
-      const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), model, { providerId: 'openai' });
+      const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), model, {
+        providerId: 'openai',
+      });
 
       await emit({
         type: 'result',
@@ -408,7 +420,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
         result: assistantText,
         usage: usageToJson(usage),
         cost_usd: price?.total_price,
-        permission_denials: permissionDenials.length > 0 ? permissionDenials : undefined
+        permission_denials: permissionDenials.length > 0 ? permissionDenials : undefined,
       });
 
       return 0;
@@ -425,7 +437,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
       duration_ms: Date.now() - startedAt,
       num_steps: numSteps,
       error: errorMessage(error),
-      permission_denials: permissionDenials.length > 0 ? permissionDenials : undefined
+      permission_denials: permissionDenials.length > 0 ? permissionDenials : undefined,
     });
 
     return 1;

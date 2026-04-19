@@ -49,7 +49,10 @@ export function previewLines(lines: string[], ctx: RenderContext, maxLines = 6, 
     return lines.length > maxLines ? [...lines, '… (ctrl+o to collapse)'] : lines;
   }
 
-  return [...lines.slice(0, maxLines), `… (${lines.length - maxLines} more ${label}, ctrl+o to expand)`];
+  return [
+    ...lines.slice(0, maxLines),
+    `… (${lines.length - maxLines} more ${label}, ctrl+o to expand)`,
+  ];
 }
 
 export function previewText(text: string, ctx: RenderContext, maxLines = 6, label = 'lines') {
@@ -91,21 +94,32 @@ const FILE_LANGUAGE_ALIASES: Record<string, string> = {
   '.tsx': 'tsx',
   '.yaml': 'yaml',
   '.yml': 'yaml',
-  '.zsh': 'bash'
+  '.zsh': 'bash',
 };
 
 export function inferCodeLanguage(path: string) {
   return normalizeCodeLanguage(FILE_LANGUAGE_ALIASES[extname(path).toLowerCase()] ?? null);
 }
 
-export function previewCodeBlock(text: string, language: string | null, ctx: RenderContext, maxLines = 8, label = 'lines'): Block {
+export function previewCodeBlock(
+  text: string,
+  language: string | null,
+  ctx: RenderContext,
+  maxLines = 8,
+  label = 'lines',
+): Block {
   const highlighted = highlightedCodeBlock(text, language, ctx);
   const visible = ctx.expandPreviews ? highlighted : highlighted.slice(0, maxLines);
 
   if (highlighted.length > visible.length) {
     return [
       ...visible,
-      line(span(`… (${highlighted.length - visible.length} more ${label}, ctrl+o to expand)`, ctx.theme.dimmed))
+      line(
+        span(
+          `… (${highlighted.length - visible.length} more ${label}, ctrl+o to expand)`,
+          ctx.theme.dimmed,
+        ),
+      ),
     ];
   }
 
@@ -119,7 +133,7 @@ export function previewCodeBlock(text: string, language: string | null, ctx: Ren
 function tintSegments(segments: StyledLine['segments'], style: (text: string) => string) {
   return segments.map(segment => ({
     ...segment,
-    style: segment.style ? (text: string) => style(segment.style?.(text) ?? text) : style
+    style: segment.style ? (text: string) => style(segment.style?.(text) ?? text) : style,
   }));
 }
 
@@ -156,7 +170,7 @@ function parseDiffLines(diff: string): ParsedDiffLine[] {
       type: 'context',
       text: rawLine.startsWith(' ') ? rawLine.slice(1) : rawLine,
       oldLineNum,
-      newLineNum
+      newLineNum,
     });
     oldLineNum += 1;
     newLineNum += 1;
@@ -166,7 +180,10 @@ function parseDiffLines(diff: string): ParsedDiffLine[] {
 }
 
 function lineNumberWidth(lines: ParsedDiffLine[]) {
-  const maxLineNum = lines.reduce((max, diffLine) => Math.max(max, diffLine.oldLineNum ?? 0, diffLine.newLineNum ?? 0), 0);
+  const maxLineNum = lines.reduce(
+    (max, diffLine) => Math.max(max, diffLine.oldLineNum ?? 0, diffLine.newLineNum ?? 0),
+    0,
+  );
   return Math.max(3, String(maxLineNum || 0).length);
 }
 
@@ -174,7 +191,11 @@ function formatLineNumber(lineNum: number | undefined, width: number) {
   return lineNum == null ? ''.padStart(width, ' ') : String(lineNum).padStart(width, ' ');
 }
 
-export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext, options: { maxLinesPerFile?: number } = {}): Block {
+export function renderFileChanges(
+  fileChanges: FileChange[],
+  ctx: RenderContext,
+  options: { maxLinesPerFile?: number } = {},
+): Block {
   const block: Block = [];
   const maxLinesPerFile = options.maxLinesPerFile ?? Math.max(8, Math.min(24, ctx.height - 16));
 
@@ -189,12 +210,31 @@ export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext,
         ...(statText
           ? [
               span(' · ', ctx.theme.subtle),
-              ...(fileChange.stats.added > 0 ? [span(`+${fileChange.stats.added}`, chalk.greenBright)] : []),
-              ...(fileChange.stats.modified > 0 ? [span(`${fileChange.stats.added > 0 ? ' ' : ''}~${fileChange.stats.modified}`, chalk.yellowBright)] : []),
-              ...(fileChange.stats.removed > 0 ? [span(`${fileChange.stats.added > 0 || fileChange.stats.modified > 0 ? ' ' : ''}-${fileChange.stats.removed}`, chalk.redBright)] : [])
+              ...(fileChange.stats.added > 0
+                ? [span(`+${fileChange.stats.added}`, chalk.greenBright)]
+                : []),
+              ...(fileChange.stats.modified > 0
+                ? [
+                    span(
+                      `${fileChange.stats.added > 0 ? ' ' : ''}~${fileChange.stats.modified}`,
+                      chalk.yellowBright,
+                    ),
+                  ]
+                : []),
+              ...(fileChange.stats.removed > 0
+                ? [
+                    span(
+                      `${fileChange.stats.added > 0 || fileChange.stats.modified > 0 ? ' ' : ''}-${fileChange.stats.removed}`,
+                      chalk.redBright,
+                    ),
+                  ]
+                : []),
             ]
-          : [span(' · ', ctx.theme.subtle), span(fileChange.hasChanges ? fileChange.changeKind : 'no changes', ctx.theme.dimmed)])
-      )
+          : [
+              span(' · ', ctx.theme.subtle),
+              span(fileChange.hasChanges ? fileChange.changeKind : 'no changes', ctx.theme.dimmed),
+            ]),
+      ),
     );
 
     if (!fileChange.diff) return;
@@ -220,41 +260,80 @@ export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext,
             : ctx.theme.dimmed;
       const language = inferCodeLanguage(fileChange.path);
       const highlighted = highlightedCodeBlock(diffLine.text, language, ctx);
-      const content = highlighted[0]?.type === 'styled' ? tintSegments(highlighted[0].segments, style) : [span(diffLine.text, style)];
+      const content =
+        highlighted[0]?.type === 'styled'
+          ? tintSegments(highlighted[0].segments, style)
+          : [span(diffLine.text, style)];
 
-      block.push(line(span('  ', ctx.theme.subtle), span(`${oldLine} ${newLine} `, ctx.theme.subtle), span(prefix, style), ...content));
+      block.push(
+        line(
+          span('  ', ctx.theme.subtle),
+          span(`${oldLine} ${newLine} `, ctx.theme.subtle),
+          span(prefix, style),
+          ...content,
+        ),
+      );
     }
 
     if (parsedLines.length > visibleLines.length) {
-      block.push(line(span('  ', ctx.theme.subtle), span(`… (${parsedLines.length - visibleLines.length} more diff lines, ctrl+o to expand)`, ctx.theme.dimmed)));
+      block.push(
+        line(
+          span('  ', ctx.theme.subtle),
+          span(
+            `… (${parsedLines.length - visibleLines.length} more diff lines, ctrl+o to expand)`,
+            ctx.theme.dimmed,
+          ),
+        ),
+      );
     } else if (ctx.expandPreviews && parsedLines.length > maxLinesPerFile) {
-      block.push(line(span('  ', ctx.theme.subtle), span('… (ctrl+o to collapse)', ctx.theme.dimmed)));
+      block.push(
+        line(span('  ', ctx.theme.subtle), span('… (ctrl+o to collapse)', ctx.theme.dimmed)),
+      );
     }
   });
 
   return block;
 }
 
-export function renderToolCard({ name, detail, body = [], bodyBlock = [], status }: ToolCardOptions, ctx: RenderContext): Block {
-  const statusStyle = status === 'failed' ? chalk.redBright : status === 'running' ? ctx.theme.spinnerText : ctx.theme.dimmed;
-  const statusLabel = status === 'failed' ? 'failed' : status === 'running' ? `${ctx.spinnerFrame} running` : 'done';
+export function renderToolCard(
+  { name, detail, body = [], bodyBlock = [], status }: ToolCardOptions,
+  ctx: RenderContext,
+): Block {
+  const statusStyle =
+    status === 'failed'
+      ? chalk.redBright
+      : status === 'running'
+        ? ctx.theme.spinnerText
+        : ctx.theme.dimmed;
+  const statusLabel =
+    status === 'failed' ? 'failed' : status === 'running' ? `${ctx.spinnerFrame} running` : 'done';
   const bodyStyle = status === 'failed' ? chalk.redBright : ctx.theme.dimmed;
   const width = Math.max(1, ctx.width - 4);
   const headerPrefixWidth = widthOf(`⌁ ${name}`);
   const headerSuffixWidth = widthOf(` · ${statusLabel}`);
-  const detailWidth = detail ? Math.max(0, width - headerPrefixWidth - headerSuffixWidth - widthOf(' · ')) : 0;
+  const detailWidth = detail
+    ? Math.max(0, width - headerPrefixWidth - headerSuffixWidth - widthOf(' · '))
+    : 0;
   const visibleDetail = detail ? truncateToWidth(detail, detailWidth) : '';
 
   const header = line(
     span('⌁ ', ctx.theme.subtle),
     span(name, ctx.theme.foreground),
-    ...(visibleDetail ? [span(' · ', ctx.theme.subtle), span(visibleDetail, ctx.theme.dimmed)] : []),
+    ...(visibleDetail
+      ? [span(' · ', ctx.theme.subtle), span(visibleDetail, ctx.theme.dimmed)]
+      : []),
     span(' · ', ctx.theme.subtle),
-    span(statusLabel, statusStyle)
+    span(statusLabel, statusStyle),
   );
 
-  const textBodyBlock = body.flatMap(text => wrapTextBlock(text, width, bodyStyle).map(part => line(span('  '), ...part.segments)));
-  const combinedBody = [...textBodyBlock, ...(textBodyBlock.length > 0 && bodyBlock.length > 0 ? [blankLine()] : []), ...bodyBlock];
+  const textBodyBlock = body.flatMap(text =>
+    wrapTextBlock(text, width, bodyStyle).map(part => line(span('  '), ...part.segments)),
+  );
+  const combinedBody = [
+    ...textBodyBlock,
+    ...(textBodyBlock.length > 0 && bodyBlock.length > 0 ? [blankLine()] : []),
+    ...bodyBlock,
+  ];
 
   return panelize([header, ...combinedBody], { bg: ctx.theme.panelBg(), width: ctx.width });
 }

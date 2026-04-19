@@ -1,7 +1,13 @@
 import { stderr, stdout } from 'node:process';
 import chalk from 'chalk';
 
-import { APP_RELEASE_DATE_ISO, APP_RELEASE_UNIX_TIME, APP_VERSION, DEFAULT_MODEL, type ThinkingMode } from '@/config';
+import {
+  APP_RELEASE_DATE_ISO,
+  APP_RELEASE_UNIX_TIME,
+  APP_VERSION,
+  DEFAULT_MODEL,
+  type ThinkingMode,
+} from '@/config';
 
 export type JsonCliResult = {
   kind: 'headless-json';
@@ -20,7 +26,9 @@ const COMMAND_NAME = 'cue';
 
 function formatRows(rows: Array<[string, string]>, indent = '  ') {
   const width = rows.reduce((max, [left]) => Math.max(max, left.length), 0);
-  return rows.map(([left, right]) => `${indent}${chalk.white(left.padEnd(width))}  ${right}`).join('\n');
+  return rows
+    .map(([left, right]) => `${indent}${chalk.white(left.padEnd(width))}  ${right}`)
+    .join('\n');
 }
 
 function formatRelativeAge(unixTime: number) {
@@ -30,12 +38,15 @@ function formatRelativeAge(unixTime: number) {
   if (ageSeconds < 60 * 60) return `${Math.floor(ageSeconds / 60)}m ago`;
   if (ageSeconds < 60 * 60 * 24) return `${Math.floor(ageSeconds / (60 * 60))}h ago`;
   if (ageSeconds < 60 * 60 * 24 * 30) return `${Math.floor(ageSeconds / (60 * 60 * 24))}d ago`;
-  if (ageSeconds < 60 * 60 * 24 * 365) return `${Math.floor(ageSeconds / (60 * 60 * 24 * 30))}mo ago`;
+  if (ageSeconds < 60 * 60 * 24 * 365)
+    return `${Math.floor(ageSeconds / (60 * 60 * 24 * 30))}mo ago`;
   return `${Math.floor(ageSeconds / (60 * 60 * 24 * 365))}y ago`;
 }
 
 function printVersion() {
-  stdout.write(`${APP_VERSION} (released ${APP_RELEASE_DATE_ISO}, ${formatRelativeAge(APP_RELEASE_UNIX_TIME)})\n`);
+  stdout.write(
+    `${APP_VERSION} (released ${APP_RELEASE_DATE_ISO}, ${formatRelativeAge(APP_RELEASE_UNIX_TIME)})\n`,
+  );
 }
 
 function printHelp() {
@@ -59,7 +70,7 @@ function printHelp() {
       ['--allow-all', 'Auto-approve command/edit tools in headless JSON mode'],
       ['--thinking', 'Include reasoning deltas in headless JSON mode'],
       ['--model <id>', 'Override the model for headless JSON mode'],
-      ['--reasoning <mode>', 'Override reasoning mode: auto, low, medium, high']
+      ['--reasoning <mode>', 'Override reasoning mode: auto, low, medium, high'],
     ]),
     '',
     chalk.bold('Quick in-session shortcuts:'),
@@ -77,7 +88,7 @@ function printHelp() {
       ['/review', 'Run a read-only codebase review'],
       ['/tools', 'List the currently available agent tools'],
       ['/compact', 'Summarize the conversation to save context'],
-      ['/exit', 'Quit Cue']
+      ['/exit', 'Quit Cue'],
     ]),
     '',
     chalk.bold('Examples:'),
@@ -89,18 +100,18 @@ function printHelp() {
       ['cue --json --prompt "summarize this repo"', 'Run one headless JSON turn'],
       ['printf "fix the failing tests" | cue --json --allow-all', 'Drive Cue from a script'],
       ['!git status', 'Run a shell command once Cue is open'],
-      ['@src/cue.ts', 'Attach a file once Cue is open']
+      ['@src/cue.ts', 'Attach a file once Cue is open'],
     ]),
     '',
     chalk.bold('Environment:'),
     '',
     formatRows([
       ['SHELL', 'Shell used for ! commands (default: /bin/sh)'],
-      ['rg', 'Optional, used when available for faster file indexing/search']
+      ['rg', 'Optional, used when available for faster file indexing/search'],
     ]),
     '',
     chalk.dim(`Tip: run '${COMMAND_NAME}' and then type / for commands.`),
-    ''
+    '',
   ];
 
   stdout.write(`${sections.join('\n')}\n`);
@@ -232,7 +243,13 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
   }
 
   if (!jsonMode) {
-    if (allowAll || includeThinking || prompt !== undefined || model !== undefined || reasoning !== undefined) {
+    if (
+      allowAll ||
+      includeThinking ||
+      prompt !== undefined ||
+      model !== undefined ||
+      reasoning !== undefined
+    ) {
       printError('Headless flags require --json.');
       return { kind: 'exit', code: 1 };
     }
@@ -262,6 +279,6 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
     allowAll,
     includeThinking,
     model,
-    reasoning
+    reasoning,
   };
 }

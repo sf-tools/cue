@@ -25,7 +25,7 @@ import { blankLine, line, span } from './primitives';
 import type { Block, RenderContext, Segment, Style, StyledLine } from './types';
 
 const md = new MarkdownIt({
-  linkify: true
+  linkify: true,
 });
 
 const CODE_LANGUAGE_ALIASES: Record<string, string> = {
@@ -43,7 +43,7 @@ const CODE_LANGUAGE_ALIASES: Record<string, string> = {
   plaintext: 'plain',
   ts: 'typescript',
   yml: 'yaml',
-  zsh: 'bash'
+  zsh: 'bash',
 };
 
 type MarkdownToken = ReturnType<MarkdownIt['parse']>[number];
@@ -163,14 +163,20 @@ function codeTokenStyle(types: string[], ctx: RenderContext): Style | undefined 
   const styles: Style[] = [];
 
   if (hasCodeType(types, 'comment', 'prolog', 'doctype', 'cdata')) styles.push(ctx.theme.dimmed);
-  if (hasCodeType(types, 'keyword', 'atrule', 'important')) styles.push(value => chalk.cyanBright(value));
-  if (hasCodeType(types, 'boolean', 'number', 'constant', 'symbol')) styles.push(value => chalk.magentaBright(value));
-  if (hasCodeType(types, 'string', 'char', 'attr-value', 'template-string')) styles.push(value => chalk.greenBright(value));
+  if (hasCodeType(types, 'keyword', 'atrule', 'important'))
+    styles.push(value => chalk.cyanBright(value));
+  if (hasCodeType(types, 'boolean', 'number', 'constant', 'symbol'))
+    styles.push(value => chalk.magentaBright(value));
+  if (hasCodeType(types, 'string', 'char', 'attr-value', 'template-string'))
+    styles.push(value => chalk.greenBright(value));
   if (hasCodeType(types, 'regex')) styles.push(value => chalk.redBright(value));
-  if (hasCodeType(types, 'function', 'function-variable')) styles.push(value => chalk.blueBright(value));
+  if (hasCodeType(types, 'function', 'function-variable'))
+    styles.push(value => chalk.blueBright(value));
   if (hasCodeType(types, 'class-name', 'builtin')) styles.push(value => chalk.white(value));
-  if (hasCodeType(types, 'property', 'tag', 'selector', 'namespace', 'attr-name')) styles.push(value => chalk.cyan(value));
-  if (hasCodeType(types, 'operator', 'entity', 'url')) styles.push(value => chalk.cyanBright(value));
+  if (hasCodeType(types, 'property', 'tag', 'selector', 'namespace', 'attr-name'))
+    styles.push(value => chalk.cyan(value));
+  if (hasCodeType(types, 'operator', 'entity', 'url'))
+    styles.push(value => chalk.cyanBright(value));
   if (hasCodeType(types, 'punctuation')) styles.push(ctx.theme.subtle);
   if (hasCodeType(types, 'deleted')) styles.push(value => chalk.red(value));
   if (hasCodeType(types, 'inserted')) styles.push(value => chalk.green(value));
@@ -180,7 +186,12 @@ function codeTokenStyle(types: string[], ctx: RenderContext): Style | undefined 
   return composeStyles(...styles);
 }
 
-function appendPrismToken(pieces: InlinePiece[], token: PrismTokenStream, ctx: RenderContext, inheritedTypes: string[] = []) {
+function appendPrismToken(
+  pieces: InlinePiece[],
+  token: PrismTokenStream,
+  ctx: RenderContext,
+  inheritedTypes: string[] = [],
+) {
   if (typeof token === 'string') {
     appendText(pieces, token, codeTokenStyle(inheritedTypes, ctx));
     return;
@@ -212,7 +223,7 @@ function collectInlineRange(
   env: RenderEnv,
   start = 0,
   endType?: string,
-  inheritedStyle?: Style
+  inheritedStyle?: Style,
 ): { pieces: InlinePiece[]; next: number } {
   const pieces: InlinePiece[] = [];
   let index = start;
@@ -231,7 +242,7 @@ function collectInlineRange(
         appendText(
           pieces,
           token.content,
-          composeStyles(inheritedStyle, value => chalk.bgHex(env.ctx.theme.composerBg())(value))
+          composeStyles(inheritedStyle, value => chalk.bgHex(env.ctx.theme.composerBg())(value)),
         );
         index += 1;
         break;
@@ -248,7 +259,7 @@ function collectInlineRange(
           env,
           index + 1,
           'strong_close',
-          composeStyles(inheritedStyle, value => chalk.bold(value))
+          composeStyles(inheritedStyle, value => chalk.bold(value)),
         );
         pieces.push(...inner.pieces);
         index = inner.next;
@@ -261,7 +272,7 @@ function collectInlineRange(
           env,
           index + 1,
           'em_close',
-          composeStyles(inheritedStyle, value => chalk.italic(value))
+          composeStyles(inheritedStyle, value => chalk.italic(value)),
         );
         pieces.push(...inner.pieces);
         index = inner.next;
@@ -274,7 +285,7 @@ function collectInlineRange(
           env,
           index + 1,
           's_close',
-          composeStyles(inheritedStyle, value => chalk.strikethrough(value))
+          composeStyles(inheritedStyle, value => chalk.strikethrough(value)),
         );
         pieces.push(...inner.pieces);
         index = inner.next;
@@ -288,13 +299,14 @@ function collectInlineRange(
           env,
           index + 1,
           'link_close',
-          composeStyles(inheritedStyle, value => chalk.cyan.underline(value))
+          composeStyles(inheritedStyle, value => chalk.cyan.underline(value)),
         );
         pieces.push(...inner.pieces);
 
         const label = plainText(inner.pieces).trim();
         const normalizedHref = href?.trim();
-        if (normalizedHref && normalizedHref !== label) appendSegment(pieces, ` <${normalizedHref}>`, env.ctx.theme.dimmed);
+        if (normalizedHref && normalizedHref !== label)
+          appendSegment(pieces, ` <${normalizedHref}>`, env.ctx.theme.dimmed);
 
         index = inner.next;
         break;
@@ -306,7 +318,7 @@ function collectInlineRange(
         appendText(
           pieces,
           `[image: ${alt}]`,
-          composeStyles(inheritedStyle, value => chalk.magenta(value))
+          composeStyles(inheritedStyle, value => chalk.magenta(value)),
         );
         if (src) appendSegment(pieces, ` <${src}>`, env.ctx.theme.dimmed);
         index += 1;
@@ -328,15 +340,26 @@ function collectInlineRange(
   return { pieces, next: index };
 }
 
-function renderInline(children: MarkdownToken[] | null | undefined, env: RenderEnv, baseStyle?: Style) {
-  return wrapInlinePieces(collectInlineRange(children ?? [], env, 0, undefined, baseStyle).pieces, env.width);
+function renderInline(
+  children: MarkdownToken[] | null | undefined,
+  env: RenderEnv,
+  baseStyle?: Style,
+) {
+  return wrapInlinePieces(
+    collectInlineRange(children ?? [], env, 0, undefined, baseStyle).pieces,
+    env.width,
+  );
 }
 
 function renderParagraph(children: MarkdownToken[] | null | undefined, env: RenderEnv): Block {
   return renderInline(children, env);
 }
 
-function renderHeading(token: MarkdownToken, children: MarkdownToken[] | null | undefined, env: RenderEnv): Block {
+function renderHeading(
+  token: MarkdownToken,
+  children: MarkdownToken[] | null | undefined,
+  env: RenderEnv,
+): Block {
   const level = Number.parseInt(token.tag.slice(1), 10) || 1;
   const prefix = `${'#'.repeat(Math.max(1, Math.min(level, 6)))} `;
   const headingStyle: Style = value => {
@@ -369,7 +392,12 @@ function appendBlock(out: Block, block: Block, withSpacing = true) {
   out.push(...block);
 }
 
-function renderRange(tokens: MarkdownToken[], env: RenderEnv, start = 0, endType?: string): { block: Block; next: number } {
+function renderRange(
+  tokens: MarkdownToken[],
+  env: RenderEnv,
+  start = 0,
+  endType?: string,
+): { block: Block; next: number } {
   const out: Block = [];
   let index = start;
 
@@ -403,7 +431,12 @@ function renderRange(tokens: MarkdownToken[], env: RenderEnv, start = 0, endType
       }
 
       case 'blockquote_open': {
-        const inner = renderRange(tokens, { ...env, width: Math.max(1, env.width - 2) }, index + 1, 'blockquote_close');
+        const inner = renderRange(
+          tokens,
+          { ...env, width: Math.max(1, env.width - 2) },
+          index + 1,
+          'blockquote_close',
+        );
         appendBlock(out, indent(inner.block, [span('▎ ', env.ctx.theme.subtle)]));
         index = inner.next;
         break;
@@ -439,7 +472,12 @@ function renderRange(tokens: MarkdownToken[], env: RenderEnv, start = 0, endType
   return { block: out, next: index };
 }
 
-function renderList(tokens: MarkdownToken[], env: RenderEnv, start: number, ordered: boolean): { block: Block; next: number } {
+function renderList(
+  tokens: MarkdownToken[],
+  env: RenderEnv,
+  start: number,
+  ordered: boolean,
+): { block: Block; next: number } {
   const listToken = tokens[start];
   const closeType = ordered ? 'ordered_list_close' : 'bullet_list_close';
   const out: Block = [];
@@ -469,7 +507,11 @@ function renderList(tokens: MarkdownToken[], env: RenderEnv, start: number, orde
   return { block: out, next: index };
 }
 
-export function renderMarkdown(text: string, ctx: RenderContext, width = Math.max(1, ctx.width - 2)): Block {
+export function renderMarkdown(
+  text: string,
+  ctx: RenderContext,
+  width = Math.max(1, ctx.width - 2),
+): Block {
   const tokens = md.parse(text, {});
   return renderRange(tokens, { ctx, width }).block;
 }

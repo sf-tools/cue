@@ -9,7 +9,13 @@ export function createBashTool({ runUserShell, requestApproval }: ToolFactoryOpt
     description: 'Run a shell command',
     inputSchema: z.object({ cmd: z.string() }),
     execute: async ({ cmd }) => {
-      if (!(await requestApproval({ scope: 'command', title: 'Run command', detail: cmd.trim() || cmd }))) {
+      if (
+        !(await requestApproval({
+          scope: 'command',
+          title: 'Run command',
+          detail: cmd.trim() || cmd,
+        }))
+      ) {
         throw new Error('command denied by user');
       }
 
@@ -22,6 +28,6 @@ export function createBashTool({ runUserShell, requestApproval }: ToolFactoryOpt
       } catch (error: unknown) {
         return `error: ${plain(error instanceof Error ? error.message : String(error))}`;
       }
-    }
+    },
   });
 }

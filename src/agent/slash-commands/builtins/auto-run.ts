@@ -35,5 +35,5 @@ export const autoRunSlashCommand: SlashCommand = {
     if (mode !== 'status') store.setAutoRunEnabled(next);
 
     render();
-  }
+  },
 };

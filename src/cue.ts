@@ -22,10 +22,14 @@ try {
 if (cli.kind === 'headless-json') process.exit(await runJsonHeadlessMode(cli));
 
 const resumeId = cli.kind === 'start' ? cli.resumeId : undefined;
-const resumeSnapshot = resumeId ? await import('@/agent/session-storage').then(module => module.loadCueSessionSnapshot(resumeId)) : null;
+const resumeSnapshot = resumeId
+  ? await import('@/agent/session-storage').then(module => module.loadCueSessionSnapshot(resumeId))
+  : null;
 
 const initialState = resumeSnapshot
-  ? await import('@/agent/session-storage').then(module => module.hydrateStateFromSnapshot(resumeSnapshot))
+  ? await import('@/agent/session-storage').then(module =>
+      module.hydrateStateFromSnapshot(resumeSnapshot),
+    )
   : undefined;
 
 await import('@/agent/early-stdin');
@@ -33,7 +37,7 @@ const { AgentApp } = await import('@/agent/app');
 
 const app = new AgentApp({
   initialState,
-  sessionId: resumeSnapshot?.sessionId
+  sessionId: resumeSnapshot?.sessionId,
 });
 
 process.on('SIGINT', () => app.cleanup(0));

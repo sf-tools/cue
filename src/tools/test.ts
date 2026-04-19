@@ -9,7 +9,15 @@ import type { ToolFactoryOptions } from './types';
 import { exists, readJsonSafe, truncate } from './utils';
 
 type Language = 'typescript' | 'javascript' | 'python' | 'rust' | 'go' | 'unknown';
-type Framework = 'vitest' | 'jest' | 'mocha' | 'bun:test' | 'pytest' | 'cargo-test' | 'go-test' | 'unknown';
+type Framework =
+  | 'vitest'
+  | 'jest'
+  | 'mocha'
+  | 'bun:test'
+  | 'pytest'
+  | 'cargo-test'
+  | 'go-test'
+  | 'unknown';
 
 type FrameworkInfo = {
   language: Language;
@@ -53,7 +61,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
   if (pkg) {
     const deps = {
       ...(pkg.dependencies as Record<string, string> | undefined),
-      ...(pkg.devDependencies as Record<string, string> | undefined)
+      ...(pkg.devDependencies as Record<string, string> | undefined),
     };
     const isTs = !!deps.typescript || (await exists(join(cwd, 'tsconfig.json')));
     const language: Language = isTs ? 'typescript' : 'javascript';
@@ -67,7 +75,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
         testGlob: '**/*.{test,spec}.{ts,tsx,js,jsx}',
         testFileSuffix: '.test',
         conventionalDir: null,
-        notes: ['detected vitest in package.json']
+        notes: ['detected vitest in package.json'],
       };
     }
 
@@ -80,7 +88,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
         testGlob: '**/*.{test,spec}.{ts,tsx,js,jsx}',
         testFileSuffix: '.test',
         conventionalDir: '__tests__',
-        notes: ['detected jest in package.json']
+        notes: ['detected jest in package.json'],
       };
     }
 
@@ -93,7 +101,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
         testGlob: 'test/**/*.{ts,js}',
         testFileSuffix: '.test',
         conventionalDir: 'test',
-        notes: ['detected mocha in package.json']
+        notes: ['detected mocha in package.json'],
       };
     }
 
@@ -106,7 +114,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
         testGlob: '**/*.{test,spec}.{ts,tsx,js,jsx}',
         testFileSuffix: '.test',
         conventionalDir: null,
-        notes: ['no JS test framework declared; falling back to bun:test (bun.lock present)']
+        notes: ['no JS test framework declared; falling back to bun:test (bun.lock present)'],
       };
     }
 
@@ -120,12 +128,16 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
         testGlob: '**/*.{test,spec}.{ts,tsx,js,jsx}',
         testFileSuffix: '.test',
         conventionalDir: null,
-        notes: [`fell back to package.json scripts.test: ${scriptTest}`]
+        notes: [`fell back to package.json scripts.test: ${scriptTest}`],
       };
     }
   }
 
-  if ((await exists(join(cwd, 'pyproject.toml'))) || (await exists(join(cwd, 'pytest.ini'))) || (await exists(join(cwd, 'setup.cfg')))) {
+  if (
+    (await exists(join(cwd, 'pyproject.toml'))) ||
+    (await exists(join(cwd, 'pytest.ini'))) ||
+    (await exists(join(cwd, 'setup.cfg')))
+  ) {
     return {
       language: 'python',
       framework: 'pytest',
@@ -134,7 +146,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
       testGlob: 'tests/**/test_*.py',
       testFileSuffix: '_test',
       conventionalDir: 'tests',
-      notes: ['detected python project; assuming pytest']
+      notes: ['detected python project; assuming pytest'],
     };
   }
 
@@ -147,7 +159,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
       testGlob: '**/*.rs',
       testFileSuffix: '',
       conventionalDir: 'tests',
-      notes: ['detected Cargo.toml; using cargo test']
+      notes: ['detected Cargo.toml; using cargo test'],
     };
   }
 
@@ -160,7 +172,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
       testGlob: '**/*_test.go',
       testFileSuffix: '_test',
       conventionalDir: null,
-      notes: ['detected go.mod; using go test']
+      notes: ['detected go.mod; using go test'],
     };
   }
 
@@ -172,7 +184,7 @@ async function detectFramework(cwd: string): Promise<FrameworkInfo> {
     testGlob: '',
     testFileSuffix: '',
     conventionalDir: null,
-    notes: ['no recognized project files found']
+    notes: ['no recognized project files found'],
   };
 }
 
@@ -228,13 +240,21 @@ function extractSymbolsPython(source: string): SymbolInfo[] {
     const line = lines[index];
     if (/^def\s+\w+/.test(line)) {
       const match = line.match(/^def\s+(\w+)/);
-      if (match) out.push({ kind: 'function', name: match[1], line: index + 1, signature: line.trim() });
+      if (match)
+        out.push({ kind: 'function', name: match[1], line: index + 1, signature: line.trim() });
     } else if (/^async\s+def\s+\w+/.test(line)) {
       const match = line.match(/^async\s+def\s+(\w+)/);
-      if (match) out.push({ kind: 'async function', name: match[1], line: index + 1, signature: line.trim() });
+      if (match)
+        out.push({
+          kind: 'async function',
+          name: match[1],
+          line: index + 1,
+          signature: line.trim(),
+        });
     } else if (/^class\s+\w+/.test(line)) {
       const match = line.match(/^class\s+(\w+)/);
-      if (match) out.push({ kind: 'class', name: match[1], line: index + 1, signature: line.trim() });
+      if (match)
+        out.push({ kind: 'class', name: match[1], line: index + 1, signature: line.trim() });
     }
   }
   return out;
@@ -245,7 +265,13 @@ function extractSymbolsGo(source: string): SymbolInfo[] {
   const lines = source.split('\n');
   for (let index = 0; index < lines.length; index += 1) {
     const match = lines[index].match(/^func\s+(?:\([^)]*\)\s*)?([A-Z]\w*)/);
-    if (match) out.push({ kind: 'function', name: match[1], line: index + 1, signature: lines[index].trim() });
+    if (match)
+      out.push({
+        kind: 'function',
+        name: match[1],
+        line: index + 1,
+        signature: lines[index].trim(),
+      });
   }
   return out;
 }
@@ -255,7 +281,13 @@ function extractSymbolsRust(source: string): SymbolInfo[] {
   const lines = source.split('\n');
   for (let index = 0; index < lines.length; index += 1) {
     const match = lines[index].match(/^pub\s+(?:async\s+)?(?:fn|struct|enum|trait)\s+(\w+)/);
-    if (match) out.push({ kind: match[0].includes('fn') ? 'function' : 'type', name: match[1], line: index + 1, signature: lines[index].trim() });
+    if (match)
+      out.push({
+        kind: match[0].includes('fn') ? 'function' : 'type',
+        name: match[1],
+        line: index + 1,
+        signature: lines[index].trim(),
+      });
   }
   return out;
 }
@@ -276,7 +308,10 @@ function extractSymbols(source: string, language: Language): SymbolInfo[] {
   }
 }
 
-function extractBranches(source: string, language: Language): { branches: Branch[]; asyncCount: number; throwCount: number } {
+function extractBranches(
+  source: string,
+  language: Language,
+): { branches: Branch[]; asyncCount: number; throwCount: number } {
   const branches: Branch[] = [];
   const lines = source.split('\n');
   let asyncCount = 0;
@@ -288,12 +323,19 @@ function extractBranches(source: string, language: Language): { branches: Branch
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const trimmed = line.trim();
-    if (/^\s*(if|elif|else if)\b/.test(line)) branches.push({ kind: 'if', line: index + 1, text: trimmed });
-    if (/^\s*(switch|match)\b/.test(line)) branches.push({ kind: 'switch', line: index + 1, text: trimmed });
+    if (/^\s*(if|elif|else if)\b/.test(line))
+      branches.push({ kind: 'if', line: index + 1, text: trimmed });
+    if (/^\s*(switch|match)\b/.test(line))
+      branches.push({ kind: 'switch', line: index + 1, text: trimmed });
     if (/^\s*case\s+/.test(line)) branches.push({ kind: 'case', line: index + 1, text: trimmed });
-    if (/^\s*(try|except|catch)\b/.test(line)) branches.push({ kind: 'try', line: index + 1, text: trimmed });
+    if (/^\s*(try|except|catch)\b/.test(line))
+      branches.push({ kind: 'try', line: index + 1, text: trimmed });
 
-    if (/\bthrow\b/.test(line) || (isPy && /\braise\b/.test(line)) || (isRs && /\.unwrap\(\)|\.expect\(/.test(line))) {
+    if (
+      /\bthrow\b/.test(line) ||
+      (isPy && /\braise\b/.test(line)) ||
+      (isRs && /\.unwrap\(\)|\.expect\(/.test(line))
+    ) {
       throwCount += 1;
     }
     if (/\basync\b/.test(line)) asyncCount += 1;
@@ -302,41 +344,76 @@ function extractBranches(source: string, language: Language): { branches: Branch
   return { branches, asyncCount, throwCount };
 }
 
-function suggestCases(symbols: SymbolInfo[], branches: Branch[], throwCount: number): AnalyzeResult['suggestedCases'] {
+function suggestCases(
+  symbols: SymbolInfo[],
+  branches: Branch[],
+  throwCount: number,
+): AnalyzeResult['suggestedCases'] {
   const cases: AnalyzeResult['suggestedCases'] = [];
   for (const symbol of symbols.slice(0, 8)) {
     if (symbol.kind === 'type') continue;
-    cases.push({ name: `${symbol.name}: happy path`, kind: 'happy', rationale: 'representative valid input matching the signature' });
-    cases.push({ name: `${symbol.name}: empty/null input`, kind: 'edge', rationale: 'boundary inputs (empty string/array/null/undefined)' });
-    cases.push({ name: `${symbol.name}: large input`, kind: 'edge', rationale: 'stress with large/long input to surface perf or overflow issues' });
+    cases.push({
+      name: `${symbol.name}: happy path`,
+      kind: 'happy',
+      rationale: 'representative valid input matching the signature',
+    });
+    cases.push({
+      name: `${symbol.name}: empty/null input`,
+      kind: 'edge',
+      rationale: 'boundary inputs (empty string/array/null/undefined)',
+    });
+    cases.push({
+      name: `${symbol.name}: large input`,
+      kind: 'edge',
+      rationale: 'stress with large/long input to surface perf or overflow issues',
+    });
     if (throwCount > 0) {
-      cases.push({ name: `${symbol.name}: invalid input throws`, kind: 'error', rationale: 'function contains throw/raise; verify error path' });
+      cases.push({
+        name: `${symbol.name}: invalid input throws`,
+        kind: 'error',
+        rationale: 'function contains throw/raise; verify error path',
+      });
     }
     if (symbol.kind === 'async function') {
-      cases.push({ name: `${symbol.name}: rejected promise`, kind: 'error', rationale: 'async function — verify rejection propagates' });
+      cases.push({
+        name: `${symbol.name}: rejected promise`,
+        kind: 'error',
+        rationale: 'async function — verify rejection propagates',
+      });
     }
   }
 
   for (const branch of branches.slice(0, 4)) {
-    cases.push({ name: `branch at line ${branch.line} (${branch.kind})`, kind: 'edge', rationale: `cover branch: ${branch.text.slice(0, 80)}` });
+    cases.push({
+      name: `branch at line ${branch.line} (${branch.kind})`,
+      kind: 'edge',
+      rationale: `cover branch: ${branch.text.slice(0, 80)}`,
+    });
   }
 
   return cases.slice(0, 16);
 }
 
-async function findCallers(symbolNames: string[], cwd: string, runUserShell: ToolFactoryOptions['runUserShell']) {
+async function findCallers(
+  symbolNames: string[],
+  cwd: string,
+  runUserShell: ToolFactoryOptions['runUserShell'],
+) {
   if (symbolNames.length === 0) return [];
   const pattern = symbolNames.map(name => `\\b${name}\\b`).join('|');
   const { output } = await runUserShell(
-    `if command -v rg >/dev/null 2>&1; then command rg --line-number --no-heading --color=never -e ${JSON.stringify(pattern)} ${JSON.stringify(cwd)} 2>/dev/null | head -n 80; else true; fi`
+    `if command -v rg >/dev/null 2>&1; then command rg --line-number --no-heading --color=never -e ${JSON.stringify(pattern)} ${JSON.stringify(cwd)} 2>/dev/null | head -n 80; else true; fi`,
   );
   return plain(output).trim().split('\n').filter(Boolean).slice(0, 40);
 }
 
-async function findExistingTests(targetPath: string, runUserShell: ToolFactoryOptions['runUserShell']) {
+async function findExistingTests(
+  targetPath: string,
+  runUserShell: ToolFactoryOptions['runUserShell'],
+) {
   const base = basename(targetPath, extname(targetPath));
   const { output } = await runUserShell(
-    `if command -v rg >/dev/null 2>&1; then command rg --files -g '*.{test,spec,_test}.*' -g '**/test_*.py' 2>/dev/null | command rg ${JSON.stringify(base)} | head -n 20; else true; fi`
+    `if command -v rg >/dev/null 2>&1; then command rg --files -g '*.{test,spec,_test}.*' -g '**/test_*.py' 2>/dev/null | command rg ${JSON.stringify(base)} | head -n 20; else true; fi`,
   );
   return plain(output).trim().split('\n').filter(Boolean);
 }
@@ -348,11 +425,16 @@ function suggestTestPath(targetPath: string, info: FrameworkInfo): string {
   if (info.framework === 'pytest') return join('tests', `test_${base}.py`);
   if (info.framework === 'go-test') return join(dir, `${base}_test.go`);
   if (info.framework === 'cargo-test') return join('tests', `${base}_test.rs`);
-  if (info.framework === 'jest' && info.conventionalDir === '__tests__') return join(dir, '__tests__', `${base}.test${ext}`);
+  if (info.framework === 'jest' && info.conventionalDir === '__tests__')
+    return join(dir, '__tests__', `${base}.test${ext}`);
   return join(dir, `${base}.test${ext}`);
 }
 
-async function analyzePath(path: string, cwd: string, runUserShell: ToolFactoryOptions['runUserShell']): Promise<AnalyzeResult> {
+async function analyzePath(
+  path: string,
+  cwd: string,
+  runUserShell: ToolFactoryOptions['runUserShell'],
+): Promise<AnalyzeResult> {
   const source = await readFile(path, 'utf8');
   const language = languageFromPath(path);
   const symbols = extractSymbols(source, language);
@@ -360,7 +442,7 @@ async function analyzePath(path: string, cwd: string, runUserShell: ToolFactoryO
   const callers = await findCallers(
     symbols.map(symbol => symbol.name),
     cwd,
-    runUserShell
+    runUserShell,
   );
   const existingTests = await findExistingTests(path, runUserShell);
 
@@ -374,7 +456,7 @@ async function analyzePath(path: string, cwd: string, runUserShell: ToolFactoryO
     throwCount,
     callers,
     existingTests,
-    suggestedCases: suggestCases(symbols, branches, throwCount)
+    suggestedCases: suggestCases(symbols, branches, throwCount),
   };
 }
 
@@ -391,28 +473,31 @@ function buildTestCommand(info: FrameworkInfo, pattern?: string, bail?: boolean)
 
 export function createTestDetectTool(_: ToolFactoryOptions) {
   return tool({
-    description: 'Detect the repository test framework, language, test file conventions, and default test command.',
+    description:
+      'Detect the repository test framework, language, test file conventions, and default test command.',
     inputSchema: z.object({}),
-    execute: async () => await detectFramework(process.cwd())
+    execute: async () => await detectFramework(process.cwd()),
   });
 }
 
 export function createTestAnalyzeTool({ runUserShell }: ToolFactoryOptions) {
   return tool({
-    description: 'Analyze one source file to suggest test cases, exported symbols, branches, callers, and likely existing tests.',
+    description:
+      'Analyze one source file to suggest test cases, exported symbols, branches, callers, and likely existing tests.',
     inputSchema: z.object({
-      path: z.string()
+      path: z.string(),
     }),
-    execute: async ({ path }) => await analyzePath(path, process.cwd(), runUserShell)
+    execute: async ({ path }) => await analyzePath(path, process.cwd(), runUserShell),
   });
 }
 
 export function createTestScaffoldTool({ requestApproval }: ToolFactoryOptions) {
   return tool({
-    description: 'Write a new test file for a source file using test content you provide. The tool picks the conventional test path for the repo.',
+    description:
+      'Write a new test file for a source file using test content you provide. The tool picks the conventional test path for the repo.',
     inputSchema: z.object({
       path: z.string(),
-      content: z.string()
+      content: z.string(),
     }),
     execute: async ({ path, content }) => {
       const cwd = process.cwd();
@@ -424,7 +509,7 @@ export function createTestScaffoldTool({ requestApproval }: ToolFactoryOptions) 
           scope: 'edit',
           title: 'Scaffold test file',
           detail: `${testPath} · ${content.length} bytes (framework: ${info.framework})`,
-          body: content.split('\n').slice(0, 8)
+          body: content.split('\n').slice(0, 8),
         }))
       ) {
         throw new Error('scaffold denied by user');
@@ -433,16 +518,17 @@ export function createTestScaffoldTool({ requestApproval }: ToolFactoryOptions) 
       await mkdir(dirname(testPath), { recursive: true });
       await writeFile(testPath, content);
       return { wrote: testPath, framework: info.framework, runCmd: info.runCmd };
-    }
+    },
   });
 }
 
 export function createTestRunTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
   return tool({
-    description: 'Run the repository test command. Prefer this over bash for normal test execution because it detects the right framework and flags.',
+    description:
+      'Run the repository test command. Prefer this over bash for normal test execution because it detects the right framework and flags.',
     inputSchema: z.object({
       pattern: z.string().optional(),
-      bail: z.boolean().optional()
+      bail: z.boolean().optional(),
     }),
     execute: async ({ pattern, bail }) => {
       const info = await detectFramework(process.cwd());
@@ -453,7 +539,10 @@ export function createTestRunTool({ runUserShell, requestApproval }: ToolFactory
           scope: 'command',
           title: 'Run tests',
           detail: cmd,
-          body: [`framework: ${info.framework}`, `bail: ${bail !== false && info.bailFlag ? 'on' : 'off'}`]
+          body: [
+            `framework: ${info.framework}`,
+            `bail: ${bail !== false && info.bailFlag ? 'on' : 'off'}`,
+          ],
         }))
       ) {
         throw new Error('test run denied by user');
@@ -466,8 +555,8 @@ export function createTestRunTool({ runUserShell, requestApproval }: ToolFactory
         cmd,
         exitCode,
         passed: exitCode === 0,
-        output: text || '(no output)'
+        output: text || '(no output)',
       };
-    }
+    },
   });
 }

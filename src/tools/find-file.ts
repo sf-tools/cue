@@ -35,12 +35,20 @@ export function createFindFileTool() {
       'Find files in the workspace. Use `pattern` for glob (e.g. `src/**/*.tsx`) or `query` for fuzzy substring (e.g. `mention idx`). Returns repo-relative paths.',
     inputSchema: z
       .object({
-        pattern: z.string().min(1).optional().describe('Glob pattern, e.g. `src/**/*.ts` or `**/package.json`.'),
-        query: z.string().min(1).optional().describe('Fuzzy substring search across file names and paths.'),
-        limit: z.number().int().positive().max(HARD_LIMIT).optional()
+        pattern: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Glob pattern, e.g. `src/**/*.ts` or `**/package.json`.'),
+        query: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('Fuzzy substring search across file names and paths.'),
+        limit: z.number().int().positive().max(HARD_LIMIT).optional(),
       })
       .refine(value => Boolean(value.pattern) !== Boolean(value.query), {
-        message: 'provide exactly one of `pattern` or `query`'
+        message: 'provide exactly one of `pattern` or `query`',
       }),
     execute: async ({ pattern, query, limit }) => {
       const cap = Math.min(limit ?? DEFAULT_LIMIT, HARD_LIMIT);
@@ -53,10 +61,12 @@ export function createFindFileTool() {
         return `${matches.length} match${matches.length === 1 ? '' : 'es'} for \`${pattern}\`:\n${matches.join('\n')}${truncated}`;
       }
 
-      const results = (await queryMentionIndexAwait(query!, cap, cwd)).filter(entry => entry.kind === 'file');
+      const results = (await queryMentionIndexAwait(query!, cap, cwd)).filter(
+        entry => entry.kind === 'file',
+      );
       if (results.length === 0) return `no files matched query \`${query}\``;
       const lines = results.map(entry => entry.label);
       return `${lines.length} match${lines.length === 1 ? '' : 'es'} for \`${query}\`:\n${lines.join('\n')}`;
-    }
+    },
   });
 }

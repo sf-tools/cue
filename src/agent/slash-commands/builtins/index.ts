@@ -23,5 +23,5 @@ export const builtinSlashCommands = [
   shareSlashCommand,
   toggleAutoCompactSlashCommand,
   toolsSlashCommand,
-  quitSlashCommand
+  quitSlashCommand,
 ];

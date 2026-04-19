@@ -10,7 +10,7 @@ export {
   MODEL,
   USER_SHELL,
   getCompactionTriggerTokens,
-  getContextWindow
+  getContextWindow,
 } from './constants';
 
 export {
@@ -27,10 +27,16 @@ export {
   getThinkingModeDescription,
   isReasoningCapableOpenAIModel,
   normalizeOpenAIModelId,
-  pricingUsageFromLanguageModelUsage
+  pricingUsageFromLanguageModelUsage,
 } from './models';
 
 export type { ThinkingMode } from './models';
-export { CUE_PREFERENCES_PATH, defaultCuePreferences, loadCuePreferences, normalizeCuePreferences, saveCuePreferences } from './preferences';
+export {
+  CUE_PREFERENCES_PATH,
+  defaultCuePreferences,
+  loadCuePreferences,
+  normalizeCuePreferences,
+  saveCuePreferences,
+} from './preferences';
 export type { CuePreferences } from './preferences';
 export { COMPACTION_PROMPT, createInitialMessages, SYSTEM_PROMPT } from './prompt';

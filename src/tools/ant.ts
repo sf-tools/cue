@@ -9,9 +9,14 @@ import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
 
 function previewScript(script: string, maxLines = 8, maxChars = 1200) {
-  const clipped = script.length > maxChars ? `${script.slice(0, maxChars)}\n… truncated ${script.length - maxChars} chars` : script;
+  const clipped =
+    script.length > maxChars
+      ? `${script.slice(0, maxChars)}\n… truncated ${script.length - maxChars} chars`
+      : script;
   const lines = clipped.split('\n');
-  return lines.length <= maxLines ? lines : [...lines.slice(0, maxLines), `… ${lines.length - maxLines} more lines`];
+  return lines.length <= maxLines
+    ? lines
+    : [...lines.slice(0, maxLines), `… ${lines.length - maxLines} more lines`];
 }
 
 export function createAntTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
@@ -19,7 +24,10 @@ export function createAntTool({ runUserShell, requestApproval }: ToolFactoryOpti
     description: 'Execute an ad-hoc JavaScript script with ant from PATH.',
     inputSchema: z.object({
       script: z.string().min(1).describe('JavaScript source to execute with ant'),
-      args: z.array(z.string()).optional().describe('Optional command-line arguments passed to the script')
+      args: z
+        .array(z.string())
+        .optional()
+        .describe('Optional command-line arguments passed to the script'),
     }),
     execute: async ({ script, args = [] }) => {
       const tempDir = await mkdtemp(join(tmpdir(), 'cue-ant-'));
@@ -35,7 +43,7 @@ export function createAntTool({ runUserShell, requestApproval }: ToolFactoryOpti
             scope: 'command',
             title: 'Run JavaScript with ant',
             detail: `$(which ant) ${scriptPath}${args.length ? ` ${args.join(' ')}` : ''}`,
-            body: previewScript(script)
+            body: previewScript(script),
           }))
         ) {
           throw new Error('command denied by user');
@@ -51,6 +59,6 @@ export function createAntTool({ runUserShell, requestApproval }: ToolFactoryOpti
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
-    }
+    },
   });
 }

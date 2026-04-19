@@ -17,7 +17,7 @@ export class PromptHistoryStore {
 
   constructor(
     private readonly historyPath = DEFAULT_HISTORY_PATH,
-    private readonly maxSize = DEFAULT_HISTORY_SIZE
+    private readonly maxSize = DEFAULT_HISTORY_SIZE,
   ) {}
 
   private async ensureLoaded() {
@@ -94,7 +94,7 @@ export class PromptHistoryStore {
     const entry: PromptHistoryEntry = {
       createdAt: new Date().toISOString(),
       cwd: resolve(cwd),
-      text: trimmed
+      text: trimmed,
     };
 
     await this.appendAtomic(entry);

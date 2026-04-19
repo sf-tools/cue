@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { ToolFactoryOptions } from './types';
 
 const planningModeSchema = z.object({
-  mode: z.enum(['on', 'off', 'status']).default('status')
+  mode: z.enum(['on', 'off', 'status']).default('status'),
 });
 
 export function createPlanningModeTool({ getPlanningMode, setPlanningMode }: ToolFactoryOptions) {
@@ -25,8 +25,8 @@ export function createPlanningModeTool({ getPlanningMode, setPlanningMode }: Too
         message:
           mode === 'status'
             ? `planning mode is ${current ? 'on' : 'off'}`
-            : `planning mode ${changed ? (next ? 'enabled' : 'disabled') : 'unchanged'}`
+            : `planning mode ${changed ? (next ? 'enabled' : 'disabled') : 'unchanged'}`,
       };
-    }
+    },
   });
 }

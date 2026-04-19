@@ -21,7 +21,12 @@ import { compactMessages, canCompactMessages } from './compact';
 import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
 import { renderQueuedSubmissions } from '@/render/components/queued';
-import { makeCueThreadPrivate, shareCueThread, syncPromptHistory, syncSessionSnapshot } from '@/cloud/client';
+import {
+  makeCueThreadPrivate,
+  shareCueThread,
+  syncPromptHistory,
+  syncSessionSnapshot,
+} from '@/cloud/client';
 import { loadCueCloudModel, requireCueCloudAuth } from '@/cloud/openai';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
@@ -34,7 +39,11 @@ import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@
 import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
 import { createAgentStore, type AgentState, type AgentStore, type QueuedSubmission } from '@/store';
-import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
+import {
+  createFailedToolEntry,
+  createPendingToolEntry,
+  createCompletedToolEntry,
+} from './tool-history';
 
 import {
   createOpenAIProviderOptions,
@@ -42,7 +51,7 @@ import {
   getCompactionTriggerTokens,
   loadCuePreferences,
   pricingUsageFromLanguageModelUsage,
-  saveCuePreferences
+  saveCuePreferences,
 } from '@/config';
 
 import {
@@ -53,7 +62,7 @@ import {
   type ChoiceRequest,
   type ChoiceSelection,
   type FileChange,
-  type HistoryEntry
+  type HistoryEntry,
 } from '@/types';
 
 const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
@@ -126,15 +135,16 @@ export class AgentApp {
     pushUndoEntry: entry => {
       if (!entry.files.some(file => file.previousContent !== file.nextContent)) return;
       for (const file of entry.files) {
-        if (!this.sessionFileBaselines.has(file.path)) this.sessionFileBaselines.set(file.path, file.previousContent);
+        if (!this.sessionFileBaselines.has(file.path))
+          this.sessionFileBaselines.set(file.path, file.previousContent);
       }
       this.undoStack.push(entry);
     },
     peekUndoEntry: () => this.undoStack[this.undoStack.length - 1] ?? null,
-    popUndoEntry: () => this.undoStack.pop() ?? null
+    popUndoEntry: () => this.undoStack.pop() ?? null,
   });
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands, {
-    getCurrentThreadShareState: () => this.getCurrentThreadShareState()
+    getCurrentThreadShareState: () => this.getCurrentThreadShareState(),
   });
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
@@ -193,12 +203,18 @@ export class AgentApp {
   }
 
   private patchTransientLines(lines: string[]) {
-    if (!process.stdout.isTTY || this.transientLineCount === 0 || this.lastTransientLines.length !== lines.length) {
+    if (
+      !process.stdout.isTTY ||
+      this.transientLineCount === 0 ||
+      this.lastTransientLines.length !== lines.length
+    ) {
       this.redrawTransientLines(lines);
       return;
     }
 
-    const changedRows = lines.flatMap((line, index) => (line === this.lastTransientLines[index] ? [] : [index]));
+    const changedRows = lines.flatMap((line, index) =>
+      line === this.lastTransientLines[index] ? [] : [index],
+    );
     if (changedRows.length === 0) return;
 
     if (this.transientLineCount > 1) process.stdout.write(`\u001b[${this.transientLineCount - 1}F`);
@@ -247,7 +263,8 @@ export class AgentApp {
       const entry = this.state.historyEntries[index];
       if (entry.type !== 'entry') continue;
       if (entry.kind === EntryKind.User) return null;
-      if (entry.kind === EntryKind.Assistant) return RAINBOW_PHRASE_PATTERN.test(entry.text) ? index : null;
+      if (entry.kind === EntryKind.Assistant)
+        return RAINBOW_PHRASE_PATTERN.test(entry.text) ? index : null;
     }
 
     return null;
@@ -270,19 +287,27 @@ export class AgentApp {
     this.appendPermanentLines(lines);
   }
 
-  private renderTransientLines(ctx: ReturnType<typeof createRenderContext>, suggestions: ReturnType<AgentApp['normalizeSuggestions']>) {
+  private renderTransientLines(
+    ctx: ReturnType<typeof createRenderContext>,
+    suggestions: ReturnType<AgentApp['normalizeSuggestions']>,
+  ) {
     const animatedAssistantIndex = this.getAnimatedAssistantIndex();
-    const pendingHistory = this.state.historyEntries.slice(this.committedHistoryCount).flatMap((entry, offset) => {
-      const index = this.committedHistoryCount + offset;
-      return [...renderHistoryEntry(entry, ctx, { animateAssistant: index === animatedAssistantIndex }), blankLine()];
-    });
+    const pendingHistory = this.state.historyEntries
+      .slice(this.committedHistoryCount)
+      .flatMap((entry, offset) => {
+        const index = this.committedHistoryCount + offset;
+        return [
+          ...renderHistoryEntry(entry, ctx, { animateAssistant: index === animatedAssistantIndex }),
+          blankLine(),
+        ];
+      });
     const preview = renderOutputPreview(
       this.state.liveReasoningText,
       this.state.liveAssistantText,
       ctx,
       this.state.pendingApproval,
       this.state.pendingChoice,
-      this.state.pendingChoiceIndex
+      this.state.pendingChoiceIndex,
     );
     const queued = renderQueuedSubmissions(this.state.queuedSubmissions, ctx, 8);
     const composer = renderComposer(
@@ -291,16 +316,21 @@ export class AgentApp {
         pasteRanges: this.state.pasteRanges,
         cursor: this.state.cursor,
         slashCommandLength: this.getSlashCommandLength(),
-        showCapabilitiesHint: this.state.historyEntries.length === 0
+        showCapabilitiesHint: this.state.historyEntries.length === 0,
       },
-      ctx
+      ctx,
     ).block;
     const suggestionLines = renderSuggestions(suggestions, this.state.selectedSuggestion, ctx);
     const footer = renderFooter(this.state, ctx);
 
     const topSections = [pendingHistory, preview, queued].filter(section => section.length > 0);
-    const body = topSections.flatMap((section, index) => (index === 0 ? section : [blankLine(), ...section]));
-    const blocks = body.length > 0 ? [body, [blankLine()], composer, suggestionLines, footer] : [composer, suggestionLines, footer];
+    const body = topSections.flatMap((section, index) =>
+      index === 0 ? section : [blankLine(), ...section],
+    );
+    const blocks =
+      body.length > 0
+        ? [body, [blankLine()], composer, suggestionLines, footer]
+        : [composer, suggestionLines, footer];
 
     return serializeBlock(vstack(...blocks));
   }
@@ -375,13 +405,20 @@ export class AgentApp {
     void this.persistSessionSnapshot();
 
     if (code === 0) {
-      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), this.expandPreviews);
+      const ctx = createRenderContext(
+        this.theme,
+        this.spinner.frame().trim(),
+        this.commandSpinner.frame().trim(),
+        this.expandPreviews,
+      );
       const header = serializeBlock(renderHeader(ctx)).join('\n');
 
       if (process.stdout.isTTY) process.stdout.write('\u001b[3J\u001b[2J\u001b[H');
       process.stdout.write(`${header}\n`);
       if (this.hasResumableSession()) {
-        process.stdout.write(` ${chalk.white('To resume this session:')} ${chalk.cyan('cue --resume=')}${chalk.cyanBright(this.sessionId)}\n`);
+        process.stdout.write(
+          ` ${chalk.white('To resume this session:')} ${chalk.cyan('cue --resume=')}${chalk.cyanBright(this.sessionId)}\n`,
+        );
       }
     }
 
@@ -391,14 +428,16 @@ export class AgentApp {
   handleFatalError(error: unknown, code = 1) {
     this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h');
-    process.stderr.write(`${plain(error instanceof Error ? error.stack || error.message : String(error))}\n`);
+    process.stderr.write(
+      `${plain(error instanceof Error ? error.stack || error.message : String(error))}\n`,
+    );
     this.cleanup(code);
   }
 
   private getSuggestions() {
     return listComposerSuggestions(this.state.inputChars, this.state.cursor, this.slashCommands, {
       currentModel: this.state.currentModel,
-      thinkingMode: this.state.thinkingMode
+      thinkingMode: this.state.thinkingMode,
     });
   }
 
@@ -410,7 +449,9 @@ export class AgentApp {
       return suggestions;
     }
 
-    this.store.setSelectedSuggestion(Math.max(0, Math.min(this.state.selectedSuggestion, suggestions.length - 1)));
+    this.store.setSelectedSuggestion(
+      Math.max(0, Math.min(this.state.selectedSuggestion, suggestions.length - 1)),
+    );
     return suggestions;
   }
 
@@ -439,12 +480,21 @@ export class AgentApp {
 
     const columns = process.stdout.columns || 100;
     const rows = process.stdout.rows || 30;
-    const resized = this.lastRenderColumns > 0 && (columns !== this.lastRenderColumns || rows !== this.lastRenderRows);
+    const resized =
+      this.lastRenderColumns > 0 &&
+      (columns !== this.lastRenderColumns || rows !== this.lastRenderRows);
 
     if (resized) this.resetRenderedScreen();
 
     const suggestions = this.normalizeSuggestions();
-    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), this.expandPreviews, columns, rows);
+    const ctx = createRenderContext(
+      this.theme,
+      this.spinner.frame().trim(),
+      this.commandSpinner.frame().trim(),
+      this.expandPreviews,
+      columns,
+      rows,
+    );
 
     this.lastRenderColumns = columns;
     this.lastRenderRows = rows;
@@ -487,7 +537,10 @@ export class AgentApp {
   }
 
   private hasRainbowPhraseVisible() {
-    return RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText) || this.getAnimatedAssistantIndex() !== null;
+    return (
+      RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText) ||
+      this.getAnimatedAssistantIndex() !== null
+    );
   }
 
   private showFooterNotice(text: string, durationMs = 2_000) {
@@ -506,7 +559,10 @@ export class AgentApp {
   }
 
   private hasThreadContent() {
-    return this.state.historyEntries.some(entry => entry.type === 'entry' && entry.kind !== EntryKind.Meta && entry.text.trim().length > 0);
+    return this.state.historyEntries.some(
+      entry =>
+        entry.type === 'entry' && entry.kind !== EntryKind.Meta && entry.text.trim().length > 0,
+    );
   }
 
   private async persistSessionSnapshot() {
@@ -523,7 +579,7 @@ export class AgentApp {
         cwd: snapshot.cwd,
         state: snapshot,
         totalCost: snapshot.state.totalCost,
-        updatedAt: snapshot.savedAt
+        updatedAt: snapshot.savedAt,
       });
     } catch {}
   }
@@ -567,7 +623,7 @@ export class AgentApp {
     void saveCuePreferences({
       model: this.state.currentModel,
       reasoning: this.state.thinkingMode,
-      autoCompactEnabled: this.state.autoCompactEnabled
+      autoCompactEnabled: this.state.autoCompactEnabled,
     });
   }
 
@@ -603,7 +659,8 @@ export class AgentApp {
   private getActiveTools() {
     if (!this.state.planningMode) return this.tools;
 
-    const { choice_selector, oracle, planning_mode, read, rg, ripgrep, subagent, web_search } = this.tools;
+    const { choice_selector, oracle, planning_mode, read, rg, ripgrep, subagent, web_search } =
+      this.tools;
     return { read, ripgrep, rg, web_search, oracle, subagent, choice_selector, planning_mode };
   }
 
@@ -618,7 +675,10 @@ export class AgentApp {
       }
 
       const description =
-        typeof tool === 'object' && tool !== null && 'description' in tool && typeof tool.description === 'string'
+        typeof tool === 'object' &&
+        tool !== null &&
+        'description' in tool &&
+        typeof tool.description === 'string'
           ? tool.description.trim()
           : null;
 
@@ -639,7 +699,7 @@ export class AgentApp {
       '- Use read-only tools only.',
       '- If the plan depends on a meaningful product or architecture choice, use choice_selector before committing to the plan.',
       '- End with a concise recommendation and plan.',
-      '</session-mode>'
+      '</session-mode>',
     ].join('\n');
 
     const [first, ...rest] = this.state.messages;
@@ -668,15 +728,22 @@ export class AgentApp {
   }
 
   private shouldAutoCompact() {
-    return this.state.autoCompactEnabled && this.state.lastPromptTokens >= getCompactionTriggerTokens(this.state.currentModel);
+    return (
+      this.state.autoCompactEnabled &&
+      this.state.lastPromptTokens >= getCompactionTriggerTokens(this.state.currentModel)
+    );
   }
 
   private hasSessionApproval(scope: ApprovalScope) {
-    return scope === 'command' ? this.state.commandApprovalSessionAllowed : this.state.editApprovalSessionAllowed;
+    return scope === 'command'
+      ? this.state.commandApprovalSessionAllowed
+      : this.state.editApprovalSessionAllowed;
   }
 
   private getToolEntry(toolCallId: string) {
-    const entry = this.state.historyEntries.find(candidate => candidate.type === 'tool' && candidate.toolCallId === toolCallId);
+    const entry = this.state.historyEntries.find(
+      candidate => candidate.type === 'tool' && candidate.toolCallId === toolCallId,
+    );
     return entry?.type === 'tool' ? entry : null;
   }
 
@@ -699,7 +766,7 @@ export class AgentApp {
           const baselineContent = this.sessionFileBaselines.get(path) ?? null;
           const currentContent = await readOptionalFile(path);
           return createFileChange(path, baselineContent, currentContent);
-        })
+        }),
       )
     ).filter((fileChange): fileChange is FileChange => fileChange !== null);
 
@@ -739,7 +806,9 @@ export class AgentApp {
     if (this.pendingChoiceResolver) throw new Error('another choice is already pending');
     if (request.options.length < 2) throw new Error('choice prompt requires at least two options');
 
-    const recommendedIndex = request.recommendedValue ? request.options.findIndex(option => option.value === request.recommendedValue) : -1;
+    const recommendedIndex = request.recommendedValue
+      ? request.options.findIndex(option => option.value === request.recommendedValue)
+      : -1;
     const selectedIndex = recommendedIndex >= 0 ? recommendedIndex : 0;
 
     const selection = await new Promise<ChoiceSelection | null>(resolve => {
@@ -765,7 +834,11 @@ export class AgentApp {
 
   private persistCompactionNotice(text: string) {
     const lastEntry = this.state.historyEntries[this.state.historyEntries.length - 1];
-    if (lastEntry?.type === 'entry' && lastEntry.kind === EntryKind.Meta && lastEntry.text === text) {
+    if (
+      lastEntry?.type === 'entry' &&
+      lastEntry.kind === EntryKind.Meta &&
+      lastEntry.text === text
+    ) {
       this.render();
       return;
     }
@@ -791,14 +864,18 @@ export class AgentApp {
       const result = await compactMessages(this.state.messages, {
         force,
         model: this.state.currentModel,
-        thinkingMode: this.state.thinkingMode
+        thinkingMode: this.state.thinkingMode,
       });
       this.store.replaceMessages(result.messages);
       this.store.resetLastUsage();
 
-      const price = calcPrice(pricingUsageFromLanguageModelUsage(result.usage), this.state.currentModel, {
-        providerId: 'openai'
-      });
+      const price = calcPrice(
+        pricingUsageFromLanguageModelUsage(result.usage),
+        this.state.currentModel,
+        {
+          providerId: 'openai',
+        },
+      );
 
       if (price) this.store.addTotalCost(price.total_price);
       this.store.pushHistoryEntry({
@@ -806,14 +883,14 @@ export class AgentApp {
         summary: result.summary,
         previousMessageCount: result.previousMessageCount,
         nextMessageCount: result.nextMessageCount,
-        automatic: !manual
+        automatic: !manual,
       });
       this.render();
       return true;
     } catch (error: unknown) {
       this.persistEntry(
         EntryKind.Error,
-        `${manual ? 'compaction' : 'automatic compaction'} failed: ${plain(error instanceof Error ? error.message : String(error))}`
+        `${manual ? 'compaction' : 'automatic compaction'} failed: ${plain(error instanceof Error ? error.message : String(error))}`,
       );
       return false;
     } finally {
@@ -878,7 +955,10 @@ export class AgentApp {
       if (trimmed) this.persistAnsi(trimmed);
       else if (exitCode === 0) this.persistPlain('(no output)');
     } catch (error: unknown) {
-      this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
+      this.persistEntry(
+        EntryKind.Error,
+        plain(error instanceof Error ? error.message : String(error)),
+      );
     } finally {
       this.store.setBusy(false);
       this.render();
@@ -915,7 +995,8 @@ export class AgentApp {
     if (!trimmed) return;
 
     const planningModeOverride = effectiveSubmission.planningMode;
-    const previousPlanningMode = planningModeOverride === undefined ? undefined : this.state.planningMode;
+    const previousPlanningMode =
+      planningModeOverride === undefined ? undefined : this.state.planningMode;
 
     if (planningModeOverride !== undefined && planningModeOverride !== this.state.planningMode) {
       this.store.setPlanningMode(planningModeOverride);
@@ -949,7 +1030,8 @@ export class AgentApp {
             setAutoCompactEnabled: enabled => this.setAutoCompactEnabled(enabled),
             setPlanningMode: enabled => this.setPlanningMode(enabled),
             cycleThinkingMode: () => this.cycleThinkingMode(),
-            enqueueSubmission: (text, options) => this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
+            enqueueSubmission: (text, options) =>
+              this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
             getActiveToolSummaries: () => this.getActiveToolSummaries(),
@@ -959,21 +1041,27 @@ export class AgentApp {
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),
-            persistAnsi: text => this.persistAnsi(text)
+            persistAnsi: text => this.persistAnsi(text),
           },
           {
             raw: trimmed,
             invocation: slashCommand.invocation,
             argsText: slashCommand.argsText,
-            argv: slashCommand.argv
-          }
+            argv: slashCommand.argv,
+          },
         );
       } catch (error: unknown) {
-        this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
+        this.persistEntry(
+          EntryKind.Error,
+          plain(error instanceof Error ? error.message : String(error)),
+        );
       } finally {
         this.store.setBusy(false);
 
-        if (previousPlanningMode !== undefined && this.state.planningMode !== previousPlanningMode) {
+        if (
+          previousPlanningMode !== undefined &&
+          this.state.planningMode !== previousPlanningMode
+        ) {
           this.store.setPlanningMode(previousPlanningMode);
           this.store.resetLastUsage();
         }
@@ -996,7 +1084,7 @@ export class AgentApp {
       void syncPromptHistory(auth, {
         createdAt: new Date().toISOString(),
         cwd: process.cwd(),
-        text: trimmed
+        text: trimmed,
       }).catch(() => {});
     }
 
@@ -1027,7 +1115,7 @@ export class AgentApp {
         this.store.setLiveUsage({
           inputTokens: completedPromptTokens > 0 ? completedPromptTokens : estimatedPromptTokens,
           outputTokens: completedOutputTokens + estimateTokenCount(currentStepOutputText),
-          reasoningTokens: completedReasoningTokens + estimateTokenCount(currentStepReasoningText)
+          reasoningTokens: completedReasoningTokens + estimateTokenCount(currentStepReasoningText),
         });
       };
 
@@ -1040,8 +1128,11 @@ export class AgentApp {
         tools: this.getActiveTools(),
         stopWhen: stepCountIs(20),
         abortSignal: abortController.signal,
-        providerOptions: createOpenAIProviderOptions(this.state.currentModel, this.state.thinkingMode),
-        experimental_context: { subagentDepth: 0 }
+        providerOptions: createOpenAIProviderOptions(
+          this.state.currentModel,
+          this.state.thinkingMode,
+        ),
+        experimental_context: { subagentDepth: 0 },
       });
 
       for await (const part of result.fullStream) {
@@ -1067,7 +1158,8 @@ export class AgentApp {
           case 'finish-step':
             completedPromptTokens += part.usage.inputTokens ?? 0;
             completedOutputTokens += part.usage.outputTokens ?? 0;
-            completedReasoningTokens += part.usage.outputTokenDetails.reasoningTokens ?? part.usage.reasoningTokens ?? 0;
+            completedReasoningTokens +=
+              part.usage.outputTokenDetails.reasoningTokens ?? part.usage.reasoningTokens ?? 0;
             currentStepOutputText = '';
             currentStepReasoningText = '';
             syncLiveUsage();
@@ -1075,7 +1167,9 @@ export class AgentApp {
             break;
           case 'tool-call': {
             const fileChanges =
-              part.toolName === 'undo' ? await this.getUndoPreviewFileChanges() : await previewFileChangesForToolCall(part.toolName, part.input);
+              part.toolName === 'undo'
+                ? await this.getUndoPreviewFileChanges()
+                : await previewFileChangesForToolCall(part.toolName, part.input);
             this.store.upsertToolEntry(createPendingToolEntry({ ...part, fileChanges }));
             this.scheduleRender();
             break;
@@ -1083,16 +1177,23 @@ export class AgentApp {
           case 'tool-result': {
             if (part.preliminary) break;
             const existing = this.getToolEntry(part.toolCallId);
-            const completedEntry = createCompletedToolEntry({ ...part, fileChanges: existing?.fileChanges });
+            const completedEntry = createCompletedToolEntry({
+              ...part,
+              fileChanges: existing?.fileChanges,
+            });
             this.store.upsertToolEntry(completedEntry);
             if (completedEntry.fileChanges?.length)
-              await this.refreshSessionFileChanges(completedEntry.fileChanges.map(fileChange => fileChange.path));
+              await this.refreshSessionFileChanges(
+                completedEntry.fileChanges.map(fileChange => fileChange.path),
+              );
             this.scheduleRender();
             break;
           }
           case 'tool-error': {
             const existing = this.getToolEntry(part.toolCallId);
-            this.store.upsertToolEntry(createFailedToolEntry({ ...part, fileChanges: existing?.fileChanges }));
+            this.store.upsertToolEntry(
+              createFailedToolEntry({ ...part, fileChanges: existing?.fileChanges }),
+            );
             this.scheduleRender();
             break;
           }
@@ -1106,28 +1207,86 @@ export class AgentApp {
       this.store.setLastUsage({
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,
-        reasoningTokens: usage.outputTokenDetails.reasoningTokens ?? usage.reasoningTokens
+        reasoningTokens: usage.outputTokenDetails.reasoningTokens ?? usage.reasoningTokens,
       });
 
-      const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), this.state.currentModel, { providerId: 'openai' });
+      const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), this.state.currentModel, {
+        providerId: 'openai',
+      });
 
       if (price) this.store.addTotalCost(price.total_price);
       this.persistLiveOutcome([
-        ...(this.state.liveReasoningText.trim() ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const] : []),
-        ...(this.state.liveAssistantText.trim() ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const] : [])
+        ...(this.state.liveReasoningText.trim()
+          ? [
+              {
+                type: 'entry',
+                kind: EntryKind.Reasoning,
+                text: this.state.liveReasoningText,
+              } as const,
+            ]
+          : []),
+        ...(this.state.liveAssistantText.trim()
+          ? [
+              {
+                type: 'entry',
+                kind: EntryKind.Assistant,
+                text: this.state.liveAssistantText,
+              } as const,
+            ]
+          : []),
       ]);
     } catch (error: unknown) {
       if (abortController.signal.aborted) {
         this.persistLiveOutcome([
-          ...(this.state.liveReasoningText.trim() ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const] : []),
-          ...(this.state.liveAssistantText.trim() ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const] : []),
-          { type: 'entry', kind: EntryKind.Meta, text: this.state.steerRequested ? '(steered)' : '(aborted)' }
+          ...(this.state.liveReasoningText.trim()
+            ? [
+                {
+                  type: 'entry',
+                  kind: EntryKind.Reasoning,
+                  text: this.state.liveReasoningText,
+                } as const,
+              ]
+            : []),
+          ...(this.state.liveAssistantText.trim()
+            ? [
+                {
+                  type: 'entry',
+                  kind: EntryKind.Assistant,
+                  text: this.state.liveAssistantText,
+                } as const,
+              ]
+            : []),
+          {
+            type: 'entry',
+            kind: EntryKind.Meta,
+            text: this.state.steerRequested ? '(steered)' : '(aborted)',
+          },
         ]);
       } else {
         this.persistLiveOutcome([
-          ...(this.state.liveReasoningText.trim() ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const] : []),
-          ...(this.state.liveAssistantText.trim() ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const] : []),
-          { type: 'entry', kind: EntryKind.Error, text: plain(error instanceof Error ? error.message : String(error)) }
+          ...(this.state.liveReasoningText.trim()
+            ? [
+                {
+                  type: 'entry',
+                  kind: EntryKind.Reasoning,
+                  text: this.state.liveReasoningText,
+                } as const,
+              ]
+            : []),
+          ...(this.state.liveAssistantText.trim()
+            ? [
+                {
+                  type: 'entry',
+                  kind: EntryKind.Assistant,
+                  text: this.state.liveAssistantText,
+                } as const,
+              ]
+            : []),
+          {
+            type: 'entry',
+            kind: EntryKind.Error,
+            text: plain(error instanceof Error ? error.message : String(error)),
+          },
         ]);
       }
     } finally {
@@ -1204,7 +1363,13 @@ export class AgentApp {
 
   private requestSteer() {
     const controller = this.state.abortController;
-    if (!this.state.busy || !controller || this.state.queuedSubmissions.length === 0 || this.state.steerRequested) return false;
+    if (
+      !this.state.busy ||
+      !controller ||
+      this.state.queuedSubmissions.length === 0 ||
+      this.state.steerRequested
+    )
+      return false;
 
     this.store.setSteerRequested(true);
     this.store.setAbortRequested(true);
@@ -1228,7 +1393,11 @@ export class AgentApp {
     this.store.resetSelectedSuggestion();
     this.render();
 
-    if (this.state.busy || this.state.queuedSubmissions.length > 0 || this.drainingQueuedSubmissions) {
+    if (
+      this.state.busy ||
+      this.state.queuedSubmissions.length > 0 ||
+      this.drainingQueuedSubmissions
+    ) {
       this.store.enqueueSubmission({ text: raw });
       this.render();
       void this.drainQueuedSubmissions();
@@ -1269,7 +1438,9 @@ export class AgentApp {
     if (suggestions.length === 0) return false;
 
     this.resetPreferredComposerColumn();
-    this.store.setSelectedSuggestion((this.state.selectedSuggestion + delta + suggestions.length) % suggestions.length);
+    this.store.setSelectedSuggestion(
+      (this.state.selectedSuggestion + delta + suggestions.length) % suggestions.length,
+    );
     this.render();
     return true;
   }
@@ -1280,11 +1451,11 @@ export class AgentApp {
         inputChars: this.state.inputChars,
         pasteRanges: this.state.pasteRanges,
         cursor: this.state.cursor,
-        slashCommandLength: this.getSlashCommandLength()
+        slashCommandLength: this.getSlashCommandLength(),
       },
       Math.max(1, frameWidth() - 4),
       delta,
-      this.preferredComposerColumn ?? undefined
+      this.preferredComposerColumn ?? undefined,
     );
 
     if (!next || next.cursor === this.state.cursor) return false;
@@ -1331,7 +1502,11 @@ export class AgentApp {
 
     if (!raw.trim()) return true;
 
-    if (this.state.busy || this.state.queuedSubmissions.length > 0 || this.drainingQueuedSubmissions) {
+    if (
+      this.state.busy ||
+      this.state.queuedSubmissions.length > 0 ||
+      this.drainingQueuedSubmissions
+    ) {
       this.store.enqueueSubmission({ text: raw });
       this.render();
       void this.drainQueuedSubmissions();
@@ -1351,7 +1526,7 @@ export class AgentApp {
 
     return {
       ...option,
-      index: this.state.pendingChoiceIndex
+      index: this.state.pendingChoiceIndex,
     };
   }
 
@@ -1372,7 +1547,8 @@ export class AgentApp {
     if (!this.state.pendingChoice || !binding) return false;
 
     if (binding.type === 'escape') return this.resolvePendingChoice(null);
-    if (binding.type === 'submit') return this.resolvePendingChoice(this.getSelectedPendingChoice());
+    if (binding.type === 'submit')
+      return this.resolvePendingChoice(this.getSelectedPendingChoice());
     if (binding.type === 'moveSuggestion') return this.movePendingChoice(binding.delta);
     if (binding.type !== 'insertText') return true;
 

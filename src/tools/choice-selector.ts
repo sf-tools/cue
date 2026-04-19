@@ -6,7 +6,7 @@ import type { ToolFactoryOptions } from './types';
 const choiceOptionSchema = z.object({
   value: z.string().min(1),
   label: z.string().min(1),
-  detail: z.string().optional()
+  detail: z.string().optional(),
 });
 
 export function createChoiceSelectorTool({ requestChoice }: ToolFactoryOptions) {
@@ -16,8 +16,12 @@ export function createChoiceSelectorTool({ requestChoice }: ToolFactoryOptions) 
     inputSchema: z.object({
       title: z.string().min(1).describe('Short question title shown to the user.'),
       detail: z.string().min(1).describe('Brief context explaining what the choice affects.'),
-      options: z.array(choiceOptionSchema).min(2).max(9).describe('Distinct options the user can choose from.'),
-      recommendedValue: z.string().optional().describe('Optional recommended option value.')
+      options: z
+        .array(choiceOptionSchema)
+        .min(2)
+        .max(9)
+        .describe('Distinct options the user can choose from.'),
+      recommendedValue: z.string().optional().describe('Optional recommended option value.'),
     }),
     execute: async ({ title, detail, options, recommendedValue }) => {
       const seen = new Set<string>();
@@ -28,22 +32,25 @@ export function createChoiceSelectorTool({ requestChoice }: ToolFactoryOptions) 
         return true;
       });
 
-      if (normalizedOptions.length < 2) throw new Error('choice_selector requires at least two distinct options');
+      if (normalizedOptions.length < 2)
+        throw new Error('choice_selector requires at least two distinct options');
 
-      const recommended = normalizedOptions.some(option => option.value === recommendedValue) ? recommendedValue : undefined;
+      const recommended = normalizedOptions.some(option => option.value === recommendedValue)
+        ? recommendedValue
+        : undefined;
       const selection = await requestChoice({
         title: title.trim(),
         detail: detail.trim(),
         options: normalizedOptions,
-        recommendedValue: recommended
+        recommendedValue: recommended,
       });
 
       return {
         value: selection.value,
         label: selection.label,
         detail: selection.detail,
-        index: selection.index
+        index: selection.index,
       };
-    }
+    },
   });
 }

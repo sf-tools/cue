@@ -1,6 +1,12 @@
 import { generateText, type LanguageModelUsage, type ModelMessage } from 'ai';
 
-import { COMPACTION_PROMPT, COMPACTION_RECENT_MESSAGE_COUNT, MODEL, createOpenAIProviderOptions, type ThinkingMode } from '@/config';
+import {
+  COMPACTION_PROMPT,
+  COMPACTION_RECENT_MESSAGE_COUNT,
+  MODEL,
+  createOpenAIProviderOptions,
+  type ThinkingMode,
+} from '@/config';
 import { loadCueCloudModel } from '@/cloud/openai';
 import { plain } from '@/text';
 
@@ -36,7 +42,11 @@ function getConversationMessages(messages: ModelMessage[]) {
   return messages.filter(message => message.role !== 'system');
 }
 
-function resolveTailCount(conversationMessages: ModelMessage[], recentMessageCount: number, force: boolean) {
+function resolveTailCount(
+  conversationMessages: ModelMessage[],
+  recentMessageCount: number,
+  force: boolean,
+) {
   if (!force) return recentMessageCount;
   return Math.min(recentMessageCount, Math.max(0, conversationMessages.length - 1));
 }
@@ -44,35 +54,58 @@ function resolveTailCount(conversationMessages: ModelMessage[], recentMessageCou
 export function canCompactMessages(
   messages: ModelMessage[],
   recentMessageCount = COMPACTION_RECENT_MESSAGE_COUNT,
-  force = false
+  force = false,
 ) {
-  return getConversationMessages(messages).length > resolveTailCount(getConversationMessages(messages), recentMessageCount, force);
+  return (
+    getConversationMessages(messages).length >
+    resolveTailCount(getConversationMessages(messages), recentMessageCount, force)
+  );
 }
 
-export async function compactMessages(messages: ModelMessage[], options: CompactMessagesOptions = {}): Promise<CompactionResult> {
-  const { recentMessageCount = COMPACTION_RECENT_MESSAGE_COUNT, force = false, model = MODEL, thinkingMode = 'auto' } = options;
+export async function compactMessages(
+  messages: ModelMessage[],
+  options: CompactMessagesOptions = {},
+): Promise<CompactionResult> {
+  const {
+    recentMessageCount = COMPACTION_RECENT_MESSAGE_COUNT,
+    force = false,
+    model = MODEL,
+    thinkingMode = 'auto',
+  } = options;
   const systemMessages = getSystemMessages(messages);
   const conversationMessages = getConversationMessages(messages);
   const tailCount = resolveTailCount(conversationMessages, recentMessageCount, force);
   const tail = conversationMessages.slice(-tailCount);
-  const messagesToSummarize = conversationMessages.slice(0, Math.max(0, conversationMessages.length - tail.length));
+  const messagesToSummarize = conversationMessages.slice(
+    0,
+    Math.max(0, conversationMessages.length - tail.length),
+  );
 
-  if (messagesToSummarize.length === 0) throw new Error('not enough conversation history to compact');
+  if (messagesToSummarize.length === 0)
+    throw new Error('not enough conversation history to compact');
 
   const { text, usage } = await generateText({
     model: await loadCueCloudModel(model),
-    messages: [...systemMessages, ...messagesToSummarize, { role: 'user', content: COMPACTION_PROMPT }],
-    providerOptions: createOpenAIProviderOptions(model, thinkingMode)
+    messages: [
+      ...systemMessages,
+      ...messagesToSummarize,
+      { role: 'user', content: COMPACTION_PROMPT },
+    ],
+    providerOptions: createOpenAIProviderOptions(model, thinkingMode),
   });
 
   const summary = extractSummary(text);
-  const compactedMessages: ModelMessage[] = [...systemMessages, { role: 'assistant', content: `<summary>\n${summary}\n</summary>` }, ...tail];
+  const compactedMessages: ModelMessage[] = [
+    ...systemMessages,
+    { role: 'assistant', content: `<summary>\n${summary}\n</summary>` },
+    ...tail,
+  ];
 
   return {
     summary,
     messages: compactedMessages,
     previousMessageCount: messages.length,
     nextMessageCount: compactedMessages.length,
-    usage
+    usage,
   };
 }

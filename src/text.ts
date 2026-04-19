@@ -83,6 +83,6 @@ export function installSegmentContainingPolyfill() {
       }
 
       return undefined;
-    }
+    },
   });
 }

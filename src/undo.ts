@@ -17,7 +17,12 @@ export type UndoEntry = {
 };
 
 function isMissingFileError(error: unknown) {
-  return !!error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'ENOENT';
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'ENOENT'
+  );
 }
 
 export async function readOptionalFile(path: string) {

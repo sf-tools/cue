@@ -23,5 +23,5 @@ export const logoutSlashCommand: SlashCommand = {
     context.persistEntry(EntryKind.Meta, 'logged out');
     context.showFooterNotice('cue cloud disconnected');
     context.cleanup(0);
-  }
+  },
 };

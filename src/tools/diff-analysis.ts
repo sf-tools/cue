@@ -16,7 +16,19 @@ export interface DiffFile {
   hunks: DiffHunk[];
 }
 
-export type FileKind = 'src' | 'test' | 'docs' | 'config' | 'lockfile' | 'deps' | 'ci' | 'infra' | 'migration' | 'security' | 'asset' | 'unknown';
+export type FileKind =
+  | 'src'
+  | 'test'
+  | 'docs'
+  | 'config'
+  | 'lockfile'
+  | 'deps'
+  | 'ci'
+  | 'infra'
+  | 'migration'
+  | 'security'
+  | 'asset'
+  | 'unknown';
 
 const HEADER_DIFF_GIT = /^diff --git a\/(.+?) b\/(.+?)$/;
 const HEADER_OLD = /^---\s+(.+?)$/;
@@ -58,7 +70,7 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
         isRename: match[1] !== match[2],
         additions: 0,
         deletions: 0,
-        hunks: []
+        hunks: [],
       };
       continue;
     }
@@ -75,7 +87,7 @@ export function parseUnifiedDiff(text: string): DiffFile[] {
           isRename: false,
           additions: 0,
           deletions: 0,
-          hunks: []
+          hunks: [],
         };
         continue;
       }
@@ -134,7 +146,7 @@ export function classifyPath(path: string): FileKind {
 
   if (
     /(^|\/)package-lock\.json$|(^|\/)yarn\.lock$|(^|\/)pnpm-lock\.yaml$|(^|\/)cargo\.lock$|(^|\/)gemfile\.lock$|(^|\/)poetry\.lock$|(^|\/)go\.sum$/.test(
-      p
+      p,
     )
   ) {
     return 'lockfile';
@@ -142,7 +154,7 @@ export function classifyPath(path: string): FileKind {
 
   if (
     /(^|\/)package\.json$|(^|\/)requirements[^/]*\.txt$|(^|\/)pipfile$|(^|\/)pyproject\.toml$|(^|\/)go\.mod$|(^|\/)cargo\.toml$|(^|\/)gemfile$/.test(
-      p
+      p,
     )
   ) {
     return 'deps';
@@ -152,21 +164,32 @@ export function classifyPath(path: string): FileKind {
     return 'migration';
   }
 
-  if (/\.test\.[a-z0-9]+$|\.spec\.[a-z0-9]+$|(^|\/)tests?\/|(^|\/)__tests__\/|_test\.go$|_test\.py$/.test(p)) {
+  if (
+    /\.test\.[a-z0-9]+$|\.spec\.[a-z0-9]+$|(^|\/)tests?\/|(^|\/)__tests__\/|_test\.go$|_test\.py$/.test(
+      p,
+    )
+  ) {
     return 'test';
   }
 
   if (/(^|\/)docs?\/|\.md$|\.mdx$|\.rst$|\.adoc$/.test(p)) return 'docs';
   if (/(^|\/)\.github\/|(^|\/)\.gitlab-ci|(^|\/)\.circleci\/|jenkinsfile/.test(p)) return 'ci';
 
-  if (/dockerfile|\.dockerignore|\.tf$|(^|\/)terraform\/|(^|\/)k8s\/|(^|\/)kubernetes\/|(^|\/)helm\//.test(p)) {
+  if (
+    /dockerfile|\.dockerignore|\.tf$|(^|\/)terraform\/|(^|\/)k8s\/|(^|\/)kubernetes\/|(^|\/)helm\//.test(
+      p,
+    )
+  ) {
     return 'infra';
   }
 
   if (/auth|oauth|jwt|session|password|crypto|secret|permission|policy/.test(p)) return 'security';
   if (/\.(png|jpg|jpeg|gif|svg|ico|webp|woff2?|ttf|otf|eot)$/.test(p)) return 'asset';
 
-  if (/\.(ya?ml|toml|ini|cfg|env|conf|json5?)$|\.config\./.test(p) && !/(^|\/)package\.json$/.test(p)) {
+  if (
+    /\.(ya?ml|toml|ini|cfg|env|conf|json5?)$|\.config\./.test(p) &&
+    !/(^|\/)package\.json$/.test(p)
+  ) {
     return 'config';
   }
 

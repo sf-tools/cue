@@ -18,7 +18,7 @@ const defaultVibeXML: Formatters = new Map([
   [isDate, formatDate],
   [isArray, formatArray],
   [isObject, formatObject],
-  [isAny, formatAny]
+  [isAny, formatAny],
 ]);
 
 interface VibeXMLOptions {
@@ -31,7 +31,8 @@ export const vibeXML = (options?: VibeXMLOptions): Formatters => {
   if (options.formatters) {
     const mergedFormatters = new Map<Predicate, Formatter>();
 
-    for (const [predicate, formatter] of options.formatters) mergedFormatters.set(predicate, formatter);
+    for (const [predicate, formatter] of options.formatters)
+      mergedFormatters.set(predicate, formatter);
     for (const [predicate, formatter] of defaultVibeXML) mergedFormatters.set(predicate, formatter);
 
     return mergedFormatters;
