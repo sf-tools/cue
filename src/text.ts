@@ -5,6 +5,21 @@ export const widthOf = (s: string) => stringWidth(stripAnsi(s));
 export const repeat = (ch: string, count: number) => ch.repeat(Math.max(0, count));
 export const plain = (s: string) => stripAnsi(s).replace(/\r/g, '');
 
+export function truncateToWidth(text: string, maxWidth: number) {
+  if (maxWidth <= 0) return '';
+  if (widthOf(text) <= maxWidth) return text;
+  if (maxWidth === 1) return '…';
+
+  let out = '';
+
+  for (const ch of Array.from(text)) {
+    if (widthOf(`${out}${ch}…`) > maxWidth) break;
+    out += ch;
+  }
+
+  return `${out}…`;
+}
+
 export function normalizePtyOutput(text: string) {
   return text.replace(/\r\n/g, '\n').replace(/\r/g, '');
 }

@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 
-import { plain } from '@/text';
+import { plain, truncateToWidth, widthOf } from '@/text';
 import { formatDiffStat } from '@/file-changes';
 import { panelize, wrapTextBlock } from '@/render/layout';
 import { blankLine, line, span } from '@/render/primitives';
@@ -182,11 +182,15 @@ export function renderToolCard({ name, detail, body = [], bodyBlock = [], status
   const statusLabel = status === 'failed' ? 'failed' : status === 'running' ? `${ctx.spinnerFrame} running` : 'done';
   const bodyStyle = status === 'failed' ? chalk.redBright : ctx.theme.dimmed;
   const width = Math.max(1, ctx.width - 4);
+  const headerPrefixWidth = widthOf(`⌁ ${name}`);
+  const headerSuffixWidth = widthOf(` · ${statusLabel}`);
+  const detailWidth = detail ? Math.max(0, width - headerPrefixWidth - headerSuffixWidth - widthOf(' · ')) : 0;
+  const visibleDetail = detail ? truncateToWidth(detail, detailWidth) : '';
 
   const header = line(
     span('⌁ ', ctx.theme.subtle),
     span(name, ctx.theme.foreground),
-    ...(detail ? [span(' · ', ctx.theme.subtle), span(detail, ctx.theme.dimmed)] : []),
+    ...(visibleDetail ? [span(' · ', ctx.theme.subtle), span(visibleDetail, ctx.theme.dimmed)] : []),
     span(' · ', ctx.theme.subtle),
     span(statusLabel, statusStyle)
   );

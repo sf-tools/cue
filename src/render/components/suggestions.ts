@@ -1,24 +1,9 @@
 import { LEFT_MARGIN } from '../layout';
 import { line, span } from '../primitives';
-import { repeat, widthOf } from '@/text';
+import { repeat, truncateToWidth, widthOf } from '@/text';
 
 import type { Block, RenderContext } from '../types';
 import type { ComposerSuggestion } from '@/agent/composer-suggestions';
-
-function truncateToWidth(text: string, maxWidth: number) {
-  if (maxWidth <= 0) return '';
-  if (widthOf(text) <= maxWidth) return text;
-  if (maxWidth === 1) return '…';
-
-  let out = '';
-
-  for (const ch of Array.from(text)) {
-    if (widthOf(`${out}${ch}…`) > maxWidth) break;
-    out += ch;
-  }
-
-  return `${out}…`;
-}
 
 export function renderSuggestions(suggestions: ComposerSuggestion[], selectedSuggestion: number, ctx: RenderContext): Block {
   if (suggestions.length === 0) return [];
