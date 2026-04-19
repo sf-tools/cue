@@ -630,7 +630,7 @@ export class AgentApp {
       if (abortController.signal.aborted) {
         if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
-        this.persistEntry(EntryKind.Meta, '(aborted)');
+        this.persistEntry(EntryKind.Meta, this.state.steerRequested ? '(steered)' : '(aborted)');
       } else {
         if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
         if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
@@ -698,16 +698,31 @@ export class AgentApp {
     return true;
   }
 
+  private requestSteer() {
+    const controller = this.state.abortController;
+    if (!this.state.busy || !controller || this.state.queuedSubmissions.length === 0 || this.state.steerRequested) return false;
+
+    this.store.setSteerRequested(true);
+    this.store.setAbortRequested(true);
+    controller.abort();
+    this.render();
+    return true;
+  }
+
   private async submit() {
     const raw = this.state.inputChars.join('');
     const trimmed = raw.trim();
+
+    if (!trimmed) {
+      if (this.requestSteer()) return;
+      return;
+    }
+
     this.clearHistoryNavigation();
     this.resetPreferredComposerColumn();
     this.store.resetComposer();
     this.store.resetSelectedSuggestion();
     this.render();
-
-    if (!trimmed) return;
 
     if (this.state.busy || this.state.queuedSubmissions.length > 0 || this.drainingQueuedSubmissions) {
       this.store.enqueueSubmission(raw);

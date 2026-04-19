@@ -204,10 +204,13 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
         : slashMode
           ? span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground)
           : span('→', ctx.theme.foreground);
+  const promptWidth = widthOf(prompt.text);
+  const hintWidth = capabilitiesHint ? capabilitiesWidth + 1 : 0;
+  const placeholderFill = (occupiedWidth: number) => repeat(' ', Math.max(0, contentWidth + 1 - occupiedWidth - hintWidth));
 
   if (state.inputChars.length === 0) {
     const label = 'Plan, search, build anything';
-    const fill = repeat(' ', Math.max(0, contentWidth - 1 - widthOf(label) - (capabilitiesHint ? capabilitiesWidth + 1 : 0)));
+    const fill = placeholderFill(promptWidth + 1 + widthOf(label));
 
     return {
       nextScrollOffset: state.scrollOffset,
@@ -232,7 +235,7 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
 
   if (shellMode && state.inputChars.length === 1) {
     const label = 'Run a command — e.g., npm install';
-    const fill = repeat(' ', Math.max(0, contentWidth - 1 - widthOf(label) - (capabilitiesHint ? capabilitiesWidth + 1 : 0)));
+    const fill = placeholderFill(promptWidth + 2 + widthOf(label));
 
     return {
       nextScrollOffset: 0,
@@ -256,7 +259,7 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   }
 
   if (slashMode && state.inputChars.length === 1) {
-    const fill = repeat(' ', Math.max(0, contentWidth - 1 - (capabilitiesHint ? capabilitiesWidth + 1 : 0)));
+    const fill = placeholderFill(promptWidth + 2);
 
     return {
       nextScrollOffset: state.scrollOffset,

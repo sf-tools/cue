@@ -24,6 +24,7 @@ export const createInitialState = (): AgentState => ({
   abortController: null,
   abortConfirmationPending: false,
   abortRequested: false,
+  steerRequested: false,
   exitConfirmationPending: false,
   pendingApproval: null,
   footerNotice: null,

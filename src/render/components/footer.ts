@@ -69,13 +69,15 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
   const notice = state.exitConfirmationPending
     ? line(span(LEFT_MARGIN), span('Press Ctrl+C again to exit', chalk.redBright))
-    : state.abortRequested
-      ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
-      : state.abortConfirmationPending
-        ? line(span(LEFT_MARGIN), span('Press Esc again to abort', chalk.redBright))
-        : state.footerNotice
-          ? line(span(LEFT_MARGIN), span(state.footerNotice, chalk.hex('#8ab4ff')))
-          : null;
+    : state.steerRequested
+      ? line(span(LEFT_MARGIN), span(['Steering…', queued].filter(Boolean).join(' · '), chalk.yellow))
+      : state.abortRequested
+        ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
+        : state.abortConfirmationPending
+          ? line(span(LEFT_MARGIN), span('Press Esc again to abort', chalk.redBright))
+          : state.footerNotice
+            ? line(span(LEFT_MARGIN), span(state.footerNotice, chalk.hex('#8ab4ff')))
+            : null;
 
   return [
     line(),

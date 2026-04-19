@@ -142,7 +142,8 @@ function renderToolEntry(text: string, ctx: RenderContext): Block {
 }
 
 function renderMetaEntry(text: string, ctx: RenderContext): Block {
-  return indent(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.dimmed), LEFT_MARGIN);
+  const style = text === '(steered)' ? (value: string) => chalk.italic(ctx.theme.dimmed(value)) : ctx.theme.dimmed;
+  return indent(wrapTextBlock(text, Math.max(1, ctx.width - 2), style), LEFT_MARGIN);
 }
 
 function renderCompactedEntry(entry: Extract<HistoryEntry, { type: 'compacted' }>, ctx: RenderContext): Block {

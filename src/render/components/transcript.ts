@@ -17,9 +17,9 @@ function clipPreviewText(text: string, ctx: RenderContext, maxLines: number) {
   return `…${text.slice(-maxChars)}`;
 }
 
-function renderAbortedMetaLine(ctx: RenderContext) {
-  const text = '(aborted)';
-  return line(span(LEFT_MARGIN), span(repeat(' ', Math.max(0, ctx.width - widthOf(text)))), span(text, ctx.theme.dimmed));
+function renderTerminalMetaLine(text: string, ctx: RenderContext) {
+  const style = text === '(steered)' ? (value: string) => chalk.italic(ctx.theme.dimmed(value)) : ctx.theme.dimmed;
+  return line(span(LEFT_MARGIN), span(repeat(' ', Math.max(0, ctx.width - widthOf(text)))), span(text, style));
 }
 
 function isDynamicHistoryEntry(entry: HistoryEntry) {
@@ -53,9 +53,9 @@ function renderTranscriptBlocks(entries: HistoryEntry[], ctx: RenderContext): Bl
       entry.kind === EntryKind.Assistant &&
       next?.type === 'entry' &&
       next.kind === EntryKind.Meta &&
-      next.text === '(aborted)'
+      ['(aborted)', '(steered)'].includes(next.text)
     ) {
-      blocks.push([...renderCachedHistoryEntry(entry, ctx), renderAbortedMetaLine(ctx)]);
+      blocks.push([...renderCachedHistoryEntry(entry, ctx), renderTerminalMetaLine(next.text, ctx)]);
       index += 1;
       continue;
     }
@@ -82,11 +82,11 @@ export function renderTranscript(entries: HistoryEntry[], ctx: RenderContext, ma
     if (
       entry.type === 'entry' &&
       entry.kind === EntryKind.Meta &&
-      entry.text === '(aborted)' &&
+      ['(aborted)', '(steered)'].includes(entry.text) &&
       previous?.type === 'entry' &&
       previous.kind === EntryKind.Assistant
     ) {
-      block = [...renderCachedHistoryEntry(previous, ctx), renderAbortedMetaLine(ctx)];
+      block = [...renderCachedHistoryEntry(previous, ctx), renderTerminalMetaLine(entry.text, ctx)];
       index -= 1;
     } else block = renderCachedHistoryEntry(entry, ctx);
 

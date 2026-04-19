@@ -116,6 +116,7 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       if (abortController === null) {
         state.abortConfirmationPending = false;
         state.abortRequested = false;
+        state.steerRequested = false;
       }
       return state;
     },
@@ -127,6 +128,11 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setAbortRequested(abortRequested: boolean) {
       state.abortRequested = abortRequested;
+      return state;
+    },
+
+    setSteerRequested(steerRequested: boolean) {
+      state.steerRequested = steerRequested;
       return state;
     },
 

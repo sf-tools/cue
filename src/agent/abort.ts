@@ -10,6 +10,7 @@ export function createAbortController(store: AgentStore) {
 export function resetAbortState(store: AgentStore) {
   store.setAbortConfirmationPending(false);
   store.setAbortRequested(false);
+  store.setSteerRequested(false);
 }
 
 export function handleAbortKeypress(store: AgentStore) {
