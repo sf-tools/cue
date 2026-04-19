@@ -10,7 +10,7 @@ export const SYSTEM_PROMPT = xml({
   },
   context: {
     workspace: process.cwd(),
-    capabilities: ['read files', 'write files', 'run shell commands', 'search the web'],
+    capabilities: ['read files', 'write files', 'search workspace with ripgrep', 'run shell commands', 'search the web'],
     responseStyle: 'brief'
   },
   task: 'Help the user build and refine this project using the available tools.',

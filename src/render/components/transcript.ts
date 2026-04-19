@@ -29,17 +29,25 @@ export function renderTranscript(entries: HistoryEntry[], ctx: RenderContext, ma
   return blocks.reverse().flat();
 }
 
-export function renderOutputPreview(text: string, ctx: RenderContext, abortConfirmationPending = false, abortRequested = false): Block {
-  if (!text && !abortConfirmationPending && !abortRequested) return [];
+export function renderOutputPreview(
+  text: string,
+  ctx: RenderContext,
+  abortConfirmationPending = false,
+  abortRequested = false,
+  exitConfirmationPending = false
+): Block {
+  if (!text && !abortConfirmationPending && !abortRequested && !exitConfirmationPending) return [];
 
   const maxLines = Math.max(3, ctx.height - 12);
   const previewText = text ? clipPreviewText(text, ctx, maxLines) : '';
   const preview = previewText ? renderHistoryEntry({ type: 'entry', kind: EntryKind.Assistant, text: previewText }, ctx) : [];
-  const notice = abortRequested
-    ? [line(span(' '), span('Aborting…', chalk.redBright)), blankLine()]
-    : abortConfirmationPending
-      ? [line(span(' '), span('Press Esc again to abort', chalk.redBright)), blankLine()]
-      : [];
+  const notice = exitConfirmationPending
+    ? [line(span(' '), span('Press Ctrl+C again to exit', chalk.redBright)), blankLine()]
+    : abortRequested
+      ? [line(span(' '), span('Aborting…', chalk.redBright)), blankLine()]
+      : abortConfirmationPending
+        ? [line(span(' '), span('Press Esc again to abort', chalk.redBright)), blankLine()]
+        : [];
 
   return [...takeLast(preview, maxLines), ...notice];
 }

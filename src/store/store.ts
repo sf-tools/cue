@@ -65,6 +65,11 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
+    setExitConfirmationPending(exitConfirmationPending: boolean) {
+      state.exitConfirmationPending = exitConfirmationPending;
+      return state;
+    },
+
     setLiveAssistantText(text: string) {
       state.liveAssistantText = text;
       return state;

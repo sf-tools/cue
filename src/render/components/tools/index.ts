@@ -3,6 +3,7 @@ import type { Block, RenderContext } from '@/render/types';
 import { renderBashTool } from './bash';
 import { renderEditTool } from './edit';
 import { renderReadTool } from './read';
+import { renderRipgrepTool } from './ripgrep';
 import { renderWriteTool } from './write';
 import { renderGenericTool } from './generic';
 import { renderWebSearchTool } from './web-search';
@@ -11,6 +12,7 @@ const renderers: Record<string, (entry: ToolHistoryEntry, ctx: RenderContext) =>
   bash: renderBashTool,
   edit: renderEditTool,
   read: renderReadTool,
+  ripgrep: renderRipgrepTool,
   write: renderWriteTool,
   web_search: renderWebSearchTool
 };

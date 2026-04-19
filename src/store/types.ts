@@ -17,4 +17,5 @@ export type AgentState = {
   abortController: AbortController | null;
   abortConfirmationPending: boolean;
   abortRequested: boolean;
+  exitConfirmationPending: boolean;
 };

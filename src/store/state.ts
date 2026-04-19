@@ -16,5 +16,6 @@ export const createInitialState = (): AgentState => ({
   totalCost: 0,
   abortController: null,
   abortConfirmationPending: false,
-  abortRequested: false
+  abortRequested: false,
+  exitConfirmationPending: false
 });

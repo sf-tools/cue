@@ -85,8 +85,7 @@ export class AgentApp {
     if (code === 0) {
       const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
       const header = serializeBlock(renderHeader(ctx)).join('\n');
-      // TODO: wire this in
-      process.stdout.write(`${header}\n To resume this session: cue --resume=${this.sessionId}\n\n`);
+      process.stdout.write(this.hasResumableSession() ? `${header}\n To resume this session: cue --resume=${this.sessionId}\n\n` : `${header}`);
     }
 
     process.exit(code);
@@ -150,6 +149,14 @@ export class AgentApp {
 
     this.performRender();
   };
+
+  private hasResumableSession() {
+    return this.state.historyEntries.length > 0;
+  }
+
+  private shouldConfirmExit() {
+    return this.hasResumableSession();
+  }
 
   private persistEntry(kind: EntryKind, text: string) {
     if (!text.trim()) return;
@@ -407,6 +414,12 @@ export class AgentApp {
   }
 
   private handleEscape() {
+    if (this.state.exitConfirmationPending) {
+      this.store.setExitConfirmationPending(false);
+      this.render();
+      return;
+    }
+
     if (handleAbortKeypress(this.store)) {
       this.render();
       return;
@@ -434,6 +447,17 @@ export class AgentApp {
     if (!binding) return;
 
     if (binding.type === 'interrupt') {
+      if (!this.shouldConfirmExit()) {
+        this.cleanup(0);
+        return;
+      }
+
+      if (!this.state.exitConfirmationPending) {
+        this.store.setExitConfirmationPending(true);
+        this.render();
+        return;
+      }
+
       this.cleanup(0);
       return;
     }
@@ -442,6 +466,8 @@ export class AgentApp {
       this.handleEscape();
       return;
     }
+
+    if (this.state.exitConfirmationPending) this.store.setExitConfirmationPending(false);
 
     if (this.state.abortConfirmationPending) {
       this.store.setAbortConfirmationPending(false);

@@ -40,7 +40,13 @@ export function createRenderContext(
 
 export function renderScreen(state: AgentState, ctx: RenderContext, suggestions: string[], previousFrame: Frame | null = null) {
   const header = renderHeader(ctx);
-  const preview = renderOutputPreview(state.liveAssistantText, ctx, state.abortConfirmationPending, state.abortRequested);
+  const preview = renderOutputPreview(
+    state.liveAssistantText,
+    ctx,
+    state.abortConfirmationPending,
+    state.abortRequested,
+    state.exitConfirmationPending
+  );
   const composer = renderComposer({ inputChars: state.inputChars, cursor: state.cursor, scrollOffset: state.scrollOffset }, ctx);
   const suggestionLines = renderSuggestions(suggestions, state.selectedSuggestion, ctx);
   const footer = renderFooter(state, ctx);
