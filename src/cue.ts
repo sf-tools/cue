@@ -5,11 +5,10 @@ import { CueLoginCancelledError, ensureCueCloudLogin } from '@/cloud/login-gate'
 const cli = handleCliArgs();
 
 if (cli.kind === 'exit') process.exit(cli.code);
-if (cli.kind === 'headless-json') process.exit(await runJsonHeadlessMode(cli));
 
 try {
   await ensureCueCloudLogin();
-  if (process.stdout.isTTY) process.stdout.write('\u001b[2J\u001b[H');
+  if (cli.kind !== 'headless-json' && process.stdout.isTTY) process.stdout.write('\u001b[2J\u001b[H');
 } catch (error) {
   if (error instanceof CueLoginCancelledError) {
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[2J\u001b[H');
@@ -20,6 +19,8 @@ try {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 }
+
+if (cli.kind === 'headless-json') process.exit(await runJsonHeadlessMode(cli));
 
 const resumeId = cli.kind === 'start' ? cli.resumeId : undefined;
 const resumeSnapshot = resumeId ? await import('@/agent/session-storage').then(module => module.loadCueSessionSnapshot(resumeId)) : null;

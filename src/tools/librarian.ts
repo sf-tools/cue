@@ -1,8 +1,8 @@
-import { openai } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool, type ModelMessage } from 'ai';
 import { z } from 'zod';
 
 import { createOpenAIProviderOptions, SYSTEM_PROMPT } from '@/config';
+import { loadCueCloudModel } from '@/cloud/openai';
 import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
 
@@ -523,7 +523,7 @@ export function createLibrarianTool(options: ToolFactoryOptions) {
 
       try {
         const result = await generateText({
-          model: openai(model),
+          model: await loadCueCloudModel(model),
           system: `${SYSTEM_PROMPT}\n\n<librarian>\n- You are Cue's GitHub librarian subagent.\n- Explore repositories using only the provided GitHub tools.\n- Prefer list_directory_github before broad reads.\n- Use search_github to find likely files, then read_github to inspect them.\n- Use diff and commit_search for history questions.\n- If no repository is provided, use list_repositories first to identify candidates.\n- Final answer format: Verdict, Findings, Evidence, Recommended next step.\n</librarian>`,
           prompt,
           tools,

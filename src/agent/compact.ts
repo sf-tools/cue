@@ -1,7 +1,7 @@
-import { openai } from '@ai-sdk/openai';
 import { generateText, type LanguageModelUsage, type ModelMessage } from 'ai';
 
 import { COMPACTION_PROMPT, COMPACTION_RECENT_MESSAGE_COUNT, MODEL, createOpenAIProviderOptions, type ThinkingMode } from '@/config';
+import { loadCueCloudModel } from '@/cloud/openai';
 import { plain } from '@/text';
 
 export type CompactMessagesOptions = {
@@ -60,7 +60,7 @@ export async function compactMessages(messages: ModelMessage[], options: Compact
   if (messagesToSummarize.length === 0) throw new Error('not enough conversation history to compact');
 
   const { text, usage } = await generateText({
-    model: openai(model),
+    model: await loadCueCloudModel(model),
     messages: [...systemMessages, ...messagesToSummarize, { role: 'user', content: COMPACTION_PROMPT }],
     providerOptions: createOpenAIProviderOptions(model, thinkingMode)
   });

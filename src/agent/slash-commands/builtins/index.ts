@@ -4,8 +4,10 @@ import { quitSlashCommand } from './exit';
 import { logoutSlashCommand } from './logout';
 import { modelSlashCommand } from './model';
 import { planningSlashCommand } from './planning';
+import { privateSlashCommand } from './private';
 import { reasoningSlashCommand } from './reasoning';
 import { reviewSlashCommand } from './review';
+import { shareSlashCommand } from './share';
 import { toggleAutoCompactSlashCommand } from './toggle-auto-compact';
 
 export const builtinSlashCommands = [
@@ -14,8 +16,10 @@ export const builtinSlashCommands = [
   logoutSlashCommand,
   modelSlashCommand,
   planningSlashCommand,
+  privateSlashCommand,
   reasoningSlashCommand,
   reviewSlashCommand,
+  shareSlashCommand,
   toggleAutoCompactSlashCommand,
   quitSlashCommand
 ];

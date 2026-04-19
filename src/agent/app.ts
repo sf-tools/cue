@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
-import { openai } from '@ai-sdk/openai';
 import { randomUUID } from 'node:crypto';
 import { refreshGitBranch } from '@/git';
 import { readFile } from 'node:fs/promises';
@@ -22,7 +21,8 @@ import { compactMessages, canCompactMessages } from './compact';
 import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
 import { renderQueuedSubmissions } from '@/render/components/queued';
-import { syncPromptHistory, syncSessionSnapshot } from '@/cloud/client';
+import { makeCueThreadPrivate, shareCueThread, syncPromptHistory, syncSessionSnapshot } from '@/cloud/client';
+import { loadCueCloudModel, requireCueCloudAuth } from '@/cloud/openai';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
 import { createFileChange, previewFileChangesForToolCall } from '@/file-changes';
@@ -520,6 +520,18 @@ export class AgentApp {
     } catch {}
   }
 
+  private async shareCurrentThread() {
+    await this.persistSessionSnapshot();
+    const auth = await requireCueCloudAuth();
+    return shareCueThread(auth, this.sessionId);
+  }
+
+  private async makeCurrentThreadPrivate() {
+    await this.persistSessionSnapshot();
+    const auth = await requireCueCloudAuth();
+    return makeCueThreadPrivate(auth, this.sessionId);
+  }
+
   private scheduleSessionSnapshot() {
     if (this.sessionSaveTimer) clearTimeout(this.sessionSaveTimer);
 
@@ -898,6 +910,8 @@ export class AgentApp {
             enqueueSubmission: (text, options) => this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
+            shareCurrentThread: () => this.shareCurrentThread(),
+            makeCurrentThreadPrivate: () => this.makeCurrentThreadPrivate(),
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),
@@ -977,7 +991,7 @@ export class AgentApp {
       this.render();
 
       const result = streamText({
-        model: openai(this.state.currentModel),
+        model: await loadCueCloudModel(this.state.currentModel),
         messages: runtimeMessages,
         tools: this.getActiveTools(),
         stopWhen: stepCountIs(20),

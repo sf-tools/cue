@@ -72,6 +72,8 @@ function printHelp() {
       ['/model', 'Switch models'],
       ['/reasoning', 'Adjust reasoning level'],
       ['/planning', 'Toggle read-only planning mode'],
+      ['/share', 'Share the current thread'],
+      ['/private', 'Make the current thread private'],
       ['/review', 'Run a read-only codebase review'],
       ['/compact', 'Summarize the conversation to save context'],
       ['/exit', 'Quit Cue']

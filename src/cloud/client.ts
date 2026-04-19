@@ -89,3 +89,26 @@ export async function syncSessionSnapshot(
     method: 'PUT'
   });
 }
+
+export async function shareCueThread(auth: CueCloudAuth, sessionId: string) {
+  return request<{ share: { shareId: string; sharedAt: string; url: string } }>(
+    joinUrl(auth.baseUrl, `/api/cli/sessions/${encodeURIComponent(sessionId)}/share`),
+    {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      method: 'POST'
+    }
+  );
+}
+
+export async function makeCueThreadPrivate(auth: CueCloudAuth, sessionId: string) {
+  return request<{ ok: true }>(joinUrl(auth.baseUrl, `/api/cli/sessions/${encodeURIComponent(sessionId)}/share`), {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    method: 'DELETE'
+  });
+}

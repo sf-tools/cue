@@ -1,8 +1,8 @@
-import { openai } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool, type ModelMessage } from 'ai';
 import { z } from 'zod';
 
 import { createOpenAIProviderOptions, SYSTEM_PROMPT } from '@/config';
+import { loadCueCloudModel } from '@/cloud/openai';
 import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
 import { createReadTool } from './read';
@@ -135,7 +135,7 @@ export function createSubagentTool(options: ToolFactoryOptions) {
 
       try {
         const result = await generateText({
-          model: openai(model),
+          model: await loadCueCloudModel(model),
           system: getSubagentSystemPrompt(mode),
           prompt: delegatedPrompt,
           tools,

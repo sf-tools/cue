@@ -2,7 +2,6 @@ import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 
 import { calcPrice } from '@pydantic/genai-prices';
-import { openai } from '@ai-sdk/openai';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 
 import { runUserShell } from '@/agent/shell';
@@ -16,6 +15,7 @@ import {
   type ThinkingMode
 } from '@/config';
 import { createTools } from '@/tools';
+import { loadCueCloudModel } from '@/cloud/openai';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import type { JsonCliResult } from '@/cli';
 import type { ApprovalRequest, ChoiceRequest, ChoiceSelection } from '@/types';
@@ -321,7 +321,7 @@ export async function runJsonHeadlessMode(options: JsonCliResult): Promise<numbe
       const messages: ModelMessage[] = [...createInitialMessages(), { role: 'user', content: await expandPrompt(prompt) }];
 
       const result = streamText({
-        model: openai(model),
+        model: await loadCueCloudModel(model),
         messages: getRuntimeMessages(messages, planningMode),
         tools: getActiveTools(tools, planningMode),
         stopWhen: stepCountIs(20),

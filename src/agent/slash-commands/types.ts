@@ -21,6 +21,8 @@ export type SlashCommandContext = {
   enqueueSubmission(text: string, options?: { planningMode?: boolean }): void;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
+  shareCurrentThread(): Promise<{ share: { shareId: string; sharedAt: string; url: string } }>;
+  makeCurrentThreadPrivate(): Promise<{ ok: true }>;
   render(): void;
   persistEntry(kind: EntryKind, text: string): void;
   persistPlain(text: string): void;

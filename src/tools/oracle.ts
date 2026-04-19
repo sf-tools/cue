@@ -1,10 +1,10 @@
 import dedent from 'dedent';
 
-import { openai } from '@ai-sdk/openai';
 import { generateText, stepCountIs, tool, type ToolSet } from 'ai';
 import { z } from 'zod';
 
 import { createOpenAIProviderOptions, type ThinkingMode } from '@/config';
+import { loadCueCloudModel } from '@/cloud/openai';
 import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
 
@@ -51,7 +51,7 @@ export function createOracleTool(options: ToolFactoryOptions, inspectionTools: T
 
       try {
         const { text } = await generateText({
-          model: openai(model),
+          model: await loadCueCloudModel(model),
           tools: inspectionTools,
           stopWhen: stepCountIs(8),
           system: dedent`
