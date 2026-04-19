@@ -919,7 +919,7 @@ export class AgentApp {
   private getRuntimeMessages(
     messages: ModelMessage[] = this.state.messages,
     planningMode = this.state.planningMode,
-  ) {
+  ): ModelMessage[] {
     if (!planningMode) return messages;
 
     const planningModePrompt = [
@@ -938,7 +938,7 @@ export class AgentApp {
       return [{ ...first, content: `${first.content}\n\n${planningModePrompt}` }, ...rest];
     }
 
-    return [{ role: 'system', content: planningModePrompt }, ...messages];
+    return [{ role: 'system' as const, content: planningModePrompt }, ...messages];
   }
 
   private cycleThinkingMode() {
