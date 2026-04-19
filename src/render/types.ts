@@ -38,6 +38,7 @@ export type RenderContext = {
   cwd: string;
   gitBranch: string | null;
   spinnerFrame: string;
+  commandSpinnerFrame: string;
   theme: ThemePalette;
 };
 

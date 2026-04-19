@@ -9,6 +9,7 @@ export type AgentState = {
   cursor: number;
   scrollOffset: number;
   busy: boolean;
+  busyStatusText: string | null;
   closed: boolean;
   liveAssistantText: string;
   selectedSuggestion: number;

@@ -24,6 +24,7 @@ export class AgentApp {
   private readonly store = createAgentStore();
   private readonly theme = createTheme();
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
+  private readonly commandSpinner = ora({ spinner: 'dots3', color: 'yellow', isEnabled: false });
 
   private readonly log = createLogUpdate(process.stdout, {
     showCursor: false,
@@ -84,7 +85,7 @@ export class AgentApp {
     this.log.done();
 
     if (code === 0) {
-      const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
+      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
       const header = serializeBlock(renderHeader(ctx)).join('\n');
       process.stdout.write(this.hasResumableSession() ? `${header}\n To resume this session: cue --resume=${this.sessionId}\n\n` : `${header}`);
     }
@@ -130,7 +131,7 @@ export class AgentApp {
     if (this.state.closed) return;
 
     const suggestions = this.normalizeSuggestions();
-    const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
+    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
     const { frame, diff, nextScrollOffset } = renderScreen(this.state, ctx, suggestions, this.getSlashCommandLength(), this.previousFrame);
 
     if (nextScrollOffset !== this.state.scrollOffset) this.store.setScrollOffset(nextScrollOffset);
@@ -201,6 +202,9 @@ export class AgentApp {
   }
 
   private async runShellCommand(cmd: string) {
+    const trimmedCommand = cmd.trim();
+    this.persistEntry(EntryKind.Shell, trimmedCommand);
+    this.store.setBusyStatusText(trimmedCommand);
     this.store.setBusy(true);
     this.render();
 
@@ -208,9 +212,15 @@ export class AgentApp {
       const { output, exitCode } = await runUserShell(cmd);
       const trimmed = output.trimEnd();
 
+      this.store.updateLastHistoryEntry(entry =>
+        entry.type === 'entry' && entry.kind === EntryKind.Shell && entry.text === trimmedCommand
+          ? { ...entry, text: `${trimmedCommand} exit ${exitCode}` }
+          : entry
+      );
+      this.render();
+
       if (trimmed) this.persistAnsi(trimmed);
       else if (exitCode === 0) this.persistPlain('(no output)');
-      else this.persistEntry(EntryKind.Error, `command exited with code ${exitCode}`);
     } catch (error: unknown) {
       this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
     } finally {
@@ -255,6 +265,10 @@ export class AgentApp {
         return;
       }
 
+      this.store.setBusyStatusText(`/${slashCommand.invocation}`);
+      this.store.setBusy(true);
+      this.render();
+
       try {
         await slashCommand.command.execute(
           {
@@ -274,13 +288,16 @@ export class AgentApp {
         );
       } catch (error: unknown) {
         this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
+      } finally {
+        this.store.setBusy(false);
+        this.render();
+        void this.drainQueuedSubmissions();
       }
 
       return;
     }
 
     if (trimmed.startsWith('!')) {
-      this.persistEntry(EntryKind.Shell, trimmed.slice(1).trimStart());
       await this.runShellCommand(trimmed.slice(1));
       return;
     }

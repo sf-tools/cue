@@ -2,7 +2,7 @@ import chalk from 'chalk';
 
 import { EntryKind, type HistoryEntry } from '@/types';
 import { LEFT_MARGIN, indent, thinPanelize, wrapTextBlock } from '../layout';
-import { rawBlock, span } from '../primitives';
+import { line, rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
 import type { Block, RenderContext } from '../types';
@@ -19,11 +19,35 @@ function renderAssistantEntry(text: string, ctx: RenderContext): Block {
 }
 
 function renderShellEntry(text: string, ctx: RenderContext): Block {
-  return indent(
-    wrapTextBlock(text, Math.max(1, ctx.width - 4), ctx.theme.foreground),
-    [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
-    `${LEFT_MARGIN}  `
-  );
+  const match = text.match(/^(.*?)(\s+exit\s+\d+)$/);
+
+  if (!match) {
+    return indent(
+      wrapTextBlock(text, Math.max(1, ctx.width - 4), ctx.theme.foreground),
+      [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
+      `${LEFT_MARGIN}  `
+    );
+  }
+
+  const [, command, exitText] = match;
+  const availableWidth = Math.max(1, ctx.width - 4);
+  const commandLines = wrapTextBlock(command, availableWidth, ctx.theme.foreground);
+  const lastLine = commandLines.pop();
+
+  if (!lastLine) {
+    return indent(
+      wrapTextBlock(text, availableWidth, ctx.theme.foreground),
+      [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
+      `${LEFT_MARGIN}  `
+    );
+  }
+
+  const block = [
+    ...commandLines,
+    line(...lastLine.segments, span(exitText, ctx.theme.dimmed))
+  ];
+
+  return indent(block, [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)], `${LEFT_MARGIN}  `);
 }
 
 function renderErrorEntry(text: string, ctx: RenderContext): Block {

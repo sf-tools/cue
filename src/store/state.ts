@@ -9,6 +9,7 @@ export const createInitialState = (): AgentState => ({
   cursor: 0,
   scrollOffset: 0,
   busy: false,
+  busyStatusText: null,
   closed: false,
   liveAssistantText: '',
   selectedSuggestion: 0,

@@ -102,12 +102,11 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   }
 
   if (slashMode && state.inputChars.length === 1) {
-    const label = 'Plan, search, build anything';
-    const fill = repeat(' ', Math.max(0, contentWidth - 1 - widthOf(label)));
+    const fill = repeat(' ', Math.max(0, contentWidth - 1));
 
     return {
       nextScrollOffset: state.scrollOffset,
-      block: thinPanelize([line(prompt, span(' '), span('P', chalk.inverse), span(label.slice(1), ctx.theme.dimmed), span(fill))], {
+      block: thinPanelize([line(prompt, span(' '), span(' ', chalk.inverse), span(fill))], {
         bg: ctx.theme.composerBg(),
         width: ctx.width
       })

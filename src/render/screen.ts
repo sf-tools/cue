@@ -23,6 +23,7 @@ export function frameWidth(columns = process.stdout.columns || 100) {
 export function createRenderContext(
   theme: ThemePalette,
   spinnerFrame: string,
+  commandSpinnerFrame: string,
   columns = process.stdout.columns || 100,
   rows = process.stdout.rows || 30
 ): RenderContext {
@@ -35,6 +36,7 @@ export function createRenderContext(
     cwd: formatWorkspacePath(cwd),
     gitBranch: getCachedGitBranch(cwd),
     spinnerFrame,
+    commandSpinnerFrame,
     theme
   };
 }

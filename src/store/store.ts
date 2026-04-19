@@ -36,6 +36,12 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setBusy(busy: boolean) {
       state.busy = busy;
+      if (!busy) state.busyStatusText = null;
+      return state;
+    },
+
+    setBusyStatusText(busyStatusText: string | null) {
+      state.busyStatusText = busyStatusText;
       return state;
     },
 
@@ -97,6 +103,15 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     pushHistoryEntry(entry: HistoryEntry) {
       if (hasVisibleContent(entry)) state.historyEntries.push(entry);
+      return state;
+    },
+
+    updateLastHistoryEntry(updater: (entry: HistoryEntry) => HistoryEntry | null) {
+      const index = state.historyEntries.length - 1;
+      if (index < 0) return state;
+
+      const nextEntry = updater(state.historyEntries[index]);
+      if (nextEntry) state.historyEntries[index] = nextEntry;
       return state;
     },
 
