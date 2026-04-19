@@ -55,14 +55,21 @@ function renderSelector(
   selectedIndex: number,
   workspacePath: string,
 ) {
-  const width = Math.max(40, stdout.columns || 80);
+  const terminalWidth = Math.max(40, stdout.columns || 80);
   const height = Math.max(12, stdout.rows || 24);
+  const contentWidth = Math.max(36, Math.min(72, terminalWidth - 4));
+  const leftPad = '  ';
   const visibleCount = Math.max(1, Math.floor((height - 6) / 3));
   const { start, end } = visibleWindow(sessions.length, selectedIndex, visibleCount);
 
   const lines: string[] = [
-    chalk.bold('Resume thread'),
-    chalk.dim(`${workspacePath} · ${sessions.length} saved ${sessions.length === 1 ? 'thread' : 'threads'}`),
+    chalk.bold(ellipsize('Resume thread', contentWidth)),
+    chalk.dim(
+      ellipsize(
+        `${workspacePath} · ${sessions.length} saved ${sessions.length === 1 ? 'thread' : 'threads'}`,
+        contentWidth,
+      ),
+    ),
     '',
   ];
 
@@ -74,17 +81,17 @@ function renderSelector(
     const meta = `${formatRelativeAge(session.savedAt)} · ${session.sessionId.slice(0, 8)}`;
     const preview = ellipsize(
       normalizeText(session.preview, 'No messages yet'),
-      Math.max(10, Math.floor((width - 4) / 2)),
+      Math.max(10, Math.floor((contentWidth - 4) / 2)),
     );
-    const titleLine = joinColumns(title, meta, Math.max(10, width - 4));
+    const titleLine = joinColumns(title, meta, Math.max(10, contentWidth - 4));
 
     lines.push(`${prefix} ${selected ? chalk.white(titleLine) : chalk.gray(titleLine)}`);
     lines.push(`  ${chalk.dim(preview)}`);
     lines.push('');
   }
 
-  lines.push(chalk.dim('↑/↓ move · enter resume · esc cancel'));
-  return `${lines.join('\n')}\n`;
+  lines.push(chalk.dim(ellipsize('↑/↓ move · enter resume · esc cancel', contentWidth)));
+  return `${lines.map(line => `${leftPad}${line}`).join('\n')}\n`;
 }
 
 export async function selectCueResumeSession(
