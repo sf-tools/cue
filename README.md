@@ -2,37 +2,14 @@
 
 Your next move, on cue.
 
-## Requirements
-
-- [Bun](https://bun.sh)
-- `OPENAI_API_KEY`
-- [`rg`](https://github.com/BurntSushi/ripgrep) on your `PATH` for faster indexing/search (optional)
-
-## Install
-
 ```bash
-bun install
-```
+# install
+npm i -g @sf-tools/cue
 
-## Run
-
-```bash
-export OPENAI_API_KEY=your_key_here
-bun start
-```
-
-## CLI
-
-```bash
+# usage
 cue --help
 cue --version
 cue --json --prompt "summarize this repo"
-```
-
-## Dev
-
-```bash
-bun dev
 ```
 
 ## Build
@@ -59,10 +36,6 @@ Useful flags:
 - `--model <id>` and `--reasoning <mode>` override the saved defaults.
 
 There is also a demo consumer script at `scripts/demo-headless-json.mjs`:
-
-```bash
-bun run demo:json
-```
 
 ## Notes
 

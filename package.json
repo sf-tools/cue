@@ -1,18 +1,40 @@
 {
-  "name": "cue",
+  "name": "@sf-tools/cue",
   "version": "0.0.19",
+  "description": "Cue CLI",
+  "license": "MIT",
   "type": "module",
+  "main": "./dist/cue.js",
+  "bin": {
+    "cue": "./dist/cue.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sf-tools/cue.git"
+  },
+  "homepage": "https://github.com/sf-tools/cue#readme",
+  "bugs": {
+    "url": "https://github.com/sf-tools/cue/issues"
+  },
   "scripts": {
     "clean": "rm -rf dist",
     "gen:version": "bun scripts/generate-version.mjs",
     "dev": "bun gen:version && bun --watch src/cue.ts",
     "start": "bun gen:version && bun src/cue.ts",
-    "build": "bun gen:version && bun build src/cue.ts --target node --outdir dist"
+    "build": "bun gen:version && bun build src/cue.ts --minify --target node --outdir dist && node scripts/prepare-package-bin.mjs",
+    "prepack": "bun run build"
   },
   "dependencies": {
     "@ai-sdk/openai": "^3.0.53",
     "@pydantic/genai-prices": "^0.0.56",
-    "@zenbase/llml": "^0.4.0",
     "ai": "^6.0.160",
     "approximate-number": "^3.0.1",
     "chalk": "^5.6.2",
@@ -24,7 +46,6 @@
     "open-simplex-noise": "^2.5.0",
     "ora": "^9.3.0",
     "prismjs": "^1.30.0",
-    "react": "^19.2.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -32,7 +53,6 @@
     "@types/bun": "^1.3.12",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^25.6.0",
-    "@types/prismjs": "^1.26.6",
-    "@types/react": "^19.2.14"
+    "@types/prismjs": "^1.26.6"
   }
 }
