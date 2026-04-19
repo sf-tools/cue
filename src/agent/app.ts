@@ -607,6 +607,27 @@ export class AgentApp {
     return { read, ripgrep, rg, web_search, oracle, subagent, choice_selector, planning_mode };
   }
 
+  private getActiveToolSummaries() {
+    const groups = new Map<unknown, { names: string[]; description: string | null }>();
+
+    for (const [name, tool] of Object.entries(this.getActiveTools())) {
+      const existing = groups.get(tool);
+      if (existing) {
+        existing.names.push(name);
+        continue;
+      }
+
+      const description =
+        typeof tool === 'object' && tool !== null && 'description' in tool && typeof tool.description === 'string'
+          ? tool.description.trim()
+          : null;
+
+      groups.set(tool, { names: [name], description });
+    }
+
+    return [...groups.values()].sort((a, b) => a.names[0].localeCompare(b.names[0]));
+  }
+
   private getRuntimeMessages() {
     if (!this.state.planningMode) return this.state.messages;
 
@@ -931,6 +952,7 @@ export class AgentApp {
             enqueueSubmission: (text, options) => this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
+            getActiveToolSummaries: () => this.getActiveToolSummaries(),
             getCurrentThreadShareState: () => this.getCurrentThreadShareState(),
             shareCurrentThread: () => this.shareCurrentThread(),
             makeCurrentThreadPrivate: () => this.makeCurrentThreadPrivate(),

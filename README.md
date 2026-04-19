@@ -41,6 +41,6 @@ There is also a demo consumer script at `scripts/demo-headless-json.mjs`:
 
 - Use `!` to run a shell command.
 - Use `@path/to/file` to include a file in your prompt.
-- Built-in slash commands include `/model`, `/reasoning`, `/review`, `/compact`, and `/exit`.
+- Built-in slash commands include `/model`, `/reasoning`, `/review`, `/tools`, `/compact`, and `/exit`.
 - Typing `review my codebase` runs the same read-only review flow as `/review`.
 - `cue --help` shows CLI help, and `cue --version` prints the build version.

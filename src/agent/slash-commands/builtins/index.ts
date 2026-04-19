@@ -9,6 +9,7 @@ import { reasoningSlashCommand } from './reasoning';
 import { reviewSlashCommand } from './review';
 import { shareSlashCommand } from './share';
 import { toggleAutoCompactSlashCommand } from './toggle-auto-compact';
+import { toolsSlashCommand } from './tools';
 
 export const builtinSlashCommands = [
   autoRunSlashCommand,
@@ -21,5 +22,6 @@ export const builtinSlashCommands = [
   reviewSlashCommand,
   shareSlashCommand,
   toggleAutoCompactSlashCommand,
+  toolsSlashCommand,
   quitSlashCommand
 ];

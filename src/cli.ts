@@ -75,6 +75,7 @@ function printHelp() {
       ['/share', 'Share the current thread'],
       ['/private', 'Make the current thread private'],
       ['/review', 'Run a read-only codebase review'],
+      ['/tools', 'List the currently available agent tools'],
       ['/compact', 'Summarize the conversation to save context'],
       ['/exit', 'Quit Cue']
     ]),

@@ -23,6 +23,7 @@ export type SlashCommandContext = {
   enqueueSubmission(text: string, options?: { planningMode?: boolean }): void;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
+  getActiveToolSummaries(): Array<{ names: string[]; description: string | null }>;
   getCurrentThreadShareState(): ThreadShareState;
   shareCurrentThread(): Promise<{ share: { shareId: string; sharedAt: string; url: string } }>;
   makeCurrentThreadPrivate(): Promise<{ ok: true }>;
