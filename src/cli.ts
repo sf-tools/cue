@@ -31,7 +31,7 @@ function printHelp() {
   const sections = [
     `${chalk.bold('Cue')} ${chalk.dim(APP_VERSION)}`,
     '',
-    'Coding with taste',
+    'Your next move, on cue.',
     '',
     `${chalk.bold('Usage:')} ${chalk.white(`${COMMAND_NAME} [options]`)}`,
     '',
