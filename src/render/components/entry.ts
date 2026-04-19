@@ -2,7 +2,7 @@ import chalk from 'chalk';
 
 import { EntryKind, type HistoryEntry } from '@/types';
 import { LEFT_MARGIN, indent, thinPanelize, wrapTextBlock } from '../layout';
-import { line, rawBlock, span } from '../primitives';
+import { blankLine, line, rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
 import type { Block, RenderContext } from '../types';
@@ -35,17 +35,10 @@ function renderShellEntry(text: string, ctx: RenderContext): Block {
   const lastLine = commandLines.pop();
 
   if (!lastLine) {
-    return indent(
-      wrapTextBlock(text, availableWidth, ctx.theme.foreground),
-      [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)],
-      `${LEFT_MARGIN}  `
-    );
+    return indent(wrapTextBlock(text, availableWidth, ctx.theme.foreground), [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)], `${LEFT_MARGIN}  `);
   }
 
-  const block = [
-    ...commandLines,
-    line(...lastLine.segments, span(exitText, ctx.theme.dimmed))
-  ];
+  const block = [...commandLines, line(...lastLine.segments, span(exitText, ctx.theme.dimmed))];
 
   return indent(block, [span(LEFT_MARGIN), span('$ ', ctx.theme.dimmed)], `${LEFT_MARGIN}  `);
 }
@@ -66,8 +59,35 @@ function renderMetaEntry(text: string, ctx: RenderContext): Block {
   return indent(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.dimmed), LEFT_MARGIN);
 }
 
+function renderCompactedEntry(entry: Extract<HistoryEntry, { type: 'compacted' }>, ctx: RenderContext): Block {
+  const width = Math.max(1, ctx.width - 4);
+  const summaryLines = entry.summary
+    .split('\n')
+    .slice(0, 10)
+    .flatMap(text => wrapTextBlock(text, width, ctx.theme.dimmed));
+
+  return thinPanelize(
+    [
+      line(
+        span('Compacted', chalk.yellow),
+        span(' · ', ctx.theme.subtle),
+        span(`${entry.previousMessageCount} → ${entry.nextMessageCount} messages`, ctx.theme.dimmed),
+        span(' · ', ctx.theme.subtle),
+        span(entry.automatic ? 'auto' : 'manual', ctx.theme.dimmed)
+      ),
+      blankLine(),
+      ...summaryLines
+    ],
+    {
+      bg: ctx.theme.panelBg(),
+      width: ctx.width
+    }
+  );
+}
+
 export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext): Block {
   if (entry.type === 'tool') return renderToolHistoryEntry(entry, ctx);
+  if (entry.type === 'compacted') return renderCompactedEntry(entry, ctx);
   if (entry.type === 'ansi') return indent(rawBlock(entry.text), LEFT_MARGIN);
   if (entry.type === 'plain') return indent(wrapTextBlock(entry.text, Math.max(1, ctx.width)), LEFT_MARGIN);
 

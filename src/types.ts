@@ -19,10 +19,19 @@ export type ToolHistoryEntry = {
   title?: string;
 };
 
+export type CompactedHistoryEntry = {
+  type: 'compacted';
+  summary: string;
+  previousMessageCount: number;
+  nextMessageCount: number;
+  automatic: boolean;
+};
+
 export type HistoryEntry =
   | { type: 'entry'; kind: EntryKind; text: string }
   | { type: 'plain'; text: string }
   | { type: 'ansi'; text: string }
+  | CompactedHistoryEntry
   | ToolHistoryEntry;
 
 export type LogUpdate = ((...text: string[]) => void) & {

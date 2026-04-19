@@ -21,6 +21,8 @@ export type AgentState = {
   exitConfirmationPending: boolean;
   pendingApproval: ApprovalRequest | null;
   autoRunEnabled: boolean;
+  autoCompactEnabled: boolean;
   commandApprovalSessionAllowed: boolean;
   editApprovalSessionAllowed: boolean;
+  compacting: boolean;
 };

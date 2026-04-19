@@ -1,2 +1,12 @@
-export { APP_NAME, APP_VERSION, CONTEXT_WINDOW, MODEL, USER_SHELL } from './constants';
-export { createInitialMessages, SYSTEM_PROMPT } from './prompt';
+export {
+  APP_NAME,
+  APP_VERSION,
+  COMPACTION_RECENT_MESSAGE_COUNT,
+  COMPACTION_TRIGGER_RATIO,
+  COMPACTION_TRIGGER_TOKENS,
+  CONTEXT_WINDOW,
+  MODEL,
+  USER_SHELL
+} from './constants';
+
+export { COMPACTION_PROMPT, createInitialMessages, SYSTEM_PROMPT } from './prompt';

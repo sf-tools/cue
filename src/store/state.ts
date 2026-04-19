@@ -21,6 +21,8 @@ export const createInitialState = (): AgentState => ({
   exitConfirmationPending: false,
   pendingApproval: null,
   autoRunEnabled: false,
+  autoCompactEnabled: true,
   commandApprovalSessionAllowed: false,
-  editApprovalSessionAllowed: false
+  editApprovalSessionAllowed: false,
+  compacting: false
 });

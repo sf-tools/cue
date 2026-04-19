@@ -11,6 +11,7 @@ export type SlashCommandArgs = {
 export type SlashCommandContext = {
   store: AgentStore;
   cleanup(code?: number): void;
+  compactConversation(options?: { manual?: boolean; force?: boolean }): Promise<boolean>;
   render(): void;
   persistEntry(kind: EntryKind, text: string): void;
   persistPlain(text: string): void;

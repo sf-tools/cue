@@ -1,5 +1,5 @@
 import ora from 'ora';
-import { MODEL } from '@/config';
+import { MODEL, COMPACTION_TRIGGER_TOKENS } from '@/config';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
@@ -14,6 +14,7 @@ import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
 import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type LogUpdate } from '@/types';
 import { plain, installSegmentContainingPolyfill } from '@/text';
+import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
@@ -173,6 +174,10 @@ export class AgentApp {
     return this.hasResumableSession();
   }
 
+  private shouldAutoCompact() {
+    return this.state.autoCompactEnabled && this.state.lastPromptTokens >= COMPACTION_TRIGGER_TOKENS;
+  }
+
   private hasSessionApproval(scope: ApprovalScope) {
     return scope === 'command' ? this.state.commandApprovalSessionAllowed : this.state.editApprovalSessionAllowed;
   }
@@ -204,6 +209,61 @@ export class AgentApp {
     this.render();
     resolve(decision);
     return true;
+  }
+
+  private persistCompactionNotice(text: string) {
+    const lastEntry = this.state.historyEntries[this.state.historyEntries.length - 1];
+    if (lastEntry?.type === 'entry' && lastEntry.kind === EntryKind.Meta && lastEntry.text === text) {
+      this.render();
+      return;
+    }
+
+    this.persistEntry(EntryKind.Meta, text);
+  }
+
+  private async compactConversation(options: { manual?: boolean; force?: boolean } = {}) {
+    const { manual = false, force = false } = options;
+
+    if (this.state.compacting) return false;
+    if (!manual && !this.shouldAutoCompact()) return false;
+
+    if (!canCompactMessages(this.state.messages, undefined, force)) {
+      if (manual) this.persistCompactionNotice('(not enough conversation history to compact)');
+      return false;
+    }
+
+    this.store.setCompacting(true);
+    this.render();
+
+    try {
+      const result = await compactMessages(this.state.messages, { force });
+      this.store.replaceMessages(result.messages);
+      this.store.setLastPromptTokens(0);
+
+      const price = calcPrice({ input_tokens: result.usage.inputTokens, output_tokens: result.usage.outputTokens }, MODEL, {
+        providerId: 'openai'
+      });
+
+      if (price) this.store.addTotalCost(price.total_price);
+      this.store.pushHistoryEntry({
+        type: 'compacted',
+        summary: result.summary,
+        previousMessageCount: result.previousMessageCount,
+        nextMessageCount: result.nextMessageCount,
+        automatic: !manual
+      });
+      this.render();
+      return true;
+    } catch (error: unknown) {
+      this.persistEntry(
+        EntryKind.Error,
+        `${manual ? 'compaction' : 'automatic compaction'} failed: ${plain(error instanceof Error ? error.message : String(error))}`
+      );
+      return false;
+    } finally {
+      this.store.setCompacting(false);
+      this.render();
+    }
   }
 
   private persistEntry(kind: EntryKind, text: string) {
@@ -327,6 +387,7 @@ export class AgentApp {
           {
             store: this.store,
             cleanup: code => this.cleanup(code),
+            compactConversation: options => this.compactConversation(options),
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),
@@ -364,6 +425,8 @@ export class AgentApp {
     this.render();
 
     try {
+      if (this.shouldAutoCompact()) await this.compactConversation();
+
       this.store.pushMessage({ role: 'user', content: await this.expand(trimmed) });
       const result = streamText({
         model: openai(MODEL),

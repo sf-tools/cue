@@ -7,7 +7,7 @@ import type { AgentState } from './types';
 export type AgentStore = ReturnType<typeof createAgentStore>;
 
 function hasVisibleContent(entry: HistoryEntry) {
-  if (entry.type === 'tool') return true;
+  if (entry.type === 'tool' || entry.type === 'compacted') return true;
   if (entry.type === 'plain' || entry.type === 'ansi') return entry.text.trim().length > 0;
   return entry.text.trim().length > 0;
 }
@@ -86,9 +86,19 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
+    setAutoCompactEnabled(autoCompactEnabled: boolean) {
+      state.autoCompactEnabled = autoCompactEnabled;
+      return state;
+    },
+
     setApprovalSessionAllowed(scope: ApprovalScope, allowed: boolean) {
       if (scope === 'command') state.commandApprovalSessionAllowed = allowed;
       else state.editApprovalSessionAllowed = allowed;
+      return state;
+    },
+
+    setCompacting(compacting: boolean) {
+      state.compacting = compacting;
       return state;
     },
 
@@ -114,6 +124,11 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     pushMessages(messages: ModelMessage[]) {
       state.messages.push(...messages);
+      return state;
+    },
+
+    replaceMessages(messages: ModelMessage[]) {
+      state.messages.splice(0, state.messages.length, ...messages);
       return state;
     },
 
