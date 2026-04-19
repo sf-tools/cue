@@ -1,10 +1,12 @@
 import chalk from 'chalk';
+import { extname } from 'node:path';
 
 import { plain, truncateToWidth, widthOf } from '@/text';
 import { formatDiffStat } from '@/file-changes';
+import { highlightedCodeBlock, normalizeCodeLanguage } from '@/render/markdown';
 import { panelize, wrapTextBlock } from '@/render/layout';
 import { blankLine, line, span } from '@/render/primitives';
-import type { Block, RenderContext } from '@/render/types';
+import type { Block, RenderContext, StyledLine } from '@/render/types';
 import type { FileChange, ToolHistoryEntry } from '@/types';
 
 export type ToolRenderer = (entry: ToolHistoryEntry, ctx: RenderContext) => Block;
@@ -68,6 +70,58 @@ type ParsedDiffLine = {
   oldLineNum?: number;
   newLineNum?: number;
 };
+
+const FILE_LANGUAGE_ALIASES: Record<string, string> = {
+  '.cjs': 'javascript',
+  '.diff': 'diff',
+  '.go': 'go',
+  '.html': 'markup',
+  '.htm': 'markup',
+  '.js': 'javascript',
+  '.json': 'json',
+  '.jsx': 'jsx',
+  '.md': 'markdown',
+  '.mjs': 'javascript',
+  '.py': 'python',
+  '.rs': 'rust',
+  '.sh': 'bash',
+  '.sql': 'sql',
+  '.toml': 'toml',
+  '.ts': 'typescript',
+  '.tsx': 'tsx',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.zsh': 'bash'
+};
+
+export function inferCodeLanguage(path: string) {
+  return normalizeCodeLanguage(FILE_LANGUAGE_ALIASES[extname(path).toLowerCase()] ?? null);
+}
+
+export function previewCodeBlock(text: string, language: string | null, ctx: RenderContext, maxLines = 8, label = 'lines'): Block {
+  const highlighted = highlightedCodeBlock(text, language, ctx);
+  const visible = ctx.expandPreviews ? highlighted : highlighted.slice(0, maxLines);
+
+  if (highlighted.length > visible.length) {
+    return [
+      ...visible,
+      line(span(`… (${highlighted.length - visible.length} more ${label}, ctrl+o to expand)`, ctx.theme.dimmed))
+    ];
+  }
+
+  if (ctx.expandPreviews && highlighted.length > maxLines) {
+    return [...visible, line(span('… (ctrl+o to collapse)', ctx.theme.dimmed))];
+  }
+
+  return visible;
+}
+
+function tintSegments(segments: StyledLine['segments'], style: (text: string) => string) {
+  return segments.map(segment => ({
+    ...segment,
+    style: segment.style ? (text: string) => style(segment.style?.(text) ?? text) : style
+  }));
+}
 
 function parseDiffLines(diff: string): ParsedDiffLine[] {
   const lines = diff.split('\n');
@@ -164,15 +218,11 @@ export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext,
           : diffLine.type === 'remove'
             ? chalk.redBright
             : ctx.theme.dimmed;
+      const language = inferCodeLanguage(fileChange.path);
+      const highlighted = highlightedCodeBlock(diffLine.text, language, ctx);
+      const content = highlighted[0]?.type === 'styled' ? tintSegments(highlighted[0].segments, style) : [span(diffLine.text, style)];
 
-      block.push(
-        line(
-          span('  ', ctx.theme.subtle),
-          span(`${oldLine} ${newLine} `, ctx.theme.subtle),
-          span(prefix, style),
-          span(diffLine.text, style)
-        )
-      );
+      block.push(line(span('  ', ctx.theme.subtle), span(`${oldLine} ${newLine} `, ctx.theme.subtle), span(prefix, style), ...content));
     }
 
     if (parsedLines.length > visibleLines.length) {

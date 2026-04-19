@@ -143,7 +143,7 @@ function wrapInlinePieces(pieces: InlinePiece[], width: number): StyledLine[] {
   return lines;
 }
 
-function normalizeCodeLanguage(language: string | null) {
+export function normalizeCodeLanguage(language: string | null) {
   if (!language) return null;
 
   const normalized = language.trim().toLowerCase();
@@ -196,7 +196,7 @@ function appendPrismToken(pieces: InlinePiece[], token: PrismTokenStream, ctx: R
   appendPrismToken(pieces, token.content as PrismTokenStream, ctx, types);
 }
 
-function highlightedCodeBlock(code: string, language: string | null, ctx: RenderContext) {
+export function highlightedCodeBlock(code: string, language: string | null, ctx: RenderContext) {
   if (!language) return textToBlock(code, Number.POSITIVE_INFINITY);
 
   const grammar = (Prism.languages as Record<string, Prism.Grammar | undefined>)[language];
