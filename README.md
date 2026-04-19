@@ -9,6 +9,7 @@ npm i -g @sf-tools/cue
 # usage
 cue --help
 cue --version
+cue --resume
 cue --json --prompt "summarize this repo"
 ```
 
@@ -31,6 +32,8 @@ printf "inspect src/cli.ts and explain the flags" | cue --json
 
 Useful flags:
 
+- `--resume` opens a picker for saved threads in the current workspace.
+- `--resume <id>` resumes a specific saved thread.
 - `--allow-all` auto-approves command/edit tools in headless mode.
 - `--thinking` includes reasoning deltas in the JSON stream.
 - `--model <id>` and `--reasoning <mode>` override the saved defaults.

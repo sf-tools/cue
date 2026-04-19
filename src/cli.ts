@@ -18,7 +18,7 @@ export type JsonCliResult = {
   reasoning?: ThinkingMode;
 };
 
-export type StartCliResult = { kind: 'start'; resumeId?: string };
+export type StartCliResult = { kind: 'start'; resumeId?: string; resumePicker?: boolean };
 
 type CliResult = StartCliResult | JsonCliResult | { kind: 'exit'; code: number };
 
@@ -65,7 +65,7 @@ function printHelp() {
       ['-h, --help', 'Show help'],
       ['-v, --version', 'Show version'],
       ['--json, --stream-json', 'Run one headless turn and emit newline-delimited JSON'],
-      ['--resume <id>', 'Resume a saved interactive session'],
+      ['--resume [id]', 'Resume a saved session, or pick one from this workspace'],
       ['--prompt <text>', 'Prompt text for headless JSON mode'],
       ['--allow-all', 'Auto-approve command/edit tools in headless JSON mode'],
       ['--thinking', 'Include reasoning deltas in headless JSON mode'],
@@ -97,6 +97,8 @@ function printHelp() {
       ['cue', 'Start the interactive TUI'],
       ['cue --help', 'Show CLI help'],
       ['cue --version', 'Print the build version'],
+      ['cue --resume', 'Pick a saved thread from this workspace'],
+      ['cue --resume 2f8c1b6e', 'Resume a specific saved thread'],
       ['cue --json --prompt "summarize this repo"', 'Run one headless JSON turn'],
       ['printf "fix the failing tests" | cue --json --allow-all', 'Drive Cue from a script'],
       ['!git status', 'Run a shell command once Cue is open'],
@@ -150,6 +152,7 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
   let model: string | undefined;
   let reasoning: ThinkingMode | undefined;
   let resumeId: string | undefined;
+  let resumePicker = false;
   const positionals: string[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -173,8 +176,8 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
     if (arg === '--resume') {
       const value = argv[index + 1];
       if (!value || value.startsWith('-')) {
-        printError(`Missing value for '${arg}'.`);
-        return { kind: 'exit', code: 1 };
+        resumePicker = true;
+        continue;
       }
 
       resumeId = value;
@@ -185,8 +188,8 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
     if (arg.startsWith('--resume=')) {
       const value = arg.slice('--resume='.length);
       if (!value) {
-        printError(`Missing value for '--resume'.`);
-        return { kind: 'exit', code: 1 };
+        resumePicker = true;
+        continue;
       }
 
       resumeId = value;
@@ -260,10 +263,10 @@ export function handleCliArgs(argv = process.argv.slice(2)): CliResult {
       return { kind: 'exit', code: 1 };
     }
 
-    return { kind: 'start', resumeId };
+    return { kind: 'start', resumeId, resumePicker };
   }
 
-  if (resumeId) {
+  if (resumeId || resumePicker) {
     printError('--resume cannot be used with --json.');
     return { kind: 'exit', code: 1 };
   }

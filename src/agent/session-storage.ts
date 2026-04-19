@@ -1,6 +1,6 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { createInitialState } from '@/store/state';
 import type { AgentState } from '@/store/types';
 import type { HistoryEntry } from '@/types';
@@ -22,6 +22,14 @@ export type CueSessionSnapshot = {
     autoCompactEnabled: boolean;
     planningMode: boolean;
   };
+};
+
+export type CueSessionListEntry = {
+  sessionId: string;
+  cwd: string;
+  savedAt: string;
+  title?: string;
+  preview?: string;
 };
 
 const DEFAULT_SESSION_DIR = join(homedir(), '.cue', 'sessions');
@@ -87,6 +95,26 @@ export function hydrateStateFromSnapshot(snapshot: CueSessionSnapshot): AgentSta
   };
 }
 
+function summarizeHistoryEntry(entry: HistoryEntry): string | null {
+  if (entry.type === 'entry') return entry.text;
+  if (entry.type === 'plain') return entry.text;
+  if (entry.type === 'compacted') return entry.summary;
+  if (entry.type === 'tool') return entry.title ?? entry.toolName;
+  return null;
+}
+
+function summarizeSnapshotPreview(snapshot: CueSessionSnapshot): string | undefined {
+  for (let index = snapshot.state.historyEntries.length - 1; index >= 0; index -= 1) {
+    const text = summarizeHistoryEntry(snapshot.state.historyEntries[index]);
+    if (!text) continue;
+
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (normalized) return normalized;
+  }
+
+  return undefined;
+}
+
 export async function saveCueSessionSnapshot(
   snapshot: CueSessionSnapshot,
   root = DEFAULT_SESSION_DIR,
@@ -110,5 +138,48 @@ export async function loadCueSessionSnapshot(
     return parsed;
   } catch {
     return null;
+  }
+}
+
+export async function listCueSessionSnapshots(
+  options: { cwd?: string; root?: string } = {},
+): Promise<CueSessionListEntry[]> {
+  const root = options.root ?? DEFAULT_SESSION_DIR;
+  const targetCwd = options.cwd ? resolve(options.cwd) : null;
+
+  try {
+    const names = await readdir(root);
+    const entries: Array<CueSessionListEntry | null> = await Promise.all(
+      names
+        .filter(name => name.endsWith('.json'))
+        .map(async name => {
+          try {
+            const raw = await readFile(join(root, name), 'utf8');
+            const parsed = JSON.parse(raw) as CueSessionSnapshot;
+            if (!parsed || parsed.version !== 1 || !parsed.sessionId || !parsed.cwd || !parsed.savedAt)
+              return null;
+            if (targetCwd && resolve(parsed.cwd) !== targetCwd) return null;
+
+            const entry: CueSessionListEntry = {
+              sessionId: parsed.sessionId,
+              cwd: parsed.cwd,
+              savedAt: parsed.savedAt,
+              ...(parsed.title ? { title: parsed.title } : {}),
+              ...(summarizeSnapshotPreview(parsed)
+                ? { preview: summarizeSnapshotPreview(parsed) }
+                : {}),
+            };
+            return entry;
+          } catch {
+            return null;
+          }
+        }),
+    );
+
+    return entries
+      .filter((entry): entry is CueSessionListEntry => entry !== null)
+      .sort((left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt));
+  } catch {
+    return [];
   }
 }
