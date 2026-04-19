@@ -1,7 +1,7 @@
 import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
-import type { ApprovalRequest, ApprovalScope, FileChange, HistoryEntry } from '@/types';
+import type { ApprovalRequest, ApprovalScope, ChoiceRequest, FileChange, HistoryEntry } from '@/types';
 import type { AgentState } from './types';
 
 export type AgentStore = ReturnType<typeof buildAgentStore>;
@@ -145,6 +145,22 @@ function buildAgentStore(initialState: AgentState) {
       return state;
     },
 
+    setPendingChoice(pendingChoice: ChoiceRequest | null, pendingChoiceIndex = 0) {
+      state.pendingChoice = pendingChoice;
+      state.pendingChoiceIndex = pendingChoice ? Math.max(0, Math.min(pendingChoiceIndex, pendingChoice.options.length - 1)) : 0;
+      return state;
+    },
+
+    setPendingChoiceIndex(pendingChoiceIndex: number) {
+      if (!state.pendingChoice) {
+        state.pendingChoiceIndex = 0;
+        return state;
+      }
+
+      state.pendingChoiceIndex = clamp(pendingChoiceIndex, 0, Math.max(0, state.pendingChoice.options.length - 1));
+      return state;
+    },
+
     setFooterNotice(footerNotice: string | null) {
       state.footerNotice = footerNotice;
       return state;
@@ -169,6 +185,11 @@ function buildAgentStore(initialState: AgentState) {
 
     setAutoCompactEnabled(autoCompactEnabled: boolean) {
       state.autoCompactEnabled = autoCompactEnabled;
+      return state;
+    },
+
+    setPlanningMode(planningMode: boolean) {
+      state.planningMode = planningMode;
       return state;
     },
 

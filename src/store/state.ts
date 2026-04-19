@@ -29,10 +29,13 @@ export const createInitialState = (): AgentState => ({
   steerRequested: false,
   exitConfirmationPending: false,
   pendingApproval: null,
+  pendingChoice: null,
+  pendingChoiceIndex: 0,
   footerNotice: null,
   sessionFileChanges: [],
   autoRunEnabled: false,
   autoCompactEnabled: true,
+  planningMode: false,
   commandApprovalSessionAllowed: false,
   editApprovalSessionAllowed: false,
   compacting: false

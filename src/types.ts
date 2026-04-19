@@ -73,6 +73,23 @@ export type ApprovalRequest = {
 
 export type ApprovalDecision = 'allow-once' | 'allow-session' | 'deny';
 
+export type ChoiceOption = {
+  value: string;
+  label: string;
+  detail?: string;
+};
+
+export type ChoiceRequest = {
+  title: string;
+  detail: string;
+  options: ChoiceOption[];
+  recommendedValue?: string;
+};
+
+export type ChoiceSelection = ChoiceOption & {
+  index: number;
+};
+
 export type Rgb = {
   r: number;
   g: number;

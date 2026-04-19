@@ -20,7 +20,7 @@ import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
-import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type HistoryEntry } from '@/types';
+import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type ChoiceRequest, type ChoiceSelection, type HistoryEntry } from '@/types';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
 import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
@@ -91,6 +91,9 @@ export class AgentApp {
   private readonly tools = createTools({
     runUserShell,
     requestApproval: request => this.requestApproval(request),
+    requestChoice: request => this.requestChoice(request),
+    setPlanningMode: enabled => this.setPlanningMode(enabled),
+    getPlanningMode: () => this.state.planningMode,
     getCurrentModel: () => this.state.currentModel,
     getThinkingMode: () => this.state.thinkingMode
   });
@@ -108,6 +111,7 @@ export class AgentApp {
   private historyNavigationDraft = '';
   private preferredComposerColumn: number | null = null;
   private pendingApprovalResolver: ((decision: ApprovalDecision) => void) | null = null;
+  private pendingChoiceResolver: ((selection: ChoiceSelection | null) => void) | null = null;
   private stdin: TtyReadStream = process.stdin;
   private bracketedPasteActive = false;
   private bracketedPasteBuffer = '';
@@ -231,7 +235,7 @@ export class AgentApp {
       const index = this.committedHistoryCount + offset;
       return [...renderHistoryEntry(entry, ctx, { animateAssistant: index === animatedAssistantIndex }), blankLine()];
     });
-    const preview = renderOutputPreview(this.state.liveReasoningText, this.state.liveAssistantText, ctx, this.state.pendingApproval);
+    const preview = renderOutputPreview(this.state.liveReasoningText, this.state.liveAssistantText, ctx, this.state.pendingApproval, this.state.pendingChoice, this.state.pendingChoiceIndex);
     const queued = renderQueuedSubmissions(this.state.queuedSubmissions, ctx, 8);
     const composer = renderComposer(
       {
@@ -453,6 +457,41 @@ export class AgentApp {
     this.render();
   }
 
+  private setPlanningMode(enabled: boolean) {
+    this.store.setPlanningMode(enabled);
+    this.store.resetLastUsage();
+    this.render();
+  }
+
+  private getActiveTools() {
+    if (!this.state.planningMode) return this.tools;
+
+    const { choice_selector, oracle, planning_mode, read, rg, ripgrep, subagent, web_search } = this.tools;
+    return { read, ripgrep, rg, web_search, oracle, subagent, choice_selector, planning_mode };
+  }
+
+  private getRuntimeMessages() {
+    if (!this.state.planningMode) return this.state.messages;
+
+    const planningModePrompt = [
+      '<session-mode name="planning">',
+      '- Planning mode is enabled for this turn.',
+      '- Focus on discovery, tradeoffs, and a concrete step-by-step plan.',
+      '- Do not make file edits or run mutating commands.',
+      '- Use read-only tools only.',
+      '- If the plan depends on a meaningful product or architecture choice, use choice_selector before committing to the plan.',
+      '- End with a concise recommendation and plan.',
+      '</session-mode>'
+    ].join('\n');
+
+    const [first, ...rest] = this.state.messages;
+    if (first?.role === 'system' && typeof first.content === 'string') {
+      return [{ ...first, content: `${first.content}\n\n${planningModePrompt}` }, ...rest];
+    }
+
+    return [{ role: 'system', content: planningModePrompt }, ...this.state.messages];
+  }
+
   private cycleThinkingMode() {
     const next = cycleThinkingMode(this.state.thinkingMode, this.state.currentModel);
     this.store.setThinkingMode(next);
@@ -508,6 +547,34 @@ export class AgentApp {
     this.store.setPendingApproval(null);
     this.render();
     resolve(decision);
+    return true;
+  }
+
+  private requestChoice = async (request: ChoiceRequest) => {
+    if (this.pendingChoiceResolver) throw new Error('another choice is already pending');
+    if (request.options.length < 2) throw new Error('choice prompt requires at least two options');
+
+    const recommendedIndex = request.recommendedValue ? request.options.findIndex(option => option.value === request.recommendedValue) : -1;
+    const selectedIndex = recommendedIndex >= 0 ? recommendedIndex : 0;
+
+    const selection = await new Promise<ChoiceSelection | null>(resolve => {
+      this.pendingChoiceResolver = resolve;
+      this.store.setPendingChoice(request, selectedIndex);
+      this.render();
+    });
+
+    if (!selection) throw new Error('choice cancelled by user');
+    return selection;
+  };
+
+  private resolvePendingChoice(selection: ChoiceSelection | null) {
+    const resolve = this.pendingChoiceResolver;
+    if (!resolve || !this.state.pendingChoice) return false;
+
+    this.pendingChoiceResolver = null;
+    this.store.setPendingChoice(null);
+    this.render();
+    resolve(selection);
     return true;
   }
 
@@ -681,6 +748,7 @@ export class AgentApp {
             setCurrentModel: model => this.setCurrentModel(model),
             setThinkingMode: thinkingMode => this.setThinkingMode(thinkingMode),
             setAutoCompactEnabled: enabled => this.setAutoCompactEnabled(enabled),
+            setPlanningMode: enabled => this.setPlanningMode(enabled),
             cycleThinkingMode: () => this.cycleThinkingMode(),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
@@ -727,7 +795,8 @@ export class AgentApp {
 
       this.store.pushMessage({ role: 'user', content: await this.expand(trimmed) });
 
-      const estimatedPromptTokens = estimateMessageTokens(this.state.messages);
+      const runtimeMessages = this.getRuntimeMessages();
+      const estimatedPromptTokens = estimateMessageTokens(runtimeMessages);
       let completedPromptTokens = 0;
       let completedOutputTokens = 0;
       let completedReasoningTokens = 0;
@@ -747,8 +816,8 @@ export class AgentApp {
 
       const result = streamText({
         model: openai(this.state.currentModel),
-        messages: this.state.messages,
-        tools: this.tools,
+        messages: runtimeMessages,
+        tools: this.getActiveTools(),
         stopWhen: stepCountIs(20),
         abortSignal: abortController.signal,
         providerOptions: createOpenAIProviderOptions(this.state.currentModel, this.state.thinkingMode),
@@ -1052,6 +1121,50 @@ export class AgentApp {
     return true;
   }
 
+  private getSelectedPendingChoice() {
+    const pendingChoice = this.state.pendingChoice;
+    if (!pendingChoice) return null;
+
+    const option = pendingChoice.options[this.state.pendingChoiceIndex];
+    if (!option) return null;
+
+    return {
+      ...option,
+      index: this.state.pendingChoiceIndex
+    };
+  }
+
+  private movePendingChoice(delta: number) {
+    const pendingChoice = this.state.pendingChoice;
+    if (!pendingChoice || pendingChoice.options.length === 0) return false;
+
+    const maxIndex = pendingChoice.options.length - 1;
+    const nextIndex = Math.max(0, Math.min(maxIndex, this.state.pendingChoiceIndex + delta));
+    if (nextIndex === this.state.pendingChoiceIndex) return true;
+
+    this.store.setPendingChoiceIndex(nextIndex);
+    this.render();
+    return true;
+  }
+
+  private handlePendingChoiceBinding(binding: ReturnType<typeof resolveInputBinding>) {
+    if (!this.state.pendingChoice || !binding) return false;
+
+    if (binding.type === 'escape') return this.resolvePendingChoice(null);
+    if (binding.type === 'submit') return this.resolvePendingChoice(this.getSelectedPendingChoice());
+    if (binding.type === 'moveSuggestion') return this.movePendingChoice(binding.delta);
+    if (binding.type !== 'insertText') return true;
+
+    const key = binding.text.trim().toLowerCase();
+    const digit = Number.parseInt(key, 10);
+    if (Number.isFinite(digit) && digit >= 1 && digit <= this.state.pendingChoice.options.length) {
+      const option = this.state.pendingChoice.options[digit - 1];
+      return this.resolvePendingChoice({ ...option, index: digit - 1 });
+    }
+
+    return true;
+  }
+
   private handlePendingApprovalBinding(binding: ReturnType<typeof resolveInputBinding>) {
     if (!this.state.pendingApproval || !binding) return false;
 
@@ -1115,6 +1228,7 @@ export class AgentApp {
       return;
     }
 
+    if (this.handlePendingChoiceBinding(binding)) return;
     if (this.handlePendingApprovalBinding(binding)) return;
 
     if (binding.type === 'escape') {

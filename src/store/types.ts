@@ -1,6 +1,6 @@
 import type { ModelMessage } from 'ai';
 import type { ThinkingMode } from '@/config';
-import type { ApprovalRequest, FileChange, HistoryEntry } from '@/types';
+import type { ApprovalRequest, ChoiceRequest, FileChange, HistoryEntry } from '@/types';
 
 export type ComposerPasteRange = {
   start: number;
@@ -35,10 +35,13 @@ export type AgentState = {
   steerRequested: boolean;
   exitConfirmationPending: boolean;
   pendingApproval: ApprovalRequest | null;
+  pendingChoice: ChoiceRequest | null;
+  pendingChoiceIndex: number;
   footerNotice: string | null;
   sessionFileChanges: FileChange[];
   autoRunEnabled: boolean;
   autoCompactEnabled: boolean;
+  planningMode: boolean;
   commandApprovalSessionAllowed: boolean;
   editApprovalSessionAllowed: boolean;
   compacting: boolean;

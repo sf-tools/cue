@@ -30,7 +30,12 @@ function segmentsWidth(segments: Segment[]) {
 function justifyLine(left: Segment[], right: Segment[], width: number) {
   if (right.length === 0) return line(...left);
 
+  const leftWidth = segmentsWidth(left);
   const rightWidth = segmentsWidth(right);
+  if (leftWidth + rightWidth + 1 <= width) {
+    return line(...left, span(' '.repeat(Math.max(1, width - leftWidth - rightWidth))), ...right);
+  }
+
   const availableLeftWidth = Math.max(1, width - rightWidth - 1);
   const leftText = left.map(segment => segment.text).join('');
   const leftStyle = left[left.length - 1]?.style;
@@ -147,6 +152,10 @@ function buildModeLine(state: AgentState, ctx: RenderContext, footerPrefix: Segm
     return line(...footerPrefix, span(joinFooterParts('Approval required', state.pendingApproval.title, queued), chalk.yellow));
   }
 
+  if (state.pendingChoice) {
+    return line(...footerPrefix, span(joinFooterParts('Choice required', state.pendingChoice.title, queued), chalk.yellow));
+  }
+
   if (state.compacting) {
     return line(...footerPrefix, span(joinFooterParts(`${ctx.commandSpinnerFrame} Compacting...`, queued), chalk.yellow));
   }
@@ -199,9 +208,14 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   const statsLine = buildStatsLine(state, ctx, footerPrefix, usage, cost, autoCompact);
   const modeLine = buildModeLine(state, ctx, footerPrefix, queued, statsLine);
 
-  const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
+  const leftSegments = [
+    span(LEFT_MARGIN),
+    span(ctx.cwd, ctx.theme.subtle),
+    ...(ctx.gitBranch ? [span(' · ', ctx.theme.subtle), span(ctx.gitBranch, ctx.theme.subtle)] : []),
+    ...(state.planningMode ? [span(' · ', ctx.theme.subtle), span('plan mode', chalk.magentaBright)] : [])
+  ];
   const rightSegments = fileChangeSummarySegments(state, ctx);
-  const locationLine = justifyLine([span(LEFT_MARGIN), span(location, ctx.theme.subtle)], rightSegments, Math.max(1, ctx.width));
+  const locationLine = justifyLine(leftSegments, rightSegments, Math.max(1, ctx.width));
   const notice = buildNoticeLine(state, ctx, queued);
 
   return [line(), modeLine, locationLine, ...(notice ? [line(), notice] : [])];

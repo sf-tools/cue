@@ -51,6 +51,7 @@ function printHelp() {
       ['@path/to/file', 'Attach a file to your prompt'],
       ['/model', 'Switch models'],
       ['/reasoning', 'Adjust reasoning level'],
+      ['/planning', 'Toggle read-only planning mode'],
       ['/compact', 'Summarize the conversation to save context'],
       ['/exit', 'Quit Cue']
     ]),

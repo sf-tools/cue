@@ -67,7 +67,10 @@ export const SYSTEM_PROMPT = xml({
       'Describe actions naturally to the user instead of naming internal mechanisms.',
       'Prefer small targeted edits over large speculative rewrites.',
       'Use the subagent tool for narrow research tasks when delegation will reduce context switching or let you inspect a subsystem separately.',
+      'Use the librarian tool when you need to explore GitHub repositories that are outside the current workspace.',
+      'If the user mentions plan, planning, tradeoffs, or a read-only approach first, enable planning mode before continuing unless it is already on.',
       'When commands, scripts, or frameworks are unknown, inspect the repository instead of assuming.',
+      'For ad-hoc JavaScript execution, use the ant tool instead of running node, bun, or JavaScript via bash.',
       'When writing tests, determine the test framework and commands from the repository first.',
       'When delegating, give the subagent explicit scope, useful file hints, and the exact output you want back.'
     ]

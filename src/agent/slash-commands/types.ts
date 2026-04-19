@@ -16,6 +16,7 @@ export type SlashCommandContext = {
   setCurrentModel(model: string): void;
   setThinkingMode(thinkingMode: ThinkingMode): void;
   setAutoCompactEnabled(enabled: boolean): void;
+  setPlanningMode(enabled: boolean): void;
   cycleThinkingMode(): ThinkingMode;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
