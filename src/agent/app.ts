@@ -1,3 +1,4 @@
+import chalk from 'chalk';
 import ora from 'ora';
 import {
   createOpenAIProviderOptions,
@@ -162,7 +163,9 @@ export class AgentApp {
   }
 
   private renderTransientLines(ctx: ReturnType<typeof createRenderContext>, suggestions: ReturnType<AgentApp['normalizeSuggestions']>) {
-    const pendingHistory = this.state.historyEntries.slice(this.committedHistoryCount).flatMap(entry => [...renderHistoryEntry(entry, ctx), blankLine()]);
+    const pendingHistory = this.state.historyEntries
+      .slice(this.committedHistoryCount)
+      .flatMap(entry => [...renderHistoryEntry(entry, ctx), blankLine()]);
     const preview = renderOutputPreview(this.state.liveReasoningText, this.state.liveAssistantText, ctx, this.state.pendingApproval);
     const queued = renderQueuedSubmissions(this.state.queuedSubmissions, ctx, 8);
     const composer = renderComposer(
@@ -239,7 +242,16 @@ export class AgentApp {
     this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 
-    if (code === 0 && this.hasResumableSession()) process.stdout.write(`To resume this session: cue --resume=${this.sessionId}\n`);
+    if (code === 0) {
+      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
+      const header = serializeBlock(renderHeader(ctx)).join('\n');
+
+      if (process.stdout.isTTY) process.stdout.write('\u001b[3J\u001b[2J\u001b[H');
+      process.stdout.write(`${header}\n`);
+      if (this.hasResumableSession()) {
+        process.stdout.write(` ${chalk.white('To resume this session:')} ${chalk.cyan('cue --resume=')}${chalk.cyanBright(this.sessionId)}\n`);
+      }
+    }
 
     process.exit(code);
   }
