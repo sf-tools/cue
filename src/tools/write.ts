@@ -3,6 +3,7 @@ import { writeFile } from 'node:fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 
+import { buildWriteFileChange, describeFileChange } from '@/file-changes';
 import type { ToolFactoryOptions } from './types';
 
 function previewContent(content: string, maxLines = 6, maxChars = 800) {
@@ -16,11 +17,14 @@ export function createWriteTool({ requestApproval }: ToolFactoryOptions) {
     description: 'Write content to a file',
     inputSchema: z.object({ path: z.string(), content: z.string() }),
     execute: async ({ path, content }) => {
+      const fileChange = await buildWriteFileChange(path, content);
+
       if (!(await requestApproval({
         scope: 'edit',
         title: 'Edit file',
-        detail: `${path} · ${content.length} bytes`,
-        body: previewContent(content)
+        detail: `${path} · ${describeFileChange(fileChange)}`,
+        body: fileChange.hasChanges ? undefined : previewContent(content),
+        fileChanges: [fileChange]
       }))) {
         throw new Error('edit denied by user');
       }

@@ -10,15 +10,7 @@ import type { ToolFactoryOptions } from './types';
 const MAX_OUTPUT_CHARS = 6000;
 
 type Language = 'typescript' | 'javascript' | 'python' | 'rust' | 'go' | 'unknown';
-type Framework =
-  | 'vitest'
-  | 'jest'
-  | 'mocha'
-  | 'bun:test'
-  | 'pytest'
-  | 'cargo-test'
-  | 'go-test'
-  | 'unknown';
+type Framework = 'vitest' | 'jest' | 'mocha' | 'bun:test' | 'pytest' | 'cargo-test' | 'go-test' | 'unknown';
 
 type FrameworkInfo = {
   language: Language;
@@ -43,14 +35,6 @@ async function exists(path: string) {
 async function readJsonSafe(path: string): Promise<Record<string, unknown> | null> {
   try {
     return JSON.parse(await readFile(path, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-async function readTextSafe(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, 'utf8');
   } catch {
     return null;
   }
@@ -361,11 +345,7 @@ async function findCallers(symbolNames: string[], cwd: string, runUserShell: Too
   const { output } = await runUserShell(
     `if command -v rg >/dev/null 2>&1; then command rg --line-number --no-heading --color=never -e ${JSON.stringify(pattern)} ${JSON.stringify(cwd)} 2>/dev/null | head -n 80; else true; fi`
   );
-  return plain(output)
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .slice(0, 40);
+  return plain(output).trim().split('\n').filter(Boolean).slice(0, 40);
 }
 
 async function findExistingTests(targetPath: string, info: FrameworkInfo, runUserShell: ToolFactoryOptions['runUserShell']) {
@@ -374,10 +354,7 @@ async function findExistingTests(targetPath: string, info: FrameworkInfo, runUse
     `if command -v rg >/dev/null 2>&1; then command rg --files -g '*.{test,spec,_test}.*' -g '**/test_*.py' 2>/dev/null | command rg ${JSON.stringify(base)} | head -n 20; else true; fi`
   );
   void info;
-  return plain(output)
-    .trim()
-    .split('\n')
-    .filter(Boolean);
+  return plain(output).trim().split('\n').filter(Boolean);
 }
 
 function suggestTestPath(targetPath: string, info: FrameworkInfo): string {
@@ -423,7 +400,11 @@ export function createTestTool({ runUserShell, requestApproval }: ToolFactoryOpt
         const language = languageFromPath(path);
         const symbols = extractSymbols(source, language);
         const { branches, asyncCount, throwCount } = extractBranches(source, language);
-        const callers = await findCallers(symbols.map(s => s.name), cwd, runUserShell);
+        const callers = await findCallers(
+          symbols.map(s => s.name),
+          cwd,
+          runUserShell
+        );
         const info = await detectFramework(cwd);
         const existingTests = await findExistingTests(path, info, runUserShell);
         const result: AnalyzeResult = {

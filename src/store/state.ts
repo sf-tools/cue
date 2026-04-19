@@ -30,6 +30,7 @@ export const createInitialState = (): AgentState => ({
   exitConfirmationPending: false,
   pendingApproval: null,
   footerNotice: null,
+  sessionFileChanges: [],
   autoRunEnabled: false,
   autoCompactEnabled: true,
   commandApprovalSessionAllowed: false,

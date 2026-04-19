@@ -8,6 +8,7 @@ import {
   pricingUsageFromLanguageModelUsage,
   saveCuePreferences
 } from '@/config';
+import { previewFileChangesForToolCall } from '@/file-changes';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
@@ -89,7 +90,9 @@ export class AgentApp {
 
   private readonly tools = createTools({
     runUserShell,
-    requestApproval: request => this.requestApproval(request)
+    requestApproval: request => this.requestApproval(request),
+    getCurrentModel: () => this.state.currentModel,
+    getThinkingMode: () => this.state.thinkingMode
   });
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
 
@@ -474,6 +477,11 @@ export class AgentApp {
     return scope === 'command' ? this.state.commandApprovalSessionAllowed : this.state.editApprovalSessionAllowed;
   }
 
+  private getToolEntry(toolCallId: string) {
+    const entry = this.state.historyEntries.find(candidate => candidate.type === 'tool' && candidate.toolCallId === toolCallId);
+    return entry?.type === 'tool' ? entry : null;
+  }
+
   private requestApproval = async (request: ApprovalRequest) => {
     if (this.state.autoRunEnabled || this.hasSessionApproval(request.scope)) return true;
     if (this.pendingApprovalResolver) throw new Error('another approval is already pending');
@@ -743,7 +751,8 @@ export class AgentApp {
         tools: this.tools,
         stopWhen: stepCountIs(20),
         abortSignal: abortController.signal,
-        providerOptions: createOpenAIProviderOptions(this.state.currentModel, this.state.thinkingMode)
+        providerOptions: createOpenAIProviderOptions(this.state.currentModel, this.state.thinkingMode),
+        experimental_context: { subagentDepth: 0 }
       });
 
       for await (const part of result.fullStream) {
@@ -775,19 +784,27 @@ export class AgentApp {
             syncLiveUsage();
             this.scheduleRender();
             break;
-          case 'tool-call':
-            this.store.upsertToolEntry(createPendingToolEntry(part));
+          case 'tool-call': {
+            const fileChanges = await previewFileChangesForToolCall(part.toolName, part.input);
+            this.store.upsertToolEntry(createPendingToolEntry({ ...part, fileChanges }));
             this.scheduleRender();
             break;
-          case 'tool-result':
+          }
+          case 'tool-result': {
             if (part.preliminary) break;
-            this.store.upsertToolEntry(createCompletedToolEntry(part));
+            const existing = this.getToolEntry(part.toolCallId);
+            const completedEntry = createCompletedToolEntry({ ...part, fileChanges: existing?.fileChanges });
+            this.store.upsertToolEntry(completedEntry);
+            if (completedEntry.fileChanges?.length) this.store.upsertSessionFileChanges(completedEntry.fileChanges);
             this.scheduleRender();
             break;
-          case 'tool-error':
-            this.store.upsertToolEntry(createFailedToolEntry(part));
+          }
+          case 'tool-error': {
+            const existing = this.getToolEntry(part.toolCallId);
+            this.store.upsertToolEntry(createFailedToolEntry({ ...part, fileChanges: existing?.fileChanges }));
             this.scheduleRender();
             break;
+          }
         }
       }
 

@@ -1,4 +1,4 @@
-import type { ToolHistoryEntry } from '@/types';
+import type { FileChange, ToolHistoryEntry } from '@/types';
 
 type ToolCallLike = {
   toolCallId: string;
@@ -6,6 +6,7 @@ type ToolCallLike = {
   input: unknown;
   providerExecuted?: boolean;
   title?: string;
+  fileChanges?: FileChange[];
 };
 
 type ToolResultLike = ToolCallLike & {
@@ -24,7 +25,8 @@ export function createPendingToolEntry(part: ToolCallLike): ToolHistoryEntry {
     input: part.input,
     status: 'running',
     providerExecuted: part.providerExecuted,
-    title: part.title
+    title: part.title,
+    fileChanges: part.fileChanges
   };
 }
 
@@ -37,7 +39,8 @@ export function createCompletedToolEntry(part: ToolResultLike): ToolHistoryEntry
     output: part.output,
     status: 'completed',
     providerExecuted: part.providerExecuted,
-    title: part.title
+    title: part.title,
+    fileChanges: part.fileChanges
   };
 }
 
@@ -50,6 +53,7 @@ export function createFailedToolEntry(part: ToolErrorLike): ToolHistoryEntry {
     status: 'failed',
     errorText: part.error instanceof Error ? part.error.message : String(part.error),
     providerExecuted: part.providerExecuted,
-    title: part.title
+    title: part.title,
+    fileChanges: part.fileChanges
   };
 }

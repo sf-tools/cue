@@ -8,6 +8,20 @@ export enum EntryKind {
   Meta = 'meta'
 }
 
+export type DiffStat = {
+  added: number;
+  modified: number;
+  removed: number;
+};
+
+export type FileChange = {
+  path: string;
+  diff: string;
+  stats: DiffStat;
+  changeKind: 'created' | 'modified' | 'deleted';
+  hasChanges: boolean;
+};
+
 export type ToolHistoryEntry = {
   type: 'tool';
   toolCallId: string;
@@ -18,6 +32,7 @@ export type ToolHistoryEntry = {
   errorText?: string;
   providerExecuted?: boolean;
   title?: string;
+  fileChanges?: FileChange[];
 };
 
 export type CompactedHistoryEntry = {
@@ -53,6 +68,7 @@ export type ApprovalRequest = {
   title: string;
   detail: string;
   body?: string[];
+  fileChanges?: FileChange[];
 };
 
 export type ApprovalDecision = 'allow-once' | 'allow-session' | 'deny';

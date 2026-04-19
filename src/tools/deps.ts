@@ -156,10 +156,7 @@ const TS_JS_EXTS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 async function listSourceFiles(cwd: string, runUserShell: ToolFactoryOptions['runUserShell']) {
   const cmd = `if command -v rg >/dev/null 2>&1; then command rg --files -g '*.{ts,tsx,js,jsx,mjs,cjs,py,go,rs}' --hidden -g '!**/node_modules/**' -g '!**/dist/**' -g '!**/.git/**' -g '!**/target/**' -g '!**/build/**' ${JSON.stringify(cwd)}; else find ${JSON.stringify(cwd)} -type f \\( -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' -o -name '*.py' -o -name '*.go' -o -name '*.rs' \\) -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/.git/*' -not -path '*/target/*' -not -path '*/build/*'; fi`;
   const { output } = await runUserShell(cmd);
-  return plain(output)
-    .trim()
-    .split('\n')
-    .filter(Boolean);
+  return plain(output).trim().split('\n').filter(Boolean);
 }
 
 async function resolveTsJsImport(fromFile: string, spec: string, cwd: string): Promise<string | null> {
@@ -375,7 +372,14 @@ export function createDepsTool({ runUserShell, requestApproval }: ToolFactoryOpt
 
         if (target.manifest === 'package.json') {
           const json = JSON.parse(manifestText) as Record<string, Record<string, string> | undefined>;
-          const section = kind === 'dev' ? 'devDependencies' : json.dependencies?.[packageName] ? 'dependencies' : json.devDependencies?.[packageName] ? 'devDependencies' : 'dependencies';
+          const section =
+            kind === 'dev'
+              ? 'devDependencies'
+              : json.dependencies?.[packageName]
+                ? 'dependencies'
+                : json.devDependencies?.[packageName]
+                  ? 'devDependencies'
+                  : 'dependencies';
           json[section] = { ...(json[section] ?? {}), [packageName]: version };
           nextText = `${JSON.stringify(json, null, 2)}\n`;
         } else if (target.manifest === 'Cargo.toml' || target.manifest === 'pyproject.toml') {
@@ -442,7 +446,13 @@ export function createDepsTool({ runUserShell, requestApproval }: ToolFactoryOpt
         switch (target.language) {
           case 'typescript':
           case 'javascript':
-            cmd = target.installCmd.startsWith('bun') ? 'bun audit' : target.installCmd.startsWith('pnpm') ? 'pnpm audit' : target.installCmd.startsWith('yarn') ? 'yarn npm audit' : 'npm audit';
+            cmd = target.installCmd.startsWith('bun')
+              ? 'bun audit'
+              : target.installCmd.startsWith('pnpm')
+                ? 'pnpm audit'
+                : target.installCmd.startsWith('yarn')
+                  ? 'yarn npm audit'
+                  : 'npm audit';
             break;
           case 'python':
             cmd = (await exists(join(cwd, 'uv.lock'))) ? 'uv pip list --outdated' : 'pip-audit || pip list --outdated';

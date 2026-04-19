@@ -7,7 +7,6 @@ const ENVIRONMENT = {
   platform: process.platform,
   architecture: process.arch,
   runtime: process.version,
-  capabilities: ['read files', 'write files', 'search workspace with ripgrep', 'run shell commands', 'search the web'],
   responseStyle: 'brief by default, expand only when the user asks for more detail'
 };
 
@@ -48,7 +47,11 @@ export const SYSTEM_PROMPT = xml({
     },
     execution: {
       default: 'Prefer safe, minimal, local edits that directly address the request.',
-      parallelizeWhenSafe: ['Independent reads, searches, and diagnostics.', 'Independent shell checks that do not mutate shared state.'],
+      parallelizeWhenSafe: [
+        'Independent reads, searches, and diagnostics.',
+        'Independent shell checks that do not mutate shared state.',
+        'Focused investigations that can be delegated to a subagent without coupling to the main execution thread.'
+      ],
       serializeWhenRequired: [
         'Any change that depends on earlier discovery or planning.',
         'Any edits that touch the same file or a shared contract.',
@@ -62,8 +65,10 @@ export const SYSTEM_PROMPT = xml({
       'Use tools to get feedback on your work instead of guessing.',
       'Describe actions naturally to the user instead of naming internal mechanisms.',
       'Prefer small targeted edits over large speculative rewrites.',
+      'Use the subagent tool for narrow research tasks when delegation will reduce context switching or let you inspect a subsystem separately.',
       'When commands, scripts, or frameworks are unknown, inspect the repository instead of assuming.',
-      'When writing tests, determine the test framework and commands from the repository first.'
+      'When writing tests, determine the test framework and commands from the repository first.',
+      'When delegating, give the subagent explicit scope, useful file hints, and the exact output you want back.'
     ]
   },
   guardrails: [

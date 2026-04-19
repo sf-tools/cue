@@ -4,6 +4,7 @@ import { EntryKind, type ApprovalRequest } from '@/types';
 import { LEFT_MARGIN, thinPanelize, wrapTextBlock, takeLast } from '../layout';
 import { blankLine, line, span } from '../primitives';
 import { renderHistoryEntry } from './entry';
+import { renderFileChanges } from './tools/shared';
 
 import type { Block, RenderContext } from '../types';
 
@@ -17,6 +18,7 @@ function renderApprovalNotice(request: ApprovalRequest, ctx: RenderContext): Blo
   const width = Math.max(1, ctx.width - 4);
   const detail = wrapTextBlock(request.detail, width, ctx.theme.dimmed);
   const body = (request.body ?? []).flatMap(text => wrapTextBlock(text, width, ctx.theme.subtle));
+  const fileChanges = request.fileChanges?.length ? renderFileChanges(request.fileChanges, ctx, { maxLinesPerFile: Math.max(10, ctx.height - 20) }) : [];
 
   return thinPanelize(
     [
@@ -24,6 +26,7 @@ function renderApprovalNotice(request: ApprovalRequest, ctx: RenderContext): Blo
       line(span(request.title, ctx.theme.foreground)),
       ...detail,
       ...(body.length > 0 ? [blankLine(), ...body] : []),
+      ...(fileChanges.length > 0 ? [blankLine(), ...fileChanges] : []),
       blankLine(),
       line(
         span('[y] once', chalk.yellow),

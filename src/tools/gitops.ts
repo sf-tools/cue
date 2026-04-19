@@ -96,17 +96,7 @@ export function createGitOpsTool({ runUserShell, requestApproval }: ToolFactoryO
     description:
       'Git operations and conflict resolution. Subactions: status, conflicts.list, conflicts.show, conflicts.resolve, merge, rebase, cherry-pick, abort, continue.',
     inputSchema: z.object({
-      action: z.enum([
-        'status',
-        'conflicts.list',
-        'conflicts.show',
-        'conflicts.resolve',
-        'merge',
-        'rebase',
-        'cherry-pick',
-        'abort',
-        'continue'
-      ]),
+      action: z.enum(['status', 'conflicts.list', 'conflicts.show', 'conflicts.resolve', 'merge', 'rebase', 'cherry-pick', 'abort', 'continue']),
       path: z.string().optional(),
       content: z.string().optional(),
       target: z.string().optional(),

@@ -2,11 +2,58 @@ import chalk from 'chalk';
 import approx from 'approximate-number';
 
 import { formatThinkingMode, getContextWindow, getOpenAIModelDisplayName, isReasoningCapableOpenAIModel } from '@/config';
+import { summarizeFileChanges } from '@/file-changes';
+import { widthOf } from '@/text';
 import { line, span } from '../primitives';
 import { LEFT_MARGIN } from '../layout';
 
 import type { AgentState } from '@/store';
 import type { Block, RenderContext, Segment, StyledLine } from '../types';
+
+function truncateFromStart(text: string, maxWidth: number) {
+  if (maxWidth <= 0) return '';
+  if (widthOf(text) <= maxWidth) return text;
+
+  let out = '';
+  for (const ch of Array.from(text).reverse()) {
+    if (widthOf(`…${ch}${out}`) > maxWidth) break;
+    out = `${ch}${out}`;
+  }
+
+  return out ? `…${out}` : '…';
+}
+
+function segmentsWidth(segments: Segment[]) {
+  return segments.reduce((sum, segment) => sum + widthOf(segment.text), 0);
+}
+
+function justifyLine(left: Segment[], right: Segment[], width: number) {
+  if (right.length === 0) return line(...left);
+
+  const rightWidth = segmentsWidth(right);
+  const availableLeftWidth = Math.max(1, width - rightWidth - 1);
+  const leftText = left.map(segment => segment.text).join('');
+  const leftStyle = left[left.length - 1]?.style;
+  const fittedLeft = truncateFromStart(leftText, availableLeftWidth);
+  const gap = Math.max(1, width - widthOf(fittedLeft) - rightWidth);
+
+  return line(span(fittedLeft, leftStyle), span(' '.repeat(gap)), ...right);
+}
+
+function fileChangeSummarySegments(state: AgentState, ctx: RenderContext): Segment[] {
+  const fileChanges = state.sessionFileChanges;
+  if (!fileChanges || fileChanges.length === 0) return [];
+
+  const summary = summarizeFileChanges(fileChanges);
+  if (summary.fileCount === 0) return [];
+
+  return [
+    span(`${summary.fileCount} file${summary.fileCount === 1 ? '' : 's'} changed`, ctx.theme.dimmed),
+    ...(summary.added > 0 ? [span(' '), span(`+${summary.added}`, chalk.greenBright)] : []),
+    ...(summary.modified > 0 ? [span(' '), span(`~${summary.modified}`, chalk.yellowBright)] : []),
+    ...(summary.removed > 0 ? [span(' '), span(`-${summary.removed}`, chalk.redBright)] : [])
+  ];
+}
 
 function thinkingModeStyle(mode: AgentState['thinkingMode']) {
   switch (mode) {
@@ -153,7 +200,8 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   const modeLine = buildModeLine(state, ctx, footerPrefix, queued, statsLine);
 
   const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
-  const locationLine = line(span(LEFT_MARGIN), span(location.padEnd(Math.max(ctx.width, location.length)), ctx.theme.subtle));
+  const rightSegments = fileChangeSummarySegments(state, ctx);
+  const locationLine = justifyLine([span(LEFT_MARGIN), span(location, ctx.theme.subtle)], rightSegments, Math.max(1, ctx.width));
   const notice = buildNoticeLine(state, ctx, queued);
 
   return [line(), modeLine, locationLine, ...(notice ? [line(), notice] : [])];

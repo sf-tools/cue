@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 
 import { plain } from '@/text';
+import { formatDiffStat } from '@/file-changes';
 import { panelize, wrapTextBlock } from '@/render/layout';
-import { line, span } from '@/render/primitives';
-import type { ToolHistoryEntry } from '@/types';
+import { blankLine, line, span } from '@/render/primitives';
 import type { Block, RenderContext } from '@/render/types';
+import type { FileChange, ToolHistoryEntry } from '@/types';
 
 export type ToolRenderer = (entry: ToolHistoryEntry, ctx: RenderContext) => Block;
 
@@ -12,6 +13,7 @@ type ToolCardOptions = {
   name: string;
   detail?: string;
   body?: string[];
+  bodyBlock?: Block;
   status: ToolHistoryEntry['status'];
 };
 
@@ -54,7 +56,128 @@ export function previewJson(value: unknown) {
   }
 }
 
-export function renderToolCard({ name, detail, body = [], status }: ToolCardOptions, ctx: RenderContext): Block {
+type ParsedDiffLine = {
+  type: 'chunk' | 'add' | 'remove' | 'context';
+  text: string;
+  oldLineNum?: number;
+  newLineNum?: number;
+};
+
+function parseDiffLines(diff: string): ParsedDiffLine[] {
+  const lines = diff.split('\n');
+  const parsed: ParsedDiffLine[] = [];
+  let oldLineNum = 0;
+  let newLineNum = 0;
+
+  for (const rawLine of lines) {
+    if (!rawLine || rawLine.startsWith('--- ') || rawLine.startsWith('+++ ')) continue;
+
+    const chunkMatch = rawLine.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (chunkMatch) {
+      oldLineNum = Number.parseInt(chunkMatch[1], 10);
+      newLineNum = Number.parseInt(chunkMatch[2], 10);
+      parsed.push({ type: 'chunk', text: rawLine });
+      continue;
+    }
+
+    if (rawLine.startsWith('+')) {
+      parsed.push({ type: 'add', text: rawLine.slice(1), newLineNum });
+      newLineNum += 1;
+      continue;
+    }
+
+    if (rawLine.startsWith('-')) {
+      parsed.push({ type: 'remove', text: rawLine.slice(1), oldLineNum });
+      oldLineNum += 1;
+      continue;
+    }
+
+    parsed.push({
+      type: 'context',
+      text: rawLine.startsWith(' ') ? rawLine.slice(1) : rawLine,
+      oldLineNum,
+      newLineNum
+    });
+    oldLineNum += 1;
+    newLineNum += 1;
+  }
+
+  return parsed;
+}
+
+function lineNumberWidth(lines: ParsedDiffLine[]) {
+  const maxLineNum = lines.reduce((max, diffLine) => Math.max(max, diffLine.oldLineNum ?? 0, diffLine.newLineNum ?? 0), 0);
+  return Math.max(3, String(maxLineNum || 0).length);
+}
+
+function formatLineNumber(lineNum: number | undefined, width: number) {
+  return lineNum == null ? ''.padStart(width, ' ') : String(lineNum).padStart(width, ' ');
+}
+
+export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext, options: { maxLinesPerFile?: number } = {}): Block {
+  const block: Block = [];
+  const maxLinesPerFile = options.maxLinesPerFile ?? Math.max(8, Math.min(24, ctx.height - 16));
+
+  fileChanges.forEach((fileChange, index) => {
+    if (index > 0) block.push(blankLine());
+
+    const statText = formatDiffStat(fileChange.stats);
+    block.push(
+      line(
+        span('  ', ctx.theme.subtle),
+        span(fileChange.path, ctx.theme.foreground),
+        ...(statText
+          ? [
+              span(' · ', ctx.theme.subtle),
+              ...(fileChange.stats.added > 0 ? [span(`+${fileChange.stats.added}`, chalk.greenBright)] : []),
+              ...(fileChange.stats.modified > 0 ? [span(`${fileChange.stats.added > 0 ? ' ' : ''}~${fileChange.stats.modified}`, chalk.yellowBright)] : []),
+              ...(fileChange.stats.removed > 0 ? [span(`${fileChange.stats.added > 0 || fileChange.stats.modified > 0 ? ' ' : ''}-${fileChange.stats.removed}`, chalk.redBright)] : [])
+            ]
+          : [span(' · ', ctx.theme.subtle), span(fileChange.hasChanges ? fileChange.changeKind : 'no changes', ctx.theme.dimmed)])
+      )
+    );
+
+    if (!fileChange.diff) return;
+
+    const parsedLines = parseDiffLines(fileChange.diff);
+    const width = lineNumberWidth(parsedLines);
+    const visibleLines = parsedLines.slice(0, maxLinesPerFile);
+
+    for (const diffLine of visibleLines) {
+      if (diffLine.type === 'chunk') {
+        block.push(line(span('  ', ctx.theme.subtle), span(diffLine.text, chalk.cyanBright)));
+        continue;
+      }
+
+      const oldLine = formatLineNumber(diffLine.oldLineNum, width);
+      const newLine = formatLineNumber(diffLine.newLineNum, width);
+      const prefix = diffLine.type === 'add' ? '+' : diffLine.type === 'remove' ? '-' : ' ';
+      const style =
+        diffLine.type === 'add'
+          ? chalk.greenBright
+          : diffLine.type === 'remove'
+            ? chalk.redBright
+            : ctx.theme.dimmed;
+
+      block.push(
+        line(
+          span('  ', ctx.theme.subtle),
+          span(`${oldLine} ${newLine} `, ctx.theme.subtle),
+          span(prefix, style),
+          span(diffLine.text, style)
+        )
+      );
+    }
+
+    if (parsedLines.length > visibleLines.length) {
+      block.push(line(span('  ', ctx.theme.subtle), span(`… ${parsedLines.length - visibleLines.length} more diff lines`, ctx.theme.dimmed)));
+    }
+  });
+
+  return block;
+}
+
+export function renderToolCard({ name, detail, body = [], bodyBlock = [], status }: ToolCardOptions, ctx: RenderContext): Block {
   const statusStyle = status === 'failed' ? chalk.redBright : status === 'running' ? ctx.theme.spinnerText : ctx.theme.dimmed;
   const statusLabel = status === 'failed' ? 'failed' : status === 'running' ? `${ctx.spinnerFrame} running` : 'done';
   const bodyStyle = status === 'failed' ? chalk.redBright : ctx.theme.dimmed;
@@ -68,7 +191,8 @@ export function renderToolCard({ name, detail, body = [], status }: ToolCardOpti
     span(statusLabel, statusStyle)
   );
 
-  const bodyBlock = body.flatMap(text => wrapTextBlock(text, width, bodyStyle).map(part => line(span('  '), ...part.segments)));
+  const textBodyBlock = body.flatMap(text => wrapTextBlock(text, width, bodyStyle).map(part => line(span('  '), ...part.segments)));
+  const combinedBody = [...textBodyBlock, ...(textBodyBlock.length > 0 && bodyBlock.length > 0 ? [blankLine()] : []), ...bodyBlock];
 
-  return panelize([header, ...bodyBlock], { bg: ctx.theme.panelBg(), width: ctx.width });
+  return panelize([header, ...combinedBody], { bg: ctx.theme.panelBg(), width: ctx.width });
 }

@@ -1,6 +1,6 @@
 import type { ToolHistoryEntry } from '@/types';
 import type { RenderContext } from '@/render/types';
-import { arrayProp, asRecord, renderToolCard, stringProp } from './shared';
+import { arrayProp, asRecord, renderFileChanges, renderToolCard, stringProp } from './shared';
 
 function previewSnippet(text: string, maxChars = 120) {
   const normalized = text.replace(/\s+/g, ' ').trim();
@@ -15,7 +15,7 @@ export function renderEditTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const body =
     entry.status === 'failed'
       ? [entry.errorText || 'edit failed']
-      : edits?.length
+      : !entry.fileChanges?.length && edits?.length
         ? edits.slice(0, 3).flatMap((value, index) => {
             const edit = asRecord(value);
             const oldText = edit && typeof edit.oldText === 'string' ? edit.oldText : '';
@@ -23,6 +23,7 @@ export function renderEditTool(entry: ToolHistoryEntry, ctx: RenderContext) {
             return [`${index + 1}. - ${previewSnippet(oldText)}`, `   + ${previewSnippet(newText)}`];
           })
         : [`path: ${path}`];
+  const bodyBlock = entry.fileChanges?.length ? renderFileChanges(entry.fileChanges, ctx) : [];
 
-  return renderToolCard({ name: 'edit', detail, body, status: entry.status }, ctx);
+  return renderToolCard({ name: 'edit', detail, body, bodyBlock, status: entry.status }, ctx);
 }

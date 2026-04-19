@@ -56,17 +56,9 @@ function parseWorkflowMeta(text: string) {
 
 export function createCiTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
   return tool({
-    description:
-      'Manage GitHub Actions CI/CD. Subactions: workflows.list, workflows.lint, runs.list, runs.view, runs.rerun, runs.cancel.',
+    description: 'Manage GitHub Actions CI/CD. Subactions: workflows.list, workflows.lint, runs.list, runs.view, runs.rerun, runs.cancel.',
     inputSchema: z.object({
-      action: z.enum([
-        'workflows.list',
-        'workflows.lint',
-        'runs.list',
-        'runs.view',
-        'runs.rerun',
-        'runs.cancel'
-      ]),
+      action: z.enum(['workflows.list', 'workflows.lint', 'runs.list', 'runs.view', 'runs.rerun', 'runs.cancel']),
       runId: z.string().optional(),
       workflow: z.string().optional(),
       branch: z.string().optional(),
@@ -103,7 +95,8 @@ export function createCiTool({ runUserShell, requestApproval }: ToolFactoryOptio
           if (!meta.name) issues.push({ file, problem: 'missing top-level name' });
           if (meta.triggers.length === 0) issues.push({ file, problem: 'no triggers detected under `on:`' });
           if (meta.jobs.length === 0) issues.push({ file, problem: 'no jobs detected under `jobs:`' });
-          if (/uses:\s*actions\/checkout@(v?[12])\b/.test(text)) issues.push({ file, problem: 'using outdated actions/checkout (<v3); update to @v4' });
+          if (/uses:\s*actions\/checkout@(v?[12])\b/.test(text))
+            issues.push({ file, problem: 'using outdated actions/checkout (<v3); update to @v4' });
           if (/\$\{\{\s*github\.event\.pull_request\.title/.test(text)) {
             issues.push({ file, problem: 'PR title interpolated into shell — script-injection risk; pass via env' });
           }

@@ -1,6 +1,6 @@
 import type { ToolHistoryEntry } from '@/types';
 import type { RenderContext } from '@/render/types';
-import { formatBytes, previewText, renderToolCard, stringProp } from './shared';
+import { formatBytes, previewText, renderFileChanges, renderToolCard, stringProp } from './shared';
 
 export function renderWriteTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const path = stringProp(entry.input, 'path') || 'file';
@@ -9,9 +9,10 @@ export function renderWriteTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const detail = size ? `${path} · ${size}` : path;
   const body = entry.status === 'failed'
     ? [entry.errorText || 'write failed']
-    : content
+    : !entry.fileChanges?.length && content
       ? previewText(content, 8)
       : [typeof entry.output === 'string' ? entry.output : `path: ${path}`];
+  const bodyBlock = entry.fileChanges?.length ? renderFileChanges(entry.fileChanges, ctx) : [];
 
-  return renderToolCard({ name: 'write', detail, body, status: entry.status }, ctx);
+  return renderToolCard({ name: 'write', detail, body, bodyBlock, status: entry.status }, ctx);
 }

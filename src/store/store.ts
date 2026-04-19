@@ -1,7 +1,7 @@
 import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
-import type { ApprovalRequest, ApprovalScope, HistoryEntry } from '@/types';
+import type { ApprovalRequest, ApprovalScope, FileChange, HistoryEntry } from '@/types';
 import type { AgentState } from './types';
 
 export type AgentStore = ReturnType<typeof buildAgentStore>;
@@ -147,6 +147,18 @@ function buildAgentStore(initialState: AgentState) {
 
     setFooterNotice(footerNotice: string | null) {
       state.footerNotice = footerNotice;
+      return state;
+    },
+
+    upsertSessionFileChanges(fileChanges: FileChange[]) {
+      const next = new Map(state.sessionFileChanges.map(fileChange => [fileChange.path, fileChange]));
+
+      for (const fileChange of fileChanges) {
+        if (fileChange.hasChanges) next.set(fileChange.path, fileChange);
+        else next.delete(fileChange.path);
+      }
+
+      state.sessionFileChanges = Array.from(next.values()).sort((left, right) => left.path.localeCompare(right.path));
       return state;
     },
 
