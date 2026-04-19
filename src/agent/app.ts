@@ -27,7 +27,7 @@ const BRACKETED_PASTE_END = '\u001b[201~';
 function bracketedPasteSuffixLength(text: string) {
   const maxLength = Math.min(text.length, BRACKETED_PASTE_START.length - 1);
 
-  for (let length = maxLength; length > 0; length -= 1) {
+  for (let length = maxLength; length > 1; length -= 1) {
     if (BRACKETED_PASTE_START.startsWith(text.slice(-length))) return length;
   }
 
