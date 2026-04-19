@@ -63,7 +63,12 @@ function renderInputLines(state: ComposerState, viewWidth: number) {
 
 export function renderComposer(state: ComposerState, ctx: RenderContext): ComposerRenderResult {
   const contentWidth = Math.max(1, ctx.width - 4);
-  const prompt = state.inputChars.length === 0 ? span('→', ctx.theme.dimmed) : span('→', ctx.theme.foreground);
+  const shellMode = state.inputChars[0] === '!';
+  const prompt = state.inputChars.length === 0
+    ? span('→', ctx.theme.dimmed)
+    : shellMode
+      ? span('!', chalk.yellow)
+      : span('→', ctx.theme.foreground);
 
   if (state.inputChars.length === 0) {
     const label = 'Plan, search, build anything';
@@ -78,7 +83,23 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     };
   }
 
-  const inputLines = renderInputLines(state, contentWidth);
+  if (shellMode && state.inputChars.length === 1) {
+    const label = 'Run a command — e.g., npm install';
+    const fill = repeat(' ', Math.max(0, contentWidth - 1 - widthOf(label)));
+
+    return {
+      nextScrollOffset: 0,
+      block: thinPanelize([line(prompt, span(' '), span(' ', chalk.inverse), span(label, ctx.theme.dimmed), span(fill))], {
+        bg: ctx.theme.composerBg(),
+        width: ctx.width
+      })
+    };
+  }
+
+  const inputState = shellMode
+    ? { ...state, inputChars: state.inputChars.slice(1), cursor: Math.max(0, state.cursor - 1) }
+    : state;
+  const inputLines = renderInputLines(inputState, contentWidth);
   const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
 
   return {
