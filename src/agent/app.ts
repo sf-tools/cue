@@ -201,7 +201,10 @@ export class AgentApp {
   }
 
   private getSuggestions() {
-    return listComposerSuggestions(this.state.inputChars, this.state.cursor, this.slashCommands);
+    return listComposerSuggestions(this.state.inputChars, this.state.cursor, this.slashCommands, {
+      currentModel: this.state.currentModel,
+      thinkingMode: this.state.thinkingMode
+    });
   }
 
   private normalizeSuggestions() {

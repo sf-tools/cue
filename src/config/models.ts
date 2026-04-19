@@ -4,6 +4,8 @@ import type { LanguageModelUsage } from 'ai';
 export const DEFAULT_MODEL = 'gpt-5.4';
 export type ThinkingMode = 'auto' | 'low' | 'medium' | 'high';
 
+type TieredPrice = number | { base?: number } | undefined;
+
 export type OpenAIModelOption = {
   id: string;
   label: string;
@@ -102,14 +104,42 @@ export function getKnownOpenAIModel(model: string) {
   return MODEL_OPTION_MAP.get(normalizedModelId(model));
 }
 
+function getOpenAIPricingMeta(model: string) {
+  return calcPrice({ input_tokens: 0, output_tokens: 0 }, model, { providerId: 'openai' });
+}
+
+function resolveBasePrice(price: TieredPrice) {
+  if (typeof price === 'number') return price;
+  if (price && typeof price === 'object' && typeof price.base === 'number') return price.base;
+  return null;
+}
+
+function formatPricePerMtok(price: TieredPrice) {
+  const base = resolveBasePrice(price);
+  return base === null ? null : `$${base}/M`;
+}
+
 export function getOpenAIModelDisplayName(model: string) {
-  const meta = calcPrice({ input_tokens: 0, output_tokens: 0 }, model, { providerId: 'openai' });
+  const meta = getOpenAIPricingMeta(model);
   return meta?.model?.name ?? getKnownOpenAIModel(model)?.label ?? model;
 }
 
+export function getOpenAIModelDescription(model: string) {
+  return getKnownOpenAIModel(model)?.description ?? getOpenAIPricingMeta(model)?.model?.description ?? null;
+}
+
 export function getOpenAIContextWindow(model: string) {
-  const meta = calcPrice({ input_tokens: 0, output_tokens: 0 }, model, { providerId: 'openai' });
+  const meta = getOpenAIPricingMeta(model);
   return meta?.model?.context_window ?? getKnownOpenAIModel(model)?.contextWindow ?? inferContextWindow(model);
+}
+
+export function getOpenAIModelPricingSummary(model: string) {
+  const meta = getOpenAIPricingMeta(model);
+  const input = formatPricePerMtok(meta?.model_price?.input_mtok as TieredPrice);
+  const output = formatPricePerMtok(meta?.model_price?.output_mtok as TieredPrice);
+  const cacheRead = formatPricePerMtok(meta?.model_price?.cache_read_mtok as TieredPrice);
+  const parts = [input ? `${input} in` : null, output ? `${output} out` : null, cacheRead ? `${cacheRead} cache` : null].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : null;
 }
 
 export function isReasoningCapableOpenAIModel(model: string) {

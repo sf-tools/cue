@@ -99,7 +99,7 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
     },
 
     listSuggestions(query: SlashCommandQuery) {
-      const listArgumentSuggestions = (invocation: string, queryText: string) => {
+      const listArgumentSuggestions = (invocation: string, queryText: string, limit = 6) => {
         const resolved = invocationMap.get(invocation);
         const values = resolved?.command.argumentSuggestions ?? [];
         const normalizedQuery = normalizeInvocation(queryText);
@@ -117,7 +117,7 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
               normalizedLabel.includes(normalizedQuery)
             );
           })
-          .slice(0, 6)
+          .slice(0, limit)
           .map<SlashCommandSuggestion>(suggestion => {
             const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? invocation);
 
@@ -143,7 +143,7 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
       const normalizedQuery = normalizeInvocation(query.query);
       const exactInvocation = invocationMap.get(normalizedQuery);
       if (exactInvocation?.command.showArgumentSuggestionsOnExactInvocation) {
-        return listArgumentSuggestions(exactInvocation.invocation, '');
+        return listArgumentSuggestions(exactInvocation.invocation, '', Number.POSITIVE_INFINITY);
       }
 
       const suggestions = sortedInvocations

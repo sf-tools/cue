@@ -1,7 +1,7 @@
 import approx from 'approximate-number';
 
 import { EntryKind } from '@/types';
-import { OPENAI_MODEL_OPTIONS, getOpenAIModelDisplayName, normalizeOpenAIModelId } from '@/config';
+import { OPENAI_MODEL_OPTIONS, getOpenAIContextWindow, getOpenAIModelDescription, getOpenAIModelDisplayName, normalizeOpenAIModelId } from '@/config';
 import type { SlashCommand } from '../types';
 
 function findModel(value: string) {
@@ -9,14 +9,19 @@ function findModel(value: string) {
   return OPENAI_MODEL_OPTIONS.find(option => option.id === normalized);
 }
 
-function formatContextWindow(contextWindow?: number) {
-  return contextWindow ? `${approx(contextWindow, { capital: false, precision: 2 })} ctx` : 'context unknown';
+function formatContextWindow(contextWindow?: number | null) {
+  return contextWindow ? `${approx(contextWindow, { capital: false, precision: 2 })} ctx` : null;
+}
+
+function truncateDescription(text: string | null, maxLength = 58) {
+  if (!text) return null;
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 const MODEL_ARGUMENT_SUGGESTIONS = OPENAI_MODEL_OPTIONS.map(option => ({
   value: option.id,
-  label: option.label,
-  detail: `${option.description} · ${formatContextWindow(option.contextWindow)}`
+  label: getOpenAIModelDisplayName(option.id),
+  detail: [truncateDescription(getOpenAIModelDescription(option.id)), formatContextWindow(getOpenAIContextWindow(option.id))].filter(Boolean).join(' · ')
 }));
 
 export const modelSlashCommand: SlashCommand = {
