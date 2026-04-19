@@ -33,7 +33,7 @@ export function renderExitSummary(options: {
   threadUrl?: string | null;
   resumeCommand?: string | null;
 }): Block {
-  const threadTitle = options.threadTitle?.trim() || 'Untitled session';
+  const threadTitle = options.threadTitle?.trim() || (options.threadUrl || options.resumeCommand ? 'Untitled session' : '');
   const threadUrl = options.resumeCommand ? options.threadUrl : null;
 
   return [
