@@ -21,6 +21,8 @@ import { acceptComposerSuggestion, listComposerSuggestions } from './composer-su
 import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
 
+const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
+
 export class AgentApp {
   private readonly store = createAgentStore();
   private readonly theme = createTheme();
@@ -40,6 +42,7 @@ export class AgentApp {
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
+  private readonly rainbowTimer: ReturnType<typeof setInterval>;
   private readonly sessionId = randomUUID();
   private previousFrame: Frame | null = null;
   private drainingQueuedSubmissions = false;
@@ -61,6 +64,13 @@ export class AgentApp {
       this.scheduleRender();
     }, 80);
     this.spinnerTimer.unref();
+
+    this.rainbowTimer = setInterval(() => {
+      if (this.state.closed || !this.hasRainbowPhraseVisible()) return;
+      this.scheduleRender();
+    }, 33);
+    this.rainbowTimer.unref();
+
     installSegmentContainingPolyfill();
   }
 
@@ -81,6 +91,7 @@ export class AgentApp {
     this.store.setClosed();
 
     clearInterval(this.spinnerTimer);
+    clearInterval(this.rainbowTimer);
     if (this.renderTimer) clearTimeout(this.renderTimer);
     if (this.footerNoticeTimer) clearTimeout(this.footerNoticeTimer);
     process.stdout.off('resize', this.render);
@@ -174,6 +185,14 @@ export class AgentApp {
 
   private shouldConfirmExit() {
     return this.hasResumableSession();
+  }
+
+  private hasRainbowPhraseVisible() {
+    if (RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText)) return true;
+
+    return this.state.historyEntries.some(
+      entry => entry.type === 'entry' && entry.kind === EntryKind.Assistant && RAINBOW_PHRASE_PATTERN.test(entry.text)
+    );
   }
 
   private showFooterNotice(text: string, durationMs = 2_000) {

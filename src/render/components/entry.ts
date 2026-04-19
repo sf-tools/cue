@@ -1,11 +1,12 @@
 import chalk from 'chalk';
 
 import { EntryKind, type HistoryEntry } from '@/types';
+import { widthOf } from '@/text';
 import { LEFT_MARGIN, indent, thinPanelize, wrapTextBlock } from '../layout';
 import { blankLine, line, rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
-import type { Block, RenderContext } from '../types';
+import type { Block, RenderContext, StyledLine } from '../types';
 
 function renderUserEntry(text: string, ctx: RenderContext): Block {
   return thinPanelize(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), {
@@ -14,8 +15,83 @@ function renderUserEntry(text: string, ctx: RenderContext): Block {
   });
 }
 
+const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/gi;
+const AMP_RAINBOW_COLORS = [null, [252, 228, 165], [156, 232, 150], [104, 205, 244], [128, 176, 255], [248, 186, 235]] as const;
+const AMP_RAINBOW_WIDTH = 8;
+const AMP_RAINBOW_CYCLE_MS = 3_000;
+const AMP_RAINBOW_ANIMATION_MS = 2_000;
+
+function ampRainbowStyle(position: { index: number; total: number }, now: number) {
+  const cycleOffset = now % AMP_RAINBOW_CYCLE_MS;
+  if (cycleOffset >= AMP_RAINBOW_ANIMATION_MS) return null;
+
+  const animationOffset = cycleOffset / AMP_RAINBOW_ANIMATION_MS;
+  const startPos = Math.floor(animationOffset * (position.total + AMP_RAINBOW_WIDTH)) - AMP_RAINBOW_WIDTH;
+  if (position.index < startPos || position.index >= startPos + AMP_RAINBOW_WIDTH) return null;
+
+  const color = AMP_RAINBOW_COLORS[(position.index - startPos) % AMP_RAINBOW_COLORS.length];
+  if (!color) return null;
+
+  const [r, g, b] = color;
+  return (value: string) => chalk.rgb(r, g, b)(value);
+}
+
+function renderAssistantLines(text: string, ctx: RenderContext) {
+  const width = Math.max(1, ctx.width - 2);
+  const lines: StyledLine[] = [];
+  const now = Date.now();
+
+  RAINBOW_PHRASE_PATTERN.lastIndex = 0;
+  const ranges = Array.from(text.matchAll(RAINBOW_PHRASE_PATTERN)).map(match => {
+    const start = match.index ?? 0;
+    return {
+      start,
+      end: start + match[0].length,
+      total: match[0].replace(/\s/g, '').length
+    };
+  });
+
+  let segments: StyledLine['segments'] = [];
+  let currentWidth = 0;
+  let charIndex = 0;
+
+  const flushLine = (allowEmpty = false) => {
+    if (segments.length === 0 && !allowEmpty) return;
+    lines.push(line(...segments));
+    segments = [];
+    currentWidth = 0;
+  };
+
+  for (const ch of Array.from(text)) {
+    if (ch === '\n') {
+      flushLine(true);
+      charIndex += ch.length;
+      continue;
+    }
+
+    const charWidth = Math.max(1, widthOf(ch));
+    if (segments.length > 0 && currentWidth + charWidth > width) flushLine();
+
+    const range = ranges.find(candidate => charIndex >= candidate.start && charIndex < candidate.end);
+    const style = (() => {
+      if (!range || /\s/.test(ch)) return ctx.theme.foreground;
+
+      const relativeText = text.slice(range.start, charIndex + ch.length);
+      const nonWhitespaceIndex = relativeText.replace(/\s/g, '').length - 1;
+      return ampRainbowStyle({ index: nonWhitespaceIndex, total: range.total }, now) ?? ctx.theme.foreground;
+    })();
+
+    segments.push(span(ch, style));
+    currentWidth += charWidth;
+    charIndex += ch.length;
+  }
+
+  flushLine(true);
+  return lines;
+}
+
 function renderAssistantEntry(text: string, ctx: RenderContext): Block {
-  return indent(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), LEFT_MARGIN);
+  return indent(renderAssistantLines(text, ctx), LEFT_MARGIN);
 }
 
 function renderShellEntry(text: string, ctx: RenderContext): Block {
