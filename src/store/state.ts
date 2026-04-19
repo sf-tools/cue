@@ -13,5 +13,7 @@ export const createInitialState = (): AgentState => ({
   selectedSuggestion: 0,
   lastPromptTokens: 0,
   totalCost: 0,
-  abortController: null
+  abortController: null,
+  abortConfirmationPending: false,
+  abortRequested: false
 });

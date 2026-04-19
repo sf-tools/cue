@@ -14,6 +14,7 @@ import { runUserShell } from './shell';
 import { createAgentStore } from '@/store';
 import { plain, installSegmentContainingPolyfill } from '@/text';
 import { EntryKind, type Keypress, type LogUpdate } from '@/types';
+import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
 import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './mentions';
 import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
 
@@ -28,10 +29,7 @@ export class AgentApp {
     defaultHeight: 30
   }) as LogUpdate;
 
-  private readonly tools = createTools({
-    persistEntry: (kind, text) => this.persistEntry(kind, text),
-    runUserShell
-  });
+  private readonly tools = createTools({ runUserShell });
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly sessionId = randomUUID();
@@ -196,6 +194,8 @@ export class AgentApp {
 
     this.store.setBusy(true);
     this.store.clearLiveAssistantText();
+    this.store.setAbortConfirmationPending(false);
+    this.store.setAbortRequested(false);
     this.store.setAbortController(new AbortController());
     this.render();
 
@@ -209,9 +209,28 @@ export class AgentApp {
         abortSignal: this.state.abortController?.signal
       });
 
-      for await (const chunk of result.textStream) {
-        this.store.appendLiveAssistantText(chunk);
-        this.render();
+      for await (const part of result.fullStream) {
+        if (this.state.abortRequested && part.type !== 'abort' && part.type !== 'error') continue;
+
+        switch (part.type) {
+          case 'text-delta':
+            this.store.appendLiveAssistantText(part.text);
+            this.render();
+            break;
+          case 'tool-call':
+            this.store.upsertToolEntry(createPendingToolEntry(part));
+            this.render();
+            break;
+          case 'tool-result':
+            if (part.preliminary) break;
+            this.store.upsertToolEntry(createCompletedToolEntry(part));
+            this.render();
+            break;
+          case 'tool-error':
+            this.store.upsertToolEntry(createFailedToolEntry(part));
+            this.render();
+            break;
+        }
       }
 
       const [response, usage] = await Promise.all([result.response, result.usage]);
@@ -233,6 +252,8 @@ export class AgentApp {
     } finally {
       this.store.clearLiveAssistantText();
       this.store.setAbortController(null);
+      this.store.setAbortConfirmationPending(false);
+      this.store.setAbortRequested(false);
       this.store.setBusy(false);
       this.render();
     }
@@ -275,7 +296,16 @@ export class AgentApp {
       return;
     }
 
-    if (key.name === 'escape' && this.state.busy && this.state.abortController) {
+    if ((key.name === 'escape' || str === '\u001b') && this.state.busy && this.state.abortController) {
+      if (!this.state.abortConfirmationPending) {
+        this.store.setAbortConfirmationPending(true);
+        this.render();
+        return;
+      }
+
+      this.store.setAbortConfirmationPending(false);
+      this.store.setAbortRequested(true);
+      this.render();
       this.state.abortController.abort();
       return;
     }
@@ -287,6 +317,11 @@ export class AgentApp {
     }
 
     if (this.state.busy) return;
+
+    if (this.state.abortConfirmationPending) {
+      this.store.setAbortConfirmationPending(false);
+      this.render();
+    }
 
     if (key.name === 'up' && this.moveSuggestionSelection(-1)) return;
     if (key.name === 'down' && this.moveSuggestionSelection(1)) return;

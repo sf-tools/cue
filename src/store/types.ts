@@ -14,4 +14,6 @@ export type AgentState = {
   lastPromptTokens: number;
   totalCost: number;
   abortController: AbortController | null;
+  abortConfirmationPending: boolean;
+  abortRequested: boolean;
 };

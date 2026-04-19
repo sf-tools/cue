@@ -6,8 +6,10 @@ import type { AgentState } from './types';
 
 export type AgentStore = ReturnType<typeof createAgentStore>;
 
-function hasVisibleContent(text: string) {
-  return text.trim().length > 0;
+function hasVisibleContent(entry: HistoryEntry) {
+  if (entry.type === 'tool') return true;
+  if (entry.type === 'plain' || entry.type === 'ansi') return entry.text.trim().length > 0;
+  return entry.text.trim().length > 0;
 }
 
 function clamp(value: number, min: number, max: number) {
@@ -46,6 +48,20 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setAbortController(abortController: AbortController | null) {
       state.abortController = abortController;
+      if (abortController === null) {
+        state.abortConfirmationPending = false;
+        state.abortRequested = false;
+      }
+      return state;
+    },
+
+    setAbortConfirmationPending(abortConfirmationPending: boolean) {
+      state.abortConfirmationPending = abortConfirmationPending;
+      return state;
+    },
+
+    setAbortRequested(abortRequested: boolean) {
+      state.abortRequested = abortRequested;
       return state;
     },
 
@@ -75,7 +91,16 @@ export function createAgentStore(initialState: AgentState = createInitialState()
     },
 
     pushHistoryEntry(entry: HistoryEntry) {
-      if (hasVisibleContent(entry.text)) state.historyEntries.push(entry);
+      if (hasVisibleContent(entry)) state.historyEntries.push(entry);
+      return state;
+    },
+
+    upsertToolEntry(entry: Extract<HistoryEntry, { type: 'tool' }>) {
+      const index = state.historyEntries.findIndex(candidate => candidate.type === 'tool' && candidate.toolCallId === entry.toolCallId);
+
+      if (index === -1) state.historyEntries.push(entry);
+      else state.historyEntries[index] = entry;
+
       return state;
     },
 

@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { EntryKind, type HistoryEntry } from '@/types';
 import { LEFT_MARGIN, indent, panelize, wrapTextBlock } from '../layout';
 import { rawBlock, span } from '../primitives';
+import { renderToolHistoryEntry } from './tools';
 
 import type { Block, RenderContext } from '../types';
 
@@ -42,6 +43,7 @@ function renderMetaEntry(text: string, ctx: RenderContext): Block {
 }
 
 export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext): Block {
+  if (entry.type === 'tool') return renderToolHistoryEntry(entry, ctx);
   if (entry.type === 'ansi') return indent(rawBlock(entry.text), LEFT_MARGIN);
   if (entry.type === 'plain') return indent(wrapTextBlock(entry.text, Math.max(1, ctx.width)), LEFT_MARGIN);
 

@@ -7,10 +7,23 @@ export enum EntryKind {
   Meta = 'meta'
 }
 
+export type ToolHistoryEntry = {
+  type: 'tool';
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  output?: unknown;
+  status: 'running' | 'completed' | 'failed';
+  errorText?: string;
+  providerExecuted?: boolean;
+  title?: string;
+};
+
 export type HistoryEntry =
   | { type: 'entry'; kind: EntryKind; text: string }
   | { type: 'plain'; text: string }
-  | { type: 'ansi'; text: string };
+  | { type: 'ansi'; text: string }
+  | ToolHistoryEntry;
 
 export type LogUpdate = ((...text: string[]) => void) & {
   clear(): void;
