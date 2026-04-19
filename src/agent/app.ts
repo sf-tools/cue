@@ -16,7 +16,7 @@ import { blankLine, vstack } from '@/render/primitives';
 import { renderFooter } from '@/render/components/footer';
 import type { ReadStream as TtyReadStream } from 'node:tty';
 import { renderHistoryEntry } from '@/render/components/entry';
-import { streamText, stepCountIs, type ModelMessage } from 'ai';
+import { streamText, stepCountIs, type ImagePart, type ModelMessage, type TextPart } from 'ai';
 import { compactMessages, canCompactMessages } from './compact';
 import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
@@ -34,6 +34,18 @@ import { createFileChange, previewFileChangesForToolCall } from '@/file-changes'
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { createSnapshotFromState, saveCueSessionSnapshot } from './session-storage';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
+import { readClipboardImage, clipboardHelperHint } from './clipboard-image';
+import {
+  attachFromBytes,
+  attachFromPath,
+  extractTokens,
+  findAttachment,
+  IMAGE_TOKEN_PATTERN,
+  replaceTokensWithSummary,
+  summarizeAttachment,
+  type Attachment,
+} from './image-attachments';
+import { IMAGE_MEDIA_TYPES, parseDroppedImagePaths } from './path-detect';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@/render';
 import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
@@ -929,16 +941,56 @@ export class AgentApp {
 
   private async expand(input: string) {
     let out = input;
+    const imageMentions: Attachment[] = [];
 
     for (const match of input.match(/@[^\s]+/g) || []) {
+      const path = match.slice(1);
+      const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
+      if (IMAGE_MEDIA_TYPES[ext]) {
+        try {
+          const attachment = await attachFromPath(path);
+          imageMentions.push(attachment);
+          out = out.replace(match, attachment.token);
+        } catch {
+          // fall through to text-mention behavior
+        }
+        continue;
+      }
       try {
-        const path = match.slice(1);
         const content = await readFile(path, 'utf8');
         out += `\n\n<file path="${path}">\n${content}\n</file>`;
       } catch {}
     }
 
     return out;
+  }
+
+  private async buildUserMessageContent(text: string): Promise<string | Array<TextPart | ImagePart>> {
+    const expanded = await this.expand(text);
+    const tokens = extractTokens(expanded);
+    if (tokens.length === 0) return expanded;
+
+    const parts: Array<TextPart | ImagePart> = [];
+    let cursor = 0;
+    IMAGE_TOKEN_PATTERN.lastIndex = 0;
+    for (const match of expanded.matchAll(IMAGE_TOKEN_PATTERN)) {
+      const matchStart = match.index ?? 0;
+      const before = expanded.slice(cursor, matchStart).trimEnd();
+      if (before.length > 0) parts.push({ type: 'text', text: before });
+      const attachment = findAttachment(match[0]);
+      if (attachment) {
+        try {
+          const bytes = await readFile(attachment.path);
+          parts.push({ type: 'image', image: new Uint8Array(bytes), mediaType: attachment.mediaType });
+        } catch {
+          parts.push({ type: 'text', text: `[image unavailable: ${attachment.originalName}]` });
+        }
+      }
+      cursor = matchStart + match[0].length;
+    }
+    const tail = expanded.slice(cursor).trimStart();
+    if (tail.length > 0) parts.push({ type: 'text', text: tail });
+    return parts.length > 0 ? parts : expanded;
   }
 
   private async runShellCommand(cmd: string) {
@@ -1042,6 +1094,11 @@ export class AgentApp {
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),
             persistAnsi: text => this.persistAnsi(text),
+            insertText: text => this.insertText(text),
+            attachImageFromClipboard: async () => {
+              const attachment = await this.attachImageFromClipboard();
+              return attachment ? { token: attachment.token, originalName: attachment.originalName } : null;
+            },
           },
           {
             raw: trimmed,
@@ -1088,7 +1145,7 @@ export class AgentApp {
       }).catch(() => {});
     }
 
-    this.persistEntry(EntryKind.User, trimmed);
+    this.persistEntry(EntryKind.User, replaceTokensWithSummary(trimmed));
 
     const abortController = createAbortController(this.store);
 
@@ -1101,7 +1158,8 @@ export class AgentApp {
     try {
       if (this.shouldAutoCompact()) await this.compactConversation();
 
-      this.store.pushMessage({ role: 'user', content: await this.expand(trimmed) });
+      const userContent = await this.buildUserMessageContent(trimmed);
+      this.store.pushMessage({ role: 'user', content: userContent });
 
       const runtimeMessages = this.getRuntimeMessages();
       const estimatedPromptTokens = estimateMessageTokens(runtimeMessages);
@@ -1423,6 +1481,8 @@ export class AgentApp {
     const normalized = normalizePtyOutput(text);
     if (!normalized) return;
 
+    if (this.tryAttachDroppedImages(normalized)) return;
+
     this.historyNavigationIndex = null;
     this.resetPreferredComposerColumn();
     this.store.insertPastedText(normalized);
@@ -1431,6 +1491,54 @@ export class AgentApp {
 
     this.scheduleSessionSnapshot();
     this.render();
+  }
+
+  private tryAttachDroppedImages(text: string): boolean {
+    const dropped = parseDroppedImagePaths(text, process.cwd());
+    if (!dropped) return false;
+
+    void (async () => {
+      const tokens: string[] = [];
+      const summaries: string[] = [];
+      for (const file of dropped) {
+        try {
+          const attachment = await attachFromPath(file.absolutePath);
+          tokens.push(attachment.token);
+          summaries.push(attachment.originalName);
+        } catch (error) {
+          this.showFooterNotice(`couldn't attach ${file.absolutePath}: ${error instanceof Error ? error.message : 'error'}`);
+        }
+      }
+      if (tokens.length === 0) return;
+      this.historyNavigationIndex = null;
+      this.resetPreferredComposerColumn();
+      this.store.insertText(tokens.join(' '));
+      this.showFooterNotice(`attached ${summaries.length === 1 ? summaries[0] : `${summaries.length} images`}`);
+      this.scheduleSessionSnapshot();
+      this.render();
+    })();
+    return true;
+  }
+
+  private async attachImageFromClipboard(): Promise<Attachment | null> {
+    const image = await readClipboardImage();
+    if (!image) {
+      this.showFooterNotice(`no image on clipboard · ${clipboardHelperHint()}`, 4_000);
+      return null;
+    }
+    try {
+      const attachment = await attachFromBytes(image.bytes, image.mediaType, 'clipboard.png');
+      this.historyNavigationIndex = null;
+      this.resetPreferredComposerColumn();
+      this.store.insertText(attachment.token);
+      this.showFooterNotice(`attached ${summarizeAttachment(attachment)}`);
+      this.scheduleSessionSnapshot();
+      this.render();
+      return attachment;
+    } catch (error) {
+      this.showFooterNotice(`clipboard attach failed: ${error instanceof Error ? error.message : 'error'}`, 4_000);
+      return null;
+    }
   }
 
   private moveSuggestionSelection(delta: number) {

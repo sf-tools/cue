@@ -1,6 +1,7 @@
 import { autoRunSlashCommand } from './auto-run';
 import { compactSlashCommand } from './compact';
 import { quitSlashCommand } from './exit';
+import { imgSlashCommand } from './img';
 import { logoutSlashCommand } from './logout';
 import { modelSlashCommand } from './model';
 import { planningSlashCommand } from './planning';
@@ -14,6 +15,7 @@ import { toolsSlashCommand } from './tools';
 export const builtinSlashCommands = [
   autoRunSlashCommand,
   compactSlashCommand,
+  imgSlashCommand,
   logoutSlashCommand,
   modelSlashCommand,
   planningSlashCommand,

@@ -31,6 +31,8 @@ export type SlashCommandContext = {
   persistEntry(kind: EntryKind, text: string): void;
   persistPlain(text: string): void;
   persistAnsi(text: string): void;
+  insertText(text: string): void;
+  attachImageFromClipboard(): Promise<{ token: string; originalName: string } | null>;
 };
 
 export type TextStyle = (text: string) => string;
