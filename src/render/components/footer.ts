@@ -20,7 +20,10 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
     ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
     : state.busy
       ? state.busyStatusText
-        ? line(span(LEFT_MARGIN), span([`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued].filter(Boolean).join(' · '), chalk.yellow))
+        ? line(
+            span(LEFT_MARGIN),
+            span([`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued].filter(Boolean).join(' · '), chalk.yellow)
+          )
         : line(span(LEFT_MARGIN), span([`${ctx.spinnerFrame} Thinking...`, queued].filter(Boolean).join(' · '), ctx.theme.spinnerText))
       : stats
         ? line(span(LEFT_MARGIN), span(stats, ctx.theme.dimmed), span(' · ', ctx.theme.subtle), span(MODEL, chalk.white))

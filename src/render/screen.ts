@@ -60,7 +60,8 @@ export function renderScreen(
     inputChars: state.inputChars,
     cursor: state.cursor,
     scrollOffset: state.scrollOffset,
-    slashCommandLength
+    slashCommandLength,
+    showCapabilitiesHint: state.historyEntries.length === 0
   }, ctx);
   const suggestionLines = renderSuggestions(suggestions, state.selectedSuggestion, ctx);
   const footer = renderFooter(state, ctx);
