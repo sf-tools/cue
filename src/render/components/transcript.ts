@@ -53,25 +53,14 @@ function renderApprovalNotice(request: ApprovalRequest, ctx: RenderContext): Blo
 export function renderOutputPreview(
   text: string,
   ctx: RenderContext,
-  abortConfirmationPending = false,
-  abortRequested = false,
-  exitConfirmationPending = false,
   pendingApproval: ApprovalRequest | null = null
 ): Block {
-  if (!text && !abortConfirmationPending && !abortRequested && !exitConfirmationPending && !pendingApproval) return [];
+  if (!text && !pendingApproval) return [];
 
   const maxLines = Math.max(3, ctx.height - 12);
   const previewText = text ? clipPreviewText(text, ctx, maxLines) : '';
   const preview = previewText ? renderHistoryEntry({ type: 'entry', kind: EntryKind.Assistant, text: previewText }, ctx) : [];
-  const notice = pendingApproval
-    ? [...renderApprovalNotice(pendingApproval, ctx), blankLine()]
-    : exitConfirmationPending
-      ? [line(span(' '), span('Press Ctrl+C again to exit', chalk.redBright)), blankLine()]
-      : abortRequested
-        ? [line(span(' '), span('Aborting…', chalk.redBright)), blankLine()]
-        : abortConfirmationPending
-          ? [line(span(' '), span('Press Esc again to abort', chalk.redBright)), blankLine()]
-          : [];
+  const notice = pendingApproval ? [...renderApprovalNotice(pendingApproval, ctx), blankLine()] : [];
 
   return [...takeLast(preview, maxLines), ...notice];
 }

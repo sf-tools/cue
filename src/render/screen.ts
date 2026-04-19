@@ -49,14 +49,7 @@ export function renderScreen(
   previousFrame: Frame | null = null
 ) {
   const header = renderHeader(ctx);
-  const preview = renderOutputPreview(
-    state.liveAssistantText,
-    ctx,
-    state.abortConfirmationPending,
-    state.abortRequested,
-    state.exitConfirmationPending,
-    state.pendingApproval
-  );
+  const preview = renderOutputPreview(state.liveAssistantText, ctx, state.pendingApproval);
   const composer = renderComposer({
     inputChars: state.inputChars,
     cursor: state.cursor,
