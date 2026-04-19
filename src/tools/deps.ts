@@ -378,12 +378,21 @@ export function createDepsTool({ runUserShell, requestApproval }: ToolFactoryOpt
           const section = kind === 'dev' ? 'devDependencies' : json.dependencies?.[packageName] ? 'dependencies' : json.devDependencies?.[packageName] ? 'devDependencies' : 'dependencies';
           json[section] = { ...(json[section] ?? {}), [packageName]: version };
           nextText = `${JSON.stringify(json, null, 2)}\n`;
-        } else if (target.manifest === 'Cargo.toml' || target.manifest === 'pyproject.toml' || target.manifest === 'go.mod') {
+        } else if (target.manifest === 'Cargo.toml' || target.manifest === 'pyproject.toml') {
           const re = new RegExp(`(^\\s*${packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*")[^"]+(")`, 'm');
           if (re.test(manifestText)) {
             nextText = manifestText.replace(re, (_, a, b) => `${a}${version}${b}`);
           } else {
             throw new Error(`could not locate \`${packageName}\` in ${target.manifest}; manual edit needed`);
+          }
+        } else if (target.manifest === 'go.mod') {
+          const goVersion = version.startsWith('v') ? version : `v${version}`;
+          const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(`(^\\s*(?:require\\s+)?${escaped}\\s+)v\\S+`, 'm');
+          if (re.test(manifestText)) {
+            nextText = manifestText.replace(re, (_, prefix) => `${prefix}${goVersion}`);
+          } else {
+            throw new Error(`could not locate \`${packageName}\` in go.mod; manual edit needed`);
           }
         } else {
           throw new Error(`unsupported manifest: ${target.manifest}`);
