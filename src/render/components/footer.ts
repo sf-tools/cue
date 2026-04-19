@@ -6,7 +6,7 @@ import { line, span } from '../primitives';
 import { LEFT_MARGIN } from '../layout';
 
 import type { AgentState } from '@/store';
-import type { Block, RenderContext } from '../types';
+import type { Block, RenderContext, Segment, StyledLine } from '../types';
 
 function thinkingModeStyle(mode: AgentState['thinkingMode']) {
   switch (mode) {
@@ -25,6 +25,7 @@ function formatUsageSummary(state: AgentState) {
   const promptTokens = state.busy ? state.livePromptTokens : state.lastPromptTokens;
   const outputTokens = state.busy ? state.liveOutputTokens : state.lastOutputTokens;
   const reasoningTokens = state.busy ? state.liveReasoningTokens : state.lastReasoningTokens;
+
   const hasUsage = promptTokens > 0 || outputTokens > 0 || reasoningTokens > 0;
   if (!hasUsage) return '';
 
@@ -38,13 +39,13 @@ function formatUsageSummary(state: AgentState) {
   return `↑${input} ↓${output} / ${context} (${pctLabel})`;
 }
 
-export function renderFooter(state: AgentState, ctx: RenderContext): Block {
-  const queued = state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
-  const usage = formatUsageSummary(state);
-  const cost = state.totalCost > 0 ? `$${state.totalCost.toFixed(4)}` : '';
-  const autoCompact = state.autoCompactEnabled ? '' : 'auto-compact off';
+function joinFooterParts(...parts: Array<string | null | undefined>) {
+  return parts.filter(Boolean).join(' · ');
+}
+
+function buildStatsLine(state: AgentState, ctx: RenderContext, footerPrefix: Segment[], usage: string, cost: string, autoCompact: string) {
   const modelName = getOpenAIModelDisplayName(state.currentModel);
-  const statsSegments = [span(LEFT_MARGIN)];
+  const statsSegments = [...footerPrefix];
   let hasStats = false;
 
   const appendStat = (text: string, style = ctx.theme.dimmed) => {
@@ -58,7 +59,7 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   appendStat(cost);
   appendStat(autoCompact);
 
-  const statsLine = hasStats
+  return hasStats
     ? line(
         ...statsSegments,
         span(' · ', ctx.theme.subtle),
@@ -68,53 +69,74 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
           : [])
       )
     : line(
-        span(LEFT_MARGIN),
+        ...footerPrefix,
         span(modelName, chalk.white),
         ...(isReasoningCapableOpenAIModel(state.currentModel)
           ? [span(' · ', ctx.theme.subtle), span(formatThinkingMode(state.thinkingMode), thinkingModeStyle(state.thinkingMode))]
           : [])
       );
+}
 
-  const modeLine = state.pendingApproval
-    ? line(span(LEFT_MARGIN), span(['Approval required', state.pendingApproval.title, queued].filter(Boolean).join(' · '), chalk.yellow))
-    : state.compacting
-      ? line(span(LEFT_MARGIN), span([`${ctx.commandSpinnerFrame} Compacting...`, queued].filter(Boolean).join(' · '), chalk.yellow))
-      : state.busy && state.busyStatusText
-        ? line(
-            span(LEFT_MARGIN),
-            span([`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued].filter(Boolean).join(' · '), chalk.yellow)
-          )
-        : statsLine;
+function buildModeLine(state: AgentState, ctx: RenderContext, footerPrefix: Segment[], queued: string, statsLine: StyledLine) {
+  if (state.pendingApproval) {
+    return line(...footerPrefix, span(joinFooterParts('Approval required', state.pendingApproval.title, queued), chalk.yellow));
+  }
+
+  if (state.compacting) {
+    return line(...footerPrefix, span(joinFooterParts(`${ctx.commandSpinnerFrame} Compacting...`, queued), chalk.yellow));
+  }
+
+  if (state.busy && state.busyStatusText) {
+    return line(...footerPrefix, span(joinFooterParts(`${ctx.commandSpinnerFrame} running ${state.busyStatusText}`, queued), chalk.yellow));
+  }
+
+  return statsLine;
+}
+
+function buildNoticeLine(state: AgentState, ctx: RenderContext, queued: string) {
+  if (state.exitConfirmationPending) {
+    return line(span(LEFT_MARGIN), span('Press Ctrl+C again to exit', chalk.redBright));
+  }
+
+  if (state.steerRequested) {
+    return line(span(LEFT_MARGIN), span(joinFooterParts('Steering…', queued), chalk.yellow));
+  }
+
+  if (state.abortRequested) {
+    return line(span(LEFT_MARGIN), span(joinFooterParts('Aborting…', queued), chalk.redBright));
+  }
+
+  if (state.abortConfirmationPending) {
+    return line(span(LEFT_MARGIN), span('Press Esc again to abort', chalk.redBright));
+  }
+
+  if (state.footerNotice) {
+    return line(span(LEFT_MARGIN), span(state.footerNotice, chalk.hex('#8ab4ff')));
+  }
+
+  if (state.busy && !state.busyStatusText) {
+    return line(
+      span(LEFT_MARGIN),
+      span(`${ctx.spinnerFrame} Thinking...`, ctx.theme.spinnerText),
+      ...(queued ? [span(' · ', ctx.theme.subtle), span(queued, chalk.yellow)] : [])
+    );
+  }
+
+  return null;
+}
+
+export function renderFooter(state: AgentState, ctx: RenderContext): Block {
+  const queued = state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
+  const usage = formatUsageSummary(state);
+  const cost = state.totalCost > 0 ? `$${state.totalCost.toFixed(4)}` : '';
+  const autoCompact = state.autoCompactEnabled ? '' : 'auto-compact off';
+  const footerPrefix = [span(LEFT_MARGIN), ...(state.autoRunEnabled ? [span('!', chalk.redBright), span(' ')] : [])];
+  const statsLine = buildStatsLine(state, ctx, footerPrefix, usage, cost, autoCompact);
+  const modeLine = buildModeLine(state, ctx, footerPrefix, queued, statsLine);
 
   const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
-  const autoRunMarkerWidth = state.autoRunEnabled ? 2 : 0;
-  const locationLine = line(
-    span(LEFT_MARGIN),
-    ...(state.autoRunEnabled ? [span('!', chalk.redBright), span(' ')] : []),
-    span(location.padEnd(Math.max(ctx.width - autoRunMarkerWidth, location.length)), ctx.theme.subtle)
-  );
-  const notice = state.exitConfirmationPending
-    ? line(span(LEFT_MARGIN), span('Press Ctrl+C again to exit', chalk.redBright))
-    : state.steerRequested
-      ? line(span(LEFT_MARGIN), span(['Steering…', queued].filter(Boolean).join(' · '), chalk.yellow))
-      : state.abortRequested
-        ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
-        : state.abortConfirmationPending
-          ? line(span(LEFT_MARGIN), span('Press Esc again to abort', chalk.redBright))
-          : state.footerNotice
-            ? line(span(LEFT_MARGIN), span(state.footerNotice, chalk.hex('#8ab4ff')))
-            : state.busy && !state.busyStatusText
-              ? line(
-                  span(LEFT_MARGIN),
-                  span(`${ctx.spinnerFrame} Thinking...`, ctx.theme.spinnerText),
-                  ...(queued ? [span(' · ', ctx.theme.subtle), span(queued, chalk.yellow)] : [])
-                )
-              : null;
+  const locationLine = line(span(LEFT_MARGIN), span(location.padEnd(Math.max(ctx.width, location.length)), ctx.theme.subtle));
+  const notice = buildNoticeLine(state, ctx, queued);
 
-  return [
-    line(),
-    modeLine,
-    locationLine,
-    ...(notice ? [line(), notice] : [])
-  ];
+  return [line(), modeLine, locationLine, ...(notice ? [line(), notice] : [])];
 }
