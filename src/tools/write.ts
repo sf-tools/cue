@@ -3,7 +3,8 @@ import { writeFile } from 'node:fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 
-import { buildWriteFileChange, describeFileChange } from '@/file-changes';
+import { createFileChange, describeFileChange } from '@/file-changes';
+import { readOptionalFile, type UndoEntry } from '@/undo';
 import type { ToolFactoryOptions } from './types';
 
 function previewContent(content: string, maxLines = 6, maxChars = 800) {
@@ -12,12 +13,13 @@ function previewContent(content: string, maxLines = 6, maxChars = 800) {
   return lines.length <= maxLines ? lines : [...lines.slice(0, maxLines), `… ${lines.length - maxLines} more lines`];
 }
 
-export function createWriteTool({ requestApproval }: ToolFactoryOptions) {
+export function createWriteTool({ requestApproval, pushUndoEntry }: ToolFactoryOptions) {
   return tool({
     description: 'Write content to a file',
     inputSchema: z.object({ path: z.string(), content: z.string() }),
     execute: async ({ path, content }) => {
-      const fileChange = await buildWriteFileChange(path, content);
+      const previousContent = await readOptionalFile(path);
+      const fileChange = createFileChange(path, previousContent, content);
 
       if (!(await requestApproval({
         scope: 'edit',
@@ -30,6 +32,12 @@ export function createWriteTool({ requestApproval }: ToolFactoryOptions) {
       }
 
       await writeFile(path, content);
+      const undoEntry: UndoEntry = {
+        toolName: 'write',
+        summary: `write ${path}`,
+        files: [{ path, previousContent, nextContent: content }]
+      };
+      pushUndoEntry(undoEntry);
       return `wrote ${content.length} bytes to ${path}`;
     }
   });

@@ -42,15 +42,21 @@ export function formatBytes(value: number) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function previewText(text: string, maxLines = 6) {
-  const lines = plain(text).split('\n');
-  if (lines.length <= maxLines) return lines;
-  return [...lines.slice(0, maxLines), `… ${lines.length - maxLines} more lines`];
+export function previewLines(lines: string[], ctx: RenderContext, maxLines = 6, label = 'lines') {
+  if (ctx.expandPreviews || lines.length <= maxLines) {
+    return lines.length > maxLines ? [...lines, '… (ctrl+o to collapse)'] : lines;
+  }
+
+  return [...lines.slice(0, maxLines), `… (${lines.length - maxLines} more ${label}, ctrl+o to expand)`];
 }
 
-export function previewJson(value: unknown) {
+export function previewText(text: string, ctx: RenderContext, maxLines = 6, label = 'lines') {
+  return previewLines(plain(text).split('\n'), ctx, maxLines, label);
+}
+
+export function previewJson(value: unknown, ctx: RenderContext) {
   try {
-    return previewText(JSON.stringify(value, null, 2), 8);
+    return previewText(JSON.stringify(value, null, 2), ctx, 8);
   } catch {
     return [String(value)];
   }
@@ -141,7 +147,7 @@ export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext,
 
     const parsedLines = parseDiffLines(fileChange.diff);
     const width = lineNumberWidth(parsedLines);
-    const visibleLines = parsedLines.slice(0, maxLinesPerFile);
+    const visibleLines = ctx.expandPreviews ? parsedLines : parsedLines.slice(0, maxLinesPerFile);
 
     for (const diffLine of visibleLines) {
       if (diffLine.type === 'chunk') {
@@ -170,7 +176,9 @@ export function renderFileChanges(fileChanges: FileChange[], ctx: RenderContext,
     }
 
     if (parsedLines.length > visibleLines.length) {
-      block.push(line(span('  ', ctx.theme.subtle), span(`… ${parsedLines.length - visibleLines.length} more diff lines`, ctx.theme.dimmed)));
+      block.push(line(span('  ', ctx.theme.subtle), span(`… (${parsedLines.length - visibleLines.length} more diff lines, ctrl+o to expand)`, ctx.theme.dimmed)));
+    } else if (ctx.expandPreviews && parsedLines.length > maxLinesPerFile) {
+      block.push(line(span('  ', ctx.theme.subtle), span('… (ctrl+o to collapse)', ctx.theme.dimmed)));
     }
   });
 

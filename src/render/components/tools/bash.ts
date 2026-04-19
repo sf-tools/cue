@@ -10,7 +10,7 @@ export function renderBashTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const body = [`$ ${cmd}`];
 
   if (status === 'failed') body.push(entry.errorText || output || 'command failed');
-  else if (output.trim()) body.push(...previewText(output, 8));
+  else if (output.trim()) body.push(...previewText(output, ctx, 8));
 
   return renderToolCard({ name: 'bash', detail: cmd, body, status }, ctx);
 }

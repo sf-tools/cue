@@ -28,6 +28,7 @@ export type RenderContext = {
   spinnerFrame: string;
   commandSpinnerFrame: string;
   theme: ThemePalette;
+  expandPreviews: boolean;
 };
 
 export type ComposerRenderResult = {

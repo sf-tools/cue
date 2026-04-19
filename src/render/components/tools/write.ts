@@ -10,7 +10,7 @@ export function renderWriteTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const body = entry.status === 'failed'
     ? [entry.errorText || 'write failed']
     : !entry.fileChanges?.length && content
-      ? previewText(content, 8)
+      ? previewText(content, ctx, 8)
       : [typeof entry.output === 'string' ? entry.output : `path: ${path}`];
   const bodyBlock = entry.fileChanges?.length ? renderFileChanges(entry.fileChanges, ctx) : [];
 

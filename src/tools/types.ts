@@ -1,4 +1,5 @@
 import type { ThinkingMode } from '@/config';
+import type { UndoEntry } from '@/undo';
 import type { ApprovalRequest, ChoiceRequest, ChoiceSelection, ShellResult } from '@/types';
 
 export type ToolFactoryOptions = {
@@ -9,4 +10,7 @@ export type ToolFactoryOptions = {
   getPlanningMode: () => boolean;
   getCurrentModel: () => string;
   getThinkingMode: () => ThinkingMode;
+  pushUndoEntry: (entry: UndoEntry) => void;
+  peekUndoEntry: () => UndoEntry | null;
+  popUndoEntry: () => UndoEntry | null;
 };

@@ -10,7 +10,7 @@ export function renderReadTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const body = entry.status === 'failed'
     ? [entry.errorText || 'read failed']
     : output
-      ? previewText(output, 8)
+      ? previewText(output, ctx, 8)
       : [`path: ${path}`];
 
   return renderToolCard({ name: 'read', detail, body, status: entry.status }, ctx);

@@ -4,6 +4,7 @@ export type InputBinding =
   | { type: 'interrupt' }
   | { type: 'escape' }
   | { type: 'toggleThinkingMode' }
+  | { type: 'togglePreviews' }
   | { type: 'acceptSuggestion' }
   | { type: 'submit' }
   | { type: 'moveSuggestion'; delta: number }
@@ -48,6 +49,7 @@ export function resolveInputBinding(data: Buffer | string): InputBinding | null 
 
   if (input === 'c' && keypress.ctrl) return { type: 'interrupt' };
   if (keypress.name === 'escape') return { type: 'escape' };
+  if (input === 'o' && keypress.ctrl) return { type: 'togglePreviews' };
   if (keypress.name === 'tab' && keypress.shift) return { type: 'toggleThinkingMode' };
   if (keypress.name === 'tab') return { type: 'acceptSuggestion' };
   if (keypress.name === 'return') return { type: 'submit' };

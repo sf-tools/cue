@@ -3,8 +3,9 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { tool } from 'ai';
 import { z } from 'zod';
 
-import { applyEdits, buildEditFileChange, describeFileChange, type EditSpec } from '@/file-changes';
+import { applyEdits, createFileChange, describeFileChange, type EditSpec } from '@/file-changes';
 import { plain } from '@/text';
+import type { UndoEntry } from '@/undo';
 import type { ToolFactoryOptions } from './types';
 
 function previewSnippet(text: string, maxChars = 160) {
@@ -22,7 +23,7 @@ function previewEdits(edits: EditSpec[], maxItems = 3) {
   return items;
 }
 
-export function createEditTool({ requestApproval }: ToolFactoryOptions) {
+export function createEditTool({ requestApproval, pushUndoEntry }: ToolFactoryOptions) {
   return tool({
     description: 'Edit an existing file by applying exact text replacements',
     inputSchema: z.object({
@@ -30,7 +31,9 @@ export function createEditTool({ requestApproval }: ToolFactoryOptions) {
       edits: z.array(z.object({ oldText: z.string().min(1), newText: z.string() })).min(1)
     }),
     execute: async ({ path, edits }) => {
-      const fileChange = await buildEditFileChange(path, edits as EditSpec[]);
+      const previousContent = await readFile(path, 'utf8');
+      const nextContent = applyEdits(previousContent, edits as EditSpec[]);
+      const fileChange = createFileChange(path, previousContent, nextContent);
 
       if (
         !(await requestApproval({
@@ -44,9 +47,13 @@ export function createEditTool({ requestApproval }: ToolFactoryOptions) {
         throw new Error('edit denied by user');
       }
 
-      const content = await readFile(path, 'utf8');
-      const next = applyEdits(content, edits as EditSpec[]);
-      await writeFile(path, next);
+      await writeFile(path, nextContent);
+      const undoEntry: UndoEntry = {
+        toolName: 'edit',
+        summary: `edit ${path}`,
+        files: [{ path, previousContent, nextContent }]
+      };
+      pushUndoEntry(undoEntry);
       return `applied ${edits.length} edit${edits.length === 1 ? '' : 's'} to ${path}`;
     }
   });

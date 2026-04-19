@@ -1,11 +1,6 @@
 import type { ToolHistoryEntry } from '@/types';
 import type { RenderContext } from '@/render/types';
-import { arrayProp, renderToolCard, stringProp } from './shared';
-
-function previewScript(script: string, maxLines = 8) {
-  const lines = script.split('\n');
-  return lines.length <= maxLines ? lines : [...lines.slice(0, maxLines), `… ${lines.length - maxLines} more lines`];
-}
+import { arrayProp, previewLines, renderToolCard, stringProp } from './shared';
 
 export function renderAntTool(entry: ToolHistoryEntry, ctx: RenderContext) {
   const script = stringProp(entry.input, 'script') || '';
@@ -21,8 +16,8 @@ export function renderAntTool(entry: ToolHistoryEntry, ctx: RenderContext) {
     : [
         ...(args.length ? [`args: ${args.join(' ')}`] : []),
         'script:',
-        ...previewScript(script),
-        ...(output.trim() ? ['output:', ...output.split('\n').slice(0, 8)] : [])
+        ...previewLines(script.split('\n'), ctx, 8),
+        ...(output.trim() ? ['output:', ...previewLines(output.split('\n'), ctx, 8)] : [])
       ];
 
   return renderToolCard({ name: 'ant', detail, body, status }, ctx);

@@ -12,6 +12,7 @@ export function createRenderContext(
   theme: ThemePalette,
   spinnerFrame: string,
   commandSpinnerFrame: string,
+  expandPreviews = false,
   columns = process.stdout.columns || 100,
   rows = process.stdout.rows || 30
 ): RenderContext {
@@ -25,6 +26,7 @@ export function createRenderContext(
     gitBranch: getCachedGitBranch(cwd),
     spinnerFrame,
     commandSpinnerFrame,
-    theme
+    theme,
+    expandPreviews
   };
 }

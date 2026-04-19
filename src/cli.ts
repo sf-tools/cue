@@ -49,6 +49,7 @@ function printHelp() {
     formatRows([
       ['!<command>', 'Run a shell command'],
       ['@path/to/file', 'Attach a file to your prompt'],
+      ['Ctrl+O', 'Expand/collapse truncated previews'],
       ['/model', 'Switch models'],
       ['/reasoning', 'Adjust reasoning level'],
       ['/planning', 'Toggle read-only planning mode'],

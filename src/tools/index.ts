@@ -7,6 +7,7 @@ import { createOracleTool } from './oracle';
 import { createWebSearchTool } from './web';
 import { createRipgrepTool } from './ripgrep';
 import { createSubagentTool } from './subagent';
+import { createUndoTool } from './undo';
 import type { ToolFactoryOptions } from './types';
 import { createPlanningModeTool } from './planning-mode';
 import { createChoiceSelectorTool } from './choice-selector';
@@ -33,6 +34,7 @@ export function createTools(options: ToolFactoryOptions) {
   const ripgrep = createRipgrepTool(options);
   const write = createWriteTool(options);
   const edit = createEditTool(options);
+  const undo = createUndoTool(options);
   const bash = createBashTool(options);
   const ant = createAntTool(options);
   const choiceSelector = createChoiceSelectorTool(options);
@@ -73,6 +75,7 @@ export function createTools(options: ToolFactoryOptions) {
     rg: ripgrep,
     write,
     edit,
+    undo,
     bash,
     ant,
     choice_selector: choiceSelector,

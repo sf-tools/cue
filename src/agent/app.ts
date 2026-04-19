@@ -8,9 +8,10 @@ import {
   pricingUsageFromLanguageModelUsage,
   saveCuePreferences
 } from '@/config';
-import { previewFileChangesForToolCall } from '@/file-changes';
+import { createFileChange, previewFileChangesForToolCall } from '@/file-changes';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
+import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
 import { runUserShell } from './shell';
 import { openai } from '@ai-sdk/openai';
 import { randomUUID } from 'node:crypto';
@@ -20,7 +21,7 @@ import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
-import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type ChoiceRequest, type ChoiceSelection, type HistoryEntry } from '@/types';
+import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type ChoiceRequest, type ChoiceSelection, type FileChange, type HistoryEntry } from '@/types';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
 import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
@@ -89,6 +90,9 @@ export class AgentApp {
   private lastTransientLines: string[] = [];
   private lastRenderColumns = 0;
   private lastRenderRows = 0;
+  private expandPreviews = false;
+  private readonly undoStack: UndoEntry[] = [];
+  private readonly sessionFileBaselines = new Map<string, string | null>();
 
   private readonly tools = createTools({
     runUserShell,
@@ -97,7 +101,16 @@ export class AgentApp {
     setPlanningMode: enabled => this.setPlanningMode(enabled),
     getPlanningMode: () => this.state.planningMode,
     getCurrentModel: () => this.state.currentModel,
-    getThinkingMode: () => this.state.thinkingMode
+    getThinkingMode: () => this.state.thinkingMode,
+    pushUndoEntry: entry => {
+      if (!entry.files.some(file => file.previousContent !== file.nextContent)) return;
+      for (const file of entry.files) {
+        if (!this.sessionFileBaselines.has(file.path)) this.sessionFileBaselines.set(file.path, file.previousContent);
+      }
+      this.undoStack.push(entry);
+    },
+    peekUndoEntry: () => this.undoStack[this.undoStack.length - 1] ?? null,
+    popUndoEntry: () => this.undoStack.pop() ?? null
   });
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
 
@@ -319,7 +332,7 @@ export class AgentApp {
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 
     if (code === 0) {
-      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
+      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), this.expandPreviews);
       const header = serializeBlock(renderHeader(ctx)).join('\n');
 
       if (process.stdout.isTTY) process.stdout.write('\u001b[3J\u001b[2J\u001b[H');
@@ -388,7 +401,7 @@ export class AgentApp {
     if (resized) this.resetRenderedScreen();
 
     const suggestions = this.normalizeSuggestions();
-    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), columns, rows);
+    const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim(), this.expandPreviews, columns, rows);
 
     this.lastRenderColumns = columns;
     this.lastRenderRows = rows;
@@ -538,6 +551,32 @@ export class AgentApp {
   private getToolEntry(toolCallId: string) {
     const entry = this.state.historyEntries.find(candidate => candidate.type === 'tool' && candidate.toolCallId === toolCallId);
     return entry?.type === 'tool' ? entry : null;
+  }
+
+  private togglePreviewExpansion() {
+    this.expandPreviews = !this.expandPreviews;
+    this.resetRenderedScreen();
+    this.showFooterNotice(this.expandPreviews ? 'Expanded previews' : 'Collapsed previews');
+  }
+
+  private async getUndoPreviewFileChanges() {
+    const entry = this.undoStack[this.undoStack.length - 1];
+    return entry ? await buildUndoFileChanges(entry) : undefined;
+  }
+
+  private async refreshSessionFileChanges(paths: string[]) {
+    const nextFileChanges = (
+      await Promise.all(
+        [...new Set(paths)].map(async path => {
+          if (!this.sessionFileBaselines.has(path)) return null;
+          const baselineContent = this.sessionFileBaselines.get(path) ?? null;
+          const currentContent = await readOptionalFile(path);
+          return createFileChange(path, baselineContent, currentContent);
+        })
+      )
+    ).filter((fileChange): fileChange is FileChange => fileChange !== null);
+
+    if (nextFileChanges.length > 0) this.store.upsertSessionFileChanges(nextFileChanges);
   }
 
   private requestApproval = async (request: ApprovalRequest) => {
@@ -873,7 +912,7 @@ export class AgentApp {
             this.scheduleRender();
             break;
           case 'tool-call': {
-            const fileChanges = await previewFileChangesForToolCall(part.toolName, part.input);
+            const fileChanges = part.toolName === 'undo' ? await this.getUndoPreviewFileChanges() : await previewFileChangesForToolCall(part.toolName, part.input);
             this.store.upsertToolEntry(createPendingToolEntry({ ...part, fileChanges }));
             this.scheduleRender();
             break;
@@ -883,7 +922,7 @@ export class AgentApp {
             const existing = this.getToolEntry(part.toolCallId);
             const completedEntry = createCompletedToolEntry({ ...part, fileChanges: existing?.fileChanges });
             this.store.upsertToolEntry(completedEntry);
-            if (completedEntry.fileChanges?.length) this.store.upsertSessionFileChanges(completedEntry.fileChanges);
+            if (completedEntry.fileChanges?.length) await this.refreshSessionFileChanges(completedEntry.fileChanges.map(fileChange => fileChange.path));
             this.scheduleRender();
             break;
           }
@@ -1264,6 +1303,11 @@ export class AgentApp {
 
     if (binding.type === 'toggleThinkingMode') {
       this.cycleThinkingMode();
+      return;
+    }
+
+    if (binding.type === 'togglePreviews') {
+      this.togglePreviewExpansion();
       return;
     }
 

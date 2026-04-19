@@ -18,7 +18,7 @@ export function renderRipgrepTool(entry: ToolHistoryEntry, ctx: RenderContext) {
           `path: ${path}`,
           `engine: ${engine === 'grep' ? 'grep fallback' : engine || 'rg'}`,
           ...(matches === null ? [] : [`matches: ${matches}`]),
-          ...(text.trim() ? previewText(text, 8) : ['no matches'])
+          ...(text.trim() ? previewText(text, ctx, 8) : ['no matches'])
         ];
 
   return renderToolCard({ name: 'ripgrep', detail, body, status: entry.status }, ctx);
