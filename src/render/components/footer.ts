@@ -42,14 +42,25 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   const queued = state.queuedSubmissions.length > 0 ? `${state.queuedSubmissions.length} queued` : '';
   const usage = formatUsageSummary(state);
   const cost = state.totalCost > 0 ? `$${state.totalCost.toFixed(4)}` : '';
-  const autoRun = state.autoRunEnabled ? 'auto-run' : '';
   const autoCompact = state.autoCompactEnabled ? '' : 'auto-compact off';
   const modelName = getOpenAIModelDisplayName(state.currentModel);
-  const stats = [usage, cost, autoRun, autoCompact].filter(Boolean).join(' · ');
-  const statsLine = stats
+  const statsSegments = [span(LEFT_MARGIN)];
+  let hasStats = false;
+
+  const appendStat = (text: string, style = ctx.theme.dimmed) => {
+    if (!text) return;
+    if (hasStats) statsSegments.push(span(' · ', ctx.theme.subtle));
+    statsSegments.push(span(text, style));
+    hasStats = true;
+  };
+
+  appendStat(usage);
+  appendStat(cost);
+  appendStat(autoCompact);
+
+  const statsLine = hasStats
     ? line(
-        span(LEFT_MARGIN),
-        span(stats, ctx.theme.dimmed),
+        ...statsSegments,
         span(' · ', ctx.theme.subtle),
         span(modelName, chalk.white),
         ...(isReasoningCapableOpenAIModel(state.currentModel)
@@ -76,6 +87,12 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
         : statsLine;
 
   const location = ctx.gitBranch ? `${ctx.cwd} · ${ctx.gitBranch}` : ctx.cwd;
+  const autoRunMarkerWidth = state.autoRunEnabled ? 2 : 0;
+  const locationLine = line(
+    span(LEFT_MARGIN),
+    ...(state.autoRunEnabled ? [span('!', chalk.redBright), span(' ')] : []),
+    span(location.padEnd(Math.max(ctx.width - autoRunMarkerWidth, location.length)), ctx.theme.subtle)
+  );
   const notice = state.exitConfirmationPending
     ? line(span(LEFT_MARGIN), span('Press Ctrl+C again to exit', chalk.redBright))
     : state.steerRequested
@@ -97,7 +114,7 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
   return [
     line(),
     modeLine,
-    line(span(LEFT_MARGIN), span(location.padEnd(Math.max(ctx.width, location.length)), ctx.theme.subtle)),
+    locationLine,
     ...(notice ? [line(), notice] : [])
   ];
 }

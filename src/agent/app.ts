@@ -19,7 +19,7 @@ import { readFile } from 'node:fs/promises';
 import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
-import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope } from '@/types';
+import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type HistoryEntry } from '@/types';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
 import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
@@ -495,22 +495,31 @@ export class AgentApp {
     }
   }
 
+  private persistHistoryEntries(entries: HistoryEntry[]) {
+    for (const entry of entries) this.store.pushHistoryEntry(entry);
+    this.render();
+  }
+
   private persistEntry(kind: EntryKind, text: string) {
     if (!text.trim()) return;
-    this.store.pushHistoryEntry({ type: 'entry', kind, text });
-    this.render();
+    this.persistHistoryEntries([{ type: 'entry', kind, text }]);
   }
 
   private persistPlain(text: string) {
     if (!text.trim()) return;
-    this.store.pushHistoryEntry({ type: 'plain', text });
-    this.render();
+    this.persistHistoryEntries([{ type: 'plain', text }]);
   }
 
   private persistAnsi(text: string) {
     if (!text.trim()) return;
-    this.store.pushHistoryEntry({ type: 'ansi', text });
-    this.render();
+    this.persistHistoryEntries([{ type: 'ansi', text }]);
+  }
+
+  private persistLiveOutcome(entries: HistoryEntry[]) {
+    this.store.clearLiveAssistantText();
+    this.store.clearLiveReasoningText();
+    this.store.resetLiveUsage();
+    this.persistHistoryEntries(entries);
   }
 
   private async expand(input: string) {
@@ -728,17 +737,35 @@ export class AgentApp {
       const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), this.state.currentModel, { providerId: 'openai' });
 
       if (price) this.store.addTotalCost(price.total_price);
-      if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
-      this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
+      this.persistLiveOutcome([
+        ...(this.state.liveReasoningText.trim()
+          ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const]
+          : []),
+        ...(this.state.liveAssistantText.trim()
+          ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const]
+          : [])
+      ]);
     } catch (error: unknown) {
       if (abortController.signal.aborted) {
-        if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
-        if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
-        this.persistEntry(EntryKind.Meta, this.state.steerRequested ? '(steered)' : '(aborted)');
+        this.persistLiveOutcome([
+          ...(this.state.liveReasoningText.trim()
+            ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const]
+            : []),
+          ...(this.state.liveAssistantText.trim()
+            ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const]
+            : []),
+          { type: 'entry', kind: EntryKind.Meta, text: this.state.steerRequested ? '(steered)' : '(aborted)' }
+        ]);
       } else {
-        if (this.state.liveReasoningText.trim()) this.persistEntry(EntryKind.Reasoning, this.state.liveReasoningText);
-        if (this.state.liveAssistantText.trim()) this.persistEntry(EntryKind.Assistant, this.state.liveAssistantText);
-        this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
+        this.persistLiveOutcome([
+          ...(this.state.liveReasoningText.trim()
+            ? [{ type: 'entry', kind: EntryKind.Reasoning, text: this.state.liveReasoningText } as const]
+            : []),
+          ...(this.state.liveAssistantText.trim()
+            ? [{ type: 'entry', kind: EntryKind.Assistant, text: this.state.liveAssistantText } as const]
+            : []),
+          { type: 'entry', kind: EntryKind.Error, text: plain(error instanceof Error ? error.message : String(error)) }
+        ]);
       }
     } finally {
       this.store.clearLiveAssistantText();
