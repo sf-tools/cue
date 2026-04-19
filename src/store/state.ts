@@ -20,6 +20,7 @@ export const createInitialState = (): AgentState => ({
   abortRequested: false,
   exitConfirmationPending: false,
   pendingApproval: null,
+  footerNotice: null,
   autoRunEnabled: false,
   autoCompactEnabled: true,
   commandApprovalSessionAllowed: false,

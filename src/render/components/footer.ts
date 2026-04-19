@@ -40,7 +40,9 @@ export function renderFooter(state: AgentState, ctx: RenderContext): Block {
       ? line(span(LEFT_MARGIN), span(['Aborting…', queued].filter(Boolean).join(' · '), chalk.redBright))
       : state.abortConfirmationPending
         ? line(span(LEFT_MARGIN), span('Press Esc again to abort', chalk.redBright))
-        : null;
+        : state.footerNotice
+          ? line(span(LEFT_MARGIN), span(state.footerNotice, chalk.hex('#8ab4ff')))
+          : null;
 
   return [
     line(),

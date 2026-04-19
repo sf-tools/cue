@@ -20,6 +20,7 @@ export type AgentState = {
   abortRequested: boolean;
   exitConfirmationPending: boolean;
   pendingApproval: ApprovalRequest | null;
+  footerNotice: string | null;
   autoRunEnabled: boolean;
   autoCompactEnabled: boolean;
   commandApprovalSessionAllowed: boolean;

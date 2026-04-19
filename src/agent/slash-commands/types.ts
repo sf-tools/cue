@@ -12,6 +12,7 @@ export type SlashCommandContext = {
   store: AgentStore;
   cleanup(code?: number): void;
   compactConversation(options?: { manual?: boolean; force?: boolean }): Promise<boolean>;
+  showFooterNotice(text: string, durationMs?: number): void;
   render(): void;
   persistEntry(kind: EntryKind, text: string): void;
   persistPlain(text: string): void;
@@ -24,6 +25,7 @@ export type SlashCommand = {
   specialHiddenAliases?: string[];
   description: string;
   suggestedInput?: string;
+  argumentSuggestions?: string[];
   execute(context: SlashCommandContext, args: SlashCommandArgs): Promise<void> | void;
 };
 
@@ -43,22 +45,23 @@ export type ResolvedSlashCommand = {
   argv: string[];
 };
 
-export type SlashCommandParseResult =
-  | { type: 'empty' }
-  | { type: 'unknown'; invocation: string }
-  | ({ type: 'resolved' } & ResolvedSlashCommand);
+export type SlashCommandParseResult = { type: 'empty' } | { type: 'unknown'; invocation: string } | ({ type: 'resolved' } & ResolvedSlashCommand);
 
 export type SlashCommandSuggestion = {
   kind: 'slash-command';
   label: string;
+  suffix?: string;
   detail: string;
   invocation: string;
+  replacement: string;
   commandName: string;
   isAlias: boolean;
 };
 
+export type SlashCommandQuery = { type: 'invocation'; query: string } | { type: 'argument'; invocation: string; query: string };
+
 export type SlashCommandRegistry = {
   commands: SlashCommand[];
   parse(input: string): SlashCommandParseResult | null;
-  listSuggestions(query: string): SlashCommandSuggestion[];
+  listSuggestions(query: SlashCommandQuery): SlashCommandSuggestion[];
 };

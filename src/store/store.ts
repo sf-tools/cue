@@ -81,6 +81,11 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       return state;
     },
 
+    setFooterNotice(footerNotice: string | null) {
+      state.footerNotice = footerNotice;
+      return state;
+    },
+
     setAutoRunEnabled(autoRunEnabled: boolean) {
       state.autoRunEnabled = autoRunEnabled;
       return state;

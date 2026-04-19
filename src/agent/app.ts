@@ -44,6 +44,7 @@ export class AgentApp {
   private previousFrame: Frame | null = null;
   private drainingQueuedSubmissions = false;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
+  private footerNoticeTimer: ReturnType<typeof setTimeout> | null = null;
   private renderScheduled = false;
   private lastRenderAt = 0;
   private historyNavigationIndex: number | null = null;
@@ -81,6 +82,7 @@ export class AgentApp {
 
     clearInterval(this.spinnerTimer);
     if (this.renderTimer) clearTimeout(this.renderTimer);
+    if (this.footerNoticeTimer) clearTimeout(this.footerNoticeTimer);
     process.stdout.off('resize', this.render);
     process.stdin.off('data', this.onStdinData);
 
@@ -172,6 +174,21 @@ export class AgentApp {
 
   private shouldConfirmExit() {
     return this.hasResumableSession();
+  }
+
+  private showFooterNotice(text: string, durationMs = 2_000) {
+    if (this.footerNoticeTimer) clearTimeout(this.footerNoticeTimer);
+
+    this.store.setFooterNotice(text);
+    this.render();
+
+    this.footerNoticeTimer = setTimeout(() => {
+      this.footerNoticeTimer = null;
+      if (this.state.closed || this.state.footerNotice !== text) return;
+      this.store.setFooterNotice(null);
+      this.render();
+    }, durationMs);
+    this.footerNoticeTimer.unref?.();
   }
 
   private shouldAutoCompact() {
@@ -388,6 +405,7 @@ export class AgentApp {
             store: this.store,
             cleanup: code => this.cleanup(code),
             compactConversation: options => this.compactConversation(options),
+            showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),

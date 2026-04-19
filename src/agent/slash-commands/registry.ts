@@ -1,4 +1,4 @@
-import type { SlashCommand, SlashCommandInvocation, SlashCommandParseResult, SlashCommandSuggestion } from './types';
+import type { SlashCommand, SlashCommandInvocation, SlashCommandParseResult, SlashCommandQuery, SlashCommandSuggestion } from './types';
 
 function normalizeInvocation(value: string) {
   return value.trim().replace(/^\//, '').toLowerCase();
@@ -13,9 +13,19 @@ function compareSuggestions(a: SlashCommandSuggestion, b: SlashCommandSuggestion
   return a.label.localeCompare(b.label);
 }
 
-export function currentSlashCommandQuery(inputChars: string[], cursor: number) {
+export function currentSlashCommandQuery(inputChars: string[], cursor: number): SlashCommandQuery | null {
   const beforeCursor = inputChars.slice(0, cursor).join('');
-  return beforeCursor.match(/^\/([^\s]*)$/)?.[1] ?? null;
+  const invocationMatch = beforeCursor.match(/^\/([^\s]*)$/);
+  if (invocationMatch) return { type: 'invocation', query: invocationMatch[1] };
+
+  const argumentMatch = beforeCursor.match(/^\/([^\s]+)\s+([^\s]*)$/);
+  if (!argumentMatch) return null;
+
+  return {
+    type: 'argument',
+    invocation: normalizeInvocation(argumentMatch[1]),
+    query: argumentMatch[2]
+  };
 }
 
 export function createSlashCommandRegistry(commands: SlashCommand[]) {
@@ -77,8 +87,37 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
       };
     },
 
-    listSuggestions(query: string) {
-      const normalizedQuery = normalizeInvocation(query);
+    listSuggestions(query: SlashCommandQuery) {
+      if (query.type === 'argument') {
+        const resolved = invocationMap.get(query.invocation);
+        const values = resolved?.command.argumentSuggestions ?? [];
+        const normalizedQuery = normalizeInvocation(query.query);
+
+        return values
+          .filter(value => {
+            if (!normalizedQuery) return true;
+            const normalizedValue = normalizeInvocation(value);
+            return normalizedValue.startsWith(normalizedQuery) || normalizedValue.includes(normalizedQuery);
+          })
+          .slice(0, 6)
+          .map<SlashCommandSuggestion>(value => {
+            const canonicalInvocation = normalizeInvocation(resolved?.command.name ?? query.invocation);
+
+            return {
+              kind: 'slash-command',
+              label: `/${canonicalInvocation}`,
+              suffix: ` ${value}`,
+              detail: resolved?.command.description ?? '',
+              invocation: canonicalInvocation,
+              replacement: `/${canonicalInvocation} ${value}`,
+              commandName: resolved?.command.name ?? query.invocation,
+              isAlias: Boolean(resolved?.isAlias)
+            };
+          })
+          .sort(compareSuggestions);
+      }
+
+      const normalizedQuery = normalizeInvocation(query.query);
 
       const suggestions = sortedInvocations
         .filter(({ invocation, hidden, specialHidden }) => {
@@ -88,14 +127,21 @@ export function createSlashCommandRegistry(commands: SlashCommand[]) {
           return invocation.startsWith(normalizedQuery) || invocation.includes(normalizedQuery);
         })
         .slice(0, 6)
-        .map<SlashCommandSuggestion>(({ command, invocation, isAlias }) => ({
-          kind: 'slash-command',
-          label: `/${invocation}`,
-          detail: isAlias ? `Alias for /${command.name} · ${command.description}` : command.description,
-          invocation,
-          commandName: command.name,
-          isAlias
-        }));
+        .map<SlashCommandSuggestion>(({ command, invocation, isAlias, specialHidden }) => {
+          const canonicalInvocation = normalizeInvocation(command.name);
+          const replacementInvocation = specialHidden ? canonicalInvocation : invocation;
+
+          return {
+            kind: 'slash-command',
+            label: `/${replacementInvocation}`,
+            suffix: command.suggestedInput ? ` ${command.suggestedInput}` : undefined,
+            detail: isAlias ? `Alias for /${command.name} · ${command.description}` : command.description,
+            invocation: replacementInvocation,
+            replacement: `/${replacementInvocation}`,
+            commandName: command.name,
+            isAlias
+          };
+        });
 
       return suggestions.sort(compareSuggestions);
     }
