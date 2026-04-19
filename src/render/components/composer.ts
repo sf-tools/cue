@@ -10,13 +10,14 @@ type ComposerState = {
   inputChars: string[];
   cursor: number;
   scrollOffset: number;
+  slashCommandLength?: number;
 };
 
 function charWidth(ch: string) {
   return Math.max(1, widthOf(ch));
 }
 
-function renderInputLines(state: ComposerState, viewWidth: number) {
+function renderInputLines(state: ComposerState, viewWidth: number, charStyleAt?: (index: number, ch: string) => ((text: string) => string) | undefined) {
   const lines: StyledLine[] = [];
   let segments: StyledLine['segments'] = [];
   let currentWidth = 0;
@@ -51,7 +52,7 @@ function renderInputLines(state: ComposerState, viewWidth: number) {
       continue;
     }
 
-    pushChar(ch, index === state.cursor ? chalk.inverse : undefined);
+    pushChar(ch, index === state.cursor ? chalk.inverse : charStyleAt?.(index, ch));
   }
 
   if (state.cursor >= state.inputChars.length) pushChar(' ', chalk.inverse);
@@ -64,11 +65,15 @@ function renderInputLines(state: ComposerState, viewWidth: number) {
 export function renderComposer(state: ComposerState, ctx: RenderContext): ComposerRenderResult {
   const contentWidth = Math.max(1, ctx.width - 4);
   const shellMode = state.inputChars[0] === '!';
+  const slashMode = state.inputChars[0] === '/';
+  const validSlashCommand = slashMode && (state.slashCommandLength ?? 0) > 0;
   const prompt = state.inputChars.length === 0
     ? span('→', ctx.theme.dimmed)
     : shellMode
       ? span('!', chalk.yellow)
-      : span('→', ctx.theme.foreground);
+      : slashMode
+        ? span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground)
+        : span('→', ctx.theme.foreground);
 
   if (state.inputChars.length === 0) {
     const label = 'Plan, search, build anything';
@@ -96,10 +101,29 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     };
   }
 
-  const inputState = shellMode
+  if (slashMode && state.inputChars.length === 1) {
+    const label = 'Plan, search, build anything';
+    const fill = repeat(' ', Math.max(0, contentWidth - 1 - widthOf(label)));
+
+    return {
+      nextScrollOffset: state.scrollOffset,
+      block: thinPanelize([line(prompt, span(' '), span('P', chalk.inverse), span(label.slice(1), ctx.theme.dimmed), span(fill))], {
+        bg: ctx.theme.composerBg(),
+        width: ctx.width
+      })
+    };
+  }
+
+  const inputState = shellMode || slashMode
     ? { ...state, inputChars: state.inputChars.slice(1), cursor: Math.max(0, state.cursor - 1) }
     : state;
-  const inputLines = renderInputLines(inputState, contentWidth);
+  const inputLines = renderInputLines(
+    inputState,
+    contentWidth,
+    slashMode
+      ? index => (index < (state.slashCommandLength ?? 0) ? chalk.cyanBright : undefined)
+      : undefined
+  );
   const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
 
   return {

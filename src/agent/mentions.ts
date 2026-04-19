@@ -3,6 +3,11 @@ import { resolve } from 'node:path';
 import Fuse from 'fuse.js';
 import type { AgentStore } from '@/store';
 
+export type MentionSuggestion = {
+  kind: 'mention';
+  label: string;
+};
+
 function currentMentionMatch(inputChars: string[], cursor: number) {
   const beforeCursor = inputChars.slice(0, cursor).join('');
   return beforeCursor.match(/(?:^|\s)@([^\s]*)$/);
@@ -71,7 +76,7 @@ export function currentMentionQuery(inputChars: string[], cursor: number) {
   return currentMentionMatch(inputChars, cursor)?.[1] ?? null;
 }
 
-export function listMentionSuggestions(inputChars: string[], cursor: number, cwd = process.cwd()) {
+export function listMentionSuggestions(inputChars: string[], cursor: number, cwd = process.cwd()): MentionSuggestion[] {
   const query = currentMentionQuery(inputChars, cursor);
   if (query === null) return [];
 
@@ -80,25 +85,23 @@ export function listMentionSuggestions(inputChars: string[], cursor: number, cwd
   try {
     return fuzzyFilterEntries(listDirectoryEntries(cwd, directory), fragment)
       .slice(0, 6)
-      .map(entry => entry.label);
+      .map<MentionSuggestion>(entry => ({ kind: 'mention', label: entry.label }));
   } catch {
     return [];
   }
 }
 
-export function acceptSuggestion(store: AgentStore, suggestions: string[]) {
+export function acceptMentionSuggestion(store: AgentStore, suggestion: MentionSuggestion) {
   const state = store.getState();
-  const suggestion = suggestions[state.selectedSuggestion];
-
   const match = currentMentionMatch(state.inputChars, state.cursor);
-  if (!suggestion || !match) return false;
+  if (!match) return false;
 
   const beforeCursor = state.inputChars.slice(0, state.cursor).join('');
   const afterCursor = state.inputChars.slice(state.cursor).join('');
 
   const fullMatch = match[0];
   const leadingWhitespace = fullMatch.startsWith(' ') ? ' ' : '';
-  const replacement = `${leadingWhitespace}@${suggestion}${suggestion.endsWith('/') ? '' : ' '}`;
+  const replacement = `${leadingWhitespace}@${suggestion.label}${suggestion.label.endsWith('/') ? '' : ' '}`;
   const next = `${beforeCursor.slice(0, beforeCursor.length - fullMatch.length)}${replacement}${afterCursor}`;
 
   store.replaceInput(next, beforeCursor.length - fullMatch.length + replacement.length);

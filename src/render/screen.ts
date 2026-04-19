@@ -12,6 +12,7 @@ import { renderOutputPreview, renderTranscript } from './components/transcript';
 import { getCachedGitBranch, refreshGitBranch } from '@/git';
 
 import type { AgentState } from '@/store';
+import type { ComposerSuggestion } from '@/agent/composer-suggestions';
 import type { Frame, RenderContext } from './types';
 import type { ThemePalette } from '@/theme';
 
@@ -38,7 +39,13 @@ export function createRenderContext(
   };
 }
 
-export function renderScreen(state: AgentState, ctx: RenderContext, suggestions: string[], previousFrame: Frame | null = null) {
+export function renderScreen(
+  state: AgentState,
+  ctx: RenderContext,
+  suggestions: ComposerSuggestion[],
+  slashCommandLength = 0,
+  previousFrame: Frame | null = null
+) {
   const header = renderHeader(ctx);
   const preview = renderOutputPreview(
     state.liveAssistantText,
@@ -47,7 +54,12 @@ export function renderScreen(state: AgentState, ctx: RenderContext, suggestions:
     state.abortRequested,
     state.exitConfirmationPending
   );
-  const composer = renderComposer({ inputChars: state.inputChars, cursor: state.cursor, scrollOffset: state.scrollOffset }, ctx);
+  const composer = renderComposer({
+    inputChars: state.inputChars,
+    cursor: state.cursor,
+    scrollOffset: state.scrollOffset,
+    slashCommandLength
+  }, ctx);
   const suggestionLines = renderSuggestions(suggestions, state.selectedSuggestion, ctx);
   const footer = renderFooter(state, ctx);
 

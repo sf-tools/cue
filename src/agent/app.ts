@@ -1,24 +1,24 @@
 import ora from 'ora';
-import { openai } from '@ai-sdk/openai';
-import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { streamText, stepCountIs } from 'ai';
-import { createLogUpdate } from 'log-update';
-import { calcPrice } from '@pydantic/genai-prices';
-
 import { MODEL } from '@/config';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
-import { createAgentStore } from '@/store';
-import { plain, installSegmentContainingPolyfill } from '@/text';
-import { EntryKind, type LogUpdate } from '@/types';
-import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
-import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
-import { resolveInputBinding } from './keybinds';
-import { acceptSuggestion, currentMentionQuery, listMentionSuggestions } from './mentions';
-import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
+import { openai } from '@ai-sdk/openai';
+import { randomUUID } from 'node:crypto';
 import { refreshGitBranch } from '@/git';
+import { createAgentStore } from '@/store';
+import { readFile } from 'node:fs/promises';
+import { streamText, stepCountIs } from 'ai';
+import { createLogUpdate } from 'log-update';
+import { resolveInputBinding } from './keybinds';
+import { calcPrice } from '@pydantic/genai-prices';
+import { EntryKind, type LogUpdate } from '@/types';
+import { plain, installSegmentContainingPolyfill } from '@/text';
+import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
+import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
+import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
+import { createRenderContext, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
+import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
 
 export class AgentApp {
   private readonly store = createAgentStore();
@@ -32,6 +32,7 @@ export class AgentApp {
   }) as LogUpdate;
 
   private readonly tools = createTools({ runUserShell });
+  private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly sessionId = randomUUID();
@@ -98,7 +99,7 @@ export class AgentApp {
   }
 
   private getSuggestions() {
-    return listMentionSuggestions(this.state.inputChars, this.state.cursor);
+    return listComposerSuggestions(this.state.inputChars, this.state.cursor, this.slashCommands);
   }
 
   private normalizeSuggestions() {
@@ -113,6 +114,15 @@ export class AgentApp {
     return suggestions;
   }
 
+  private getCurrentSlashCommand() {
+    return this.slashCommands.parse(this.state.inputChars.join(''));
+  }
+
+  private getSlashCommandLength() {
+    const parsed = this.getCurrentSlashCommand();
+    return parsed?.type === 'resolved' ? parsed.invocation.length : 0;
+  }
+
   private performRender = () => {
     this.renderScheduled = false;
     this.renderTimer = null;
@@ -121,7 +131,7 @@ export class AgentApp {
 
     const suggestions = this.normalizeSuggestions();
     const ctx = createRenderContext(this.theme, this.spinner.frame().trim());
-    const { frame, diff, nextScrollOffset } = renderScreen(this.state, ctx, suggestions, this.previousFrame);
+    const { frame, diff, nextScrollOffset } = renderScreen(this.state, ctx, suggestions, this.getSlashCommandLength(), this.previousFrame);
 
     if (nextScrollOffset !== this.state.scrollOffset) this.store.setScrollOffset(nextScrollOffset);
     if (!diff.changed) return;
@@ -232,8 +242,40 @@ export class AgentApp {
     const trimmed = raw.trim();
 
     if (!trimmed) return;
-    if (trimmed === '/exit') {
-      this.cleanup(0);
+
+    const slashCommand = this.slashCommands.parse(trimmed);
+    if (slashCommand) {
+      if (slashCommand.type === 'empty') {
+        this.persistEntry(EntryKind.Error, 'missing slash command');
+        return;
+      }
+
+      if (slashCommand.type === 'unknown') {
+        this.persistEntry(EntryKind.Error, `unknown slash command: /${slashCommand.invocation}`);
+        return;
+      }
+
+      try {
+        await slashCommand.command.execute(
+          {
+            store: this.store,
+            cleanup: code => this.cleanup(code),
+            render: this.render,
+            persistEntry: (kind, text) => this.persistEntry(kind, text),
+            persistPlain: text => this.persistPlain(text),
+            persistAnsi: text => this.persistAnsi(text)
+          },
+          {
+            raw: trimmed,
+            invocation: slashCommand.invocation,
+            argsText: slashCommand.argsText,
+            argv: slashCommand.argv
+          }
+        );
+      } catch (error: unknown) {
+        this.persistEntry(EntryKind.Error, plain(error instanceof Error ? error.message : String(error)));
+      }
+
       return;
     }
 
@@ -386,9 +428,7 @@ export class AgentApp {
     this.historyNavigationIndex = null;
     this.store.insertText(text);
 
-    if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {
-      this.store.resetSelectedSuggestion();
-    }
+    if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
 
     this.render();
   }
@@ -404,7 +444,7 @@ export class AgentApp {
 
   private tryAcceptSuggestion() {
     const suggestions = this.normalizeSuggestions();
-    const accepted = acceptSuggestion(this.store, suggestions);
+    const accepted = acceptComposerSuggestion(this.store, suggestions);
     if (!accepted) return false;
 
     this.store.setScrollOffset(0);
@@ -438,7 +478,7 @@ export class AgentApp {
 
     this.historyNavigationIndex = null;
 
-    if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) this.store.resetSelectedSuggestion();
+    if (this.getSuggestions().length === 0) this.store.resetSelectedSuggestion();
     this.render();
   }
 
@@ -480,7 +520,7 @@ export class AgentApp {
     }
 
     if (binding.type === 'submit') {
-      if (this.tryAcceptSuggestion()) return;
+      if (this.getCurrentSlashCommand()?.type !== 'resolved' && this.tryAcceptSuggestion()) return;
       await this.submit();
       return;
     }
