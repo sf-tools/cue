@@ -34,8 +34,8 @@ export function renderExitSummary(options: {
   resumeCommand?: string | null;
 }): Block {
   const threadTitle =
-    options.threadTitle?.trim() || (options.resumeCommand ? 'Untitled session' : '');
-  const threadUrl = options.resumeCommand ? options.threadUrl : null;
+    options.threadTitle?.trim() || (options.resumeCommand ? 'Untitled session' : APP_NAME);
+  const threadUrl = options.resumeCommand ? options.threadUrl : APP_VERSION;
 
   return [
     line(span('      :::::::: ', chalk.cyan)),
