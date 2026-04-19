@@ -209,6 +209,11 @@ function buildAgentStore(initialState: AgentState) {
       return state;
     },
 
+    setShowThinking(showThinking: boolean) {
+      state.showThinking = showThinking;
+      return state;
+    },
+
     setApprovalSessionAllowed(scope: ApprovalScope, allowed: boolean) {
       if (scope === 'command') state.commandApprovalSessionAllowed = allowed;
       else state.editApprovalSessionAllowed = allowed;

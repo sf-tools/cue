@@ -21,6 +21,7 @@ export type CueSessionSnapshot = {
     thinkingMode: AgentState['thinkingMode'];
     autoCompactEnabled: boolean;
     planningMode: boolean;
+    showThinking: boolean;
   };
 };
 
@@ -62,6 +63,7 @@ export function createSnapshotFromState(
       thinkingMode: state.thinkingMode,
       autoCompactEnabled: state.autoCompactEnabled,
       planningMode: state.planningMode,
+      showThinking: state.showThinking,
     },
   };
 }
@@ -90,6 +92,7 @@ export function hydrateStateFromSnapshot(snapshot: CueSessionSnapshot): AgentSta
     inputChars: snapshot.state.inputChars,
     messages: snapshot.state.messages,
     planningMode: snapshot.state.planningMode,
+    showThinking: snapshot.state.showThinking ?? initial.showThinking,
     thinkingMode: snapshot.state.thinkingMode,
     totalCost: snapshot.state.totalCost,
   };

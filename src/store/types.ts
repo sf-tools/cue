@@ -47,6 +47,7 @@ export type AgentState = {
   autoRunEnabled: boolean;
   autoCompactEnabled: boolean;
   planningMode: boolean;
+  showThinking: boolean;
   commandApprovalSessionAllowed: boolean;
   editApprovalSessionAllowed: boolean;
   compacting: boolean;

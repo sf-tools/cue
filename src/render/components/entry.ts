@@ -7,7 +7,7 @@ import { renderMarkdown } from '../markdown';
 import { blankLine, line, rawBlock, span } from '../primitives';
 import { renderToolHistoryEntry } from './tools';
 
-import type { Block, RenderContext, StyledLine } from '../types';
+import type { Block, RenderContext, Style, StyledLine } from '../types';
 
 export type HistoryEntryRenderOptions = {
   animateAssistant?: boolean;
@@ -110,24 +110,27 @@ function renderAssistantLines(text: string, ctx: RenderContext, animate = false)
   return lines;
 }
 
+function composeStyles(...styles: Array<Style | undefined>): Style | undefined {
+  const active = styles.filter(Boolean) as Style[];
+  if (active.length === 0) return undefined;
+  return value => active.reduce((out, style) => style(out), value);
+}
+
+function styleBlock(block: Block, style: Style): Block {
+  return block.map(entry => {
+    if (entry.type === 'raw') return line(span(entry.text, style));
+    return line(...entry.segments.map(segment => span(segment.text, composeStyles(segment.style, style))));
+  });
+}
+
 function renderAssistantEntry(text: string, ctx: RenderContext, animate = false): Block {
   if (animate) return indent(renderAssistantLines(text, ctx, true), LEFT_MARGIN);
   return indent(renderMarkdown(text, ctx, Math.max(1, ctx.width - 2)), LEFT_MARGIN);
 }
 
 function renderReasoningEntry(text: string, ctx: RenderContext): Block {
-  const width = Math.max(1, ctx.width - 4);
-  const body = text
-    .split('\n')
-    .flatMap(lineText => wrapTextBlock(lineText, width, ctx.theme.dimmed));
-
-  return thinPanelize(
-    [line(span('Reasoning', chalk.cyanBright)), ...(body.length > 0 ? [blankLine(), ...body] : [])],
-    {
-      bg: ctx.theme.panelBg(),
-      width: ctx.width,
-    },
-  );
+  const style = (value: string) => chalk.italic(ctx.theme.dimmed(value));
+  return indent(styleBlock(renderMarkdown(text, ctx, Math.max(1, ctx.width - 2)), style), LEFT_MARGIN);
 }
 
 function renderShellEntry(text: string, ctx: RenderContext): Block {

@@ -1,6 +1,6 @@
 import type { ThinkingMode } from '@/config';
 import type { AgentStore } from '@/store';
-import type { EntryKind } from '@/types';
+import type { EntryKind, HistoryEntry } from '@/types';
 
 export type SlashCommandArgs = {
   raw: string;
@@ -19,6 +19,7 @@ export type SlashCommandContext = {
   setThinkingMode(thinkingMode: ThinkingMode): void;
   setAutoCompactEnabled(enabled: boolean): void;
   setPlanningMode(enabled: boolean): void;
+  setShowThinking(enabled: boolean): void;
   cycleThinkingMode(): ThinkingMode;
   enqueueSubmission(text: string, options?: { planningMode?: boolean }): void;
   openCommandArgumentPicker(commandName: string): void;
@@ -27,6 +28,13 @@ export type SlashCommandContext = {
   getCurrentThreadShareState(): ThreadShareState;
   shareCurrentThread(): Promise<{ share: { shareId: string; sharedAt: string; url: string } }>;
   makeCurrentThreadPrivate(): Promise<{ ok: true }>;
+  getSessionId(): string;
+  getLastRequestId(): string | null;
+  getThreadTitle(): string | null;
+  setThreadTitle(title: string | null): void;
+  copyToClipboard(text: string): Promise<void>;
+  runSidePrompt(prompt: string): Promise<string>;
+  printEntries(entries: HistoryEntry[]): void;
   render(): void;
   persistEntry(kind: EntryKind, text: string): void;
   persistPlain(text: string): void;

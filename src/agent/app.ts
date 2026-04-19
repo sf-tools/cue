@@ -23,6 +23,7 @@ import { renderQueuedSubmissions } from '@/render/components/queued';
 import { loadCueCloudModel, requireCueCloudAuth } from '@/cloud/openai';
 import { IMAGE_MEDIA_TYPES, parseDroppedImagePaths } from './path-detect';
 import { readClipboardImage, clipboardHelperHint } from './clipboard-image';
+import { copyTextToClipboard } from './clipboard-text';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
 import { createFileChange, previewFileChangesForToolCall } from '@/file-changes';
@@ -243,6 +244,7 @@ export class AgentApp {
   private readonly sessionId: string;
   private readonly promptHistory = new PromptHistoryStore();
   private readonly bootFromSnapshot: boolean;
+  private lastRequestId: string | null = null;
   private threadTitle: string | null;
   private threadTitleGeneration: Promise<void> | null = null;
   private sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -363,6 +365,10 @@ export class AgentApp {
     return null;
   }
 
+  private shouldRenderHistoryEntry(entry: HistoryEntry) {
+    return entry.type !== 'entry' || entry.kind !== EntryKind.Reasoning || this.state.showThinking;
+  }
+
   private flushCommittedHistory(ctx: ReturnType<typeof createRenderContext>) {
     const lines: string[] = [];
     const animatedAssistantIndex = this.getAnimatedAssistantIndex();
@@ -373,7 +379,7 @@ export class AgentApp {
       if (entry.type === 'tool' && entry.status === 'running') break;
       if (index === animatedAssistantIndex) break;
 
-      lines.push(...serializeBlock(renderHistoryEntry(entry, ctx)), '');
+      if (this.shouldRenderHistoryEntry(entry)) lines.push(...serializeBlock(renderHistoryEntry(entry, ctx)), '');
       this.committedHistoryCount += 1;
     }
 
@@ -389,13 +395,14 @@ export class AgentApp {
       .slice(this.committedHistoryCount)
       .flatMap((entry, offset) => {
         const index = this.committedHistoryCount + offset;
+        if (!this.shouldRenderHistoryEntry(entry)) return [];
         return [
           ...renderHistoryEntry(entry, ctx, { animateAssistant: index === animatedAssistantIndex }),
           blankLine(),
         ];
       });
     const preview = renderOutputPreview(
-      this.state.liveReasoningText,
+      this.state.showThinking ? this.state.liveReasoningText : '',
       this.state.liveAssistantText,
       ctx,
       this.state.pendingApproval,
@@ -581,6 +588,27 @@ export class AgentApp {
     this.headerPrinted = false;
 
     if (process.stdout.isTTY) process.stdout.write('\u001b[2J\u001b[H');
+  }
+
+  private createCurrentRenderContext() {
+    return createRenderContext(
+      this.theme,
+      this.spinner.frame().trim(),
+      this.commandSpinner.frame().trim(),
+      this.busySpinnerVerb,
+      this.expandPreviews,
+      process.stdout.columns || 100,
+      process.stdout.rows || 30,
+    );
+  }
+
+  private printEphemeralEntries(entries: HistoryEntry[]) {
+    if (entries.length === 0) return;
+    const ctx = this.createCurrentRenderContext();
+    const block = entries.flatMap((entry, index) =>
+      index === 0 ? renderHistoryEntry(entry, ctx) : [blankLine(), ...renderHistoryEntry(entry, ctx)],
+    );
+    this.appendPermanentLines(serializeBlock(block));
   }
 
   private performRender = () => {
@@ -843,8 +871,21 @@ export class AgentApp {
     this.render();
   }
 
-  private getActiveTools() {
-    if (!this.state.planningMode) return this.tools;
+  private setShowThinking(enabled: boolean) {
+    this.store.setShowThinking(enabled);
+    this.scheduleSessionSnapshot();
+    this.resetRenderedScreen();
+    this.render();
+  }
+
+  private setThreadTitle(title: string | null) {
+    this.threadTitle = title?.trim() ? title.trim() : null;
+    this.scheduleSessionSnapshot();
+    this.render();
+  }
+
+  private getActiveTools(planningMode = this.state.planningMode) {
+    if (!planningMode) return this.tools;
 
     const { choice_selector, oracle, planning_mode, read, rg, ripgrep, subagent, web_search } =
       this.tools;
@@ -875,8 +916,11 @@ export class AgentApp {
     return [...groups.values()].sort((a, b) => a.names[0].localeCompare(b.names[0]));
   }
 
-  private getRuntimeMessages() {
-    if (!this.state.planningMode) return this.state.messages;
+  private getRuntimeMessages(
+    messages: ModelMessage[] = this.state.messages,
+    planningMode = this.state.planningMode,
+  ) {
+    if (!planningMode) return messages;
 
     const planningModePrompt = [
       '<session-mode name="planning">',
@@ -889,12 +933,12 @@ export class AgentApp {
       '</session-mode>',
     ].join('\n');
 
-    const [first, ...rest] = this.state.messages;
+    const [first, ...rest] = messages;
     if (first?.role === 'system' && typeof first.content === 'string') {
       return [{ ...first, content: `${first.content}\n\n${planningModePrompt}` }, ...rest];
     }
 
-    return [{ role: 'system', content: planningModePrompt }, ...this.state.messages];
+    return [{ role: 'system', content: planningModePrompt }, ...messages];
   }
 
   private cycleThinkingMode() {
@@ -1175,6 +1219,34 @@ export class AgentApp {
     return parts.length > 0 ? parts : expanded;
   }
 
+  private async runSidePrompt(prompt: string) {
+    const trimmed = prompt.trim();
+    if (!trimmed) throw new Error('missing side question');
+
+    const userContent = await this.buildUserMessageContent(trimmed);
+    const messages: ModelMessage[] = [...this.state.messages, { role: 'user', content: userContent }];
+    const { text, usage, response } = await generateText({
+      model: await loadCueCloudModel(this.state.currentModel),
+      messages: this.getRuntimeMessages(messages, true),
+      tools: this.getActiveTools(true),
+      stopWhen: stepCountIs(20),
+      providerOptions: createOpenAIProviderOptions(
+        this.state.currentModel,
+        this.state.thinkingMode,
+      ),
+      experimental_context: { subagentDepth: 0 },
+    });
+
+    this.lastRequestId = response.id;
+
+    const price = calcPrice(pricingUsageFromLanguageModelUsage(usage), this.state.currentModel, {
+      providerId: 'openai',
+    });
+    if (price) this.store.addTotalCost(price.total_price);
+
+    return text;
+  }
+
   private async runShellCommand(cmd: string) {
     const trimmedCommand = cmd.trim();
     this.store.setBusyStatusText(trimmedCommand);
@@ -1263,6 +1335,7 @@ export class AgentApp {
             setThinkingMode: thinkingMode => this.setThinkingMode(thinkingMode),
             setAutoCompactEnabled: enabled => this.setAutoCompactEnabled(enabled),
             setPlanningMode: enabled => this.setPlanningMode(enabled),
+            setShowThinking: enabled => this.setShowThinking(enabled),
             cycleThinkingMode: () => this.cycleThinkingMode(),
             enqueueSubmission: (text, options) =>
               this.store.enqueueSubmission({ text, planningMode: options?.planningMode }),
@@ -1272,6 +1345,13 @@ export class AgentApp {
             getCurrentThreadShareState: () => this.getCurrentThreadShareState(),
             shareCurrentThread: () => this.shareCurrentThread(),
             makeCurrentThreadPrivate: () => this.makeCurrentThreadPrivate(),
+            getSessionId: () => this.sessionId,
+            getLastRequestId: () => this.lastRequestId,
+            getThreadTitle: () => this.threadTitle,
+            setThreadTitle: title => this.setThreadTitle(title),
+            copyToClipboard: text => copyTextToClipboard(text),
+            runSidePrompt: prompt => this.runSidePrompt(prompt),
+            printEntries: entries => this.printEphemeralEntries(entries),
             render: this.render,
             persistEntry: (kind, text) => this.persistEntry(kind, text),
             persistPlain: text => this.persistPlain(text),
@@ -1445,6 +1525,7 @@ export class AgentApp {
       abortController.signal.throwIfAborted();
 
       const [response, usage] = await Promise.all([result.response, result.usage]);
+      this.lastRequestId = response.id;
       this.store.pushMessages(response.messages);
       this.store.setLastUsage({
         inputTokens: usage.inputTokens,

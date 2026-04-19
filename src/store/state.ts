@@ -36,6 +36,7 @@ export const createInitialState = (): AgentState => ({
   autoRunEnabled: false,
   autoCompactEnabled: true,
   planningMode: false,
+  showThinking: true,
   commandApprovalSessionAllowed: false,
   editApprovalSessionAllowed: false,
   compacting: false,

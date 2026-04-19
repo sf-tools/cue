@@ -27,7 +27,7 @@ export const toolsSlashCommand: SlashCommand = {
       return `- ${formatToolNames(tool.names)} — ${description}`;
     });
 
-    if (planningMode) lines.push('', 'Tip: run /planning off to restore the full toolset.');
+    if (planningMode) lines.push('', 'Tip: run /plan off to restore the full toolset.');
 
     persistPlain([header, '', ...lines].join('\n'));
   },

@@ -25,6 +25,7 @@ export const SYSTEM_PROMPT = xml({
     rules: [
       "If the user's prompt contains the word 'plan' or 'planning', enable planning mode before continuing unless it is already on.",
       "If the user's prompt contains the word 'choose', 'choice', or 'options', strongly prefer using the choice selector when a concrete user decision would help.",
+      "If the user's prompt involves experimenting with JavaScript snippets, strongly prefer using the ant tool instead of running node, bun, or JavaScript via bash.",
       'When either trigger fires, prefer the corresponding mode or tool early instead of burying it later in the response.',
     ],
   },
@@ -82,7 +83,7 @@ export const SYSTEM_PROMPT = xml({
       'If the user mentions plan, planning, tradeoffs, or a read-only approach first, enable planning mode before continuing unless it is already on.',
       'If the user mentions choose, choice, or options and you want the user to pick between concrete paths, use the choice selector instead of listing choices in plain text.',
       'When commands, scripts, or frameworks are unknown, inspect the repository instead of assuming.',
-      'For ad-hoc JavaScript execution, use the ant tool instead of running node, bun, or JavaScript via bash.',
+      'For anything involving JavaScript, including ad-hoc execution or experimenting with JavaScript snippets, use the ant tool instead of running node, bun, or JavaScript via bash.',
       'When writing tests, determine the test framework and commands from the repository first.',
       'When delegating, give the subagent explicit scope, useful file hints, and the exact output you want back.',
     ],

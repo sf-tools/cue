@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 
 import type { SlashCommand } from '../types';
+import { parseToggleMode, resolveToggleMode } from './toggle-mode';
 
 const ARGUMENT_SUGGESTIONS = [
   {
@@ -14,46 +15,42 @@ const ARGUMENT_SUGGESTIONS = [
   { value: 'status', label: 'status', detail: 'Show current planning mode status' },
 ] as const;
 
-function parseMode(value: string | undefined) {
-  if (!value) return 'toggle' as const;
-
-  switch (value.toLowerCase()) {
-    case 'on':
-    case 'enable':
-    case 'enabled':
-    case 'true':
-      return 'on' as const;
-    case 'off':
-    case 'disable':
-    case 'disabled':
-    case 'false':
-      return 'off' as const;
-    case 'toggle':
-      return 'toggle' as const;
-    case 'status':
-      return 'status' as const;
-    default:
-      throw new Error(`invalid /planning mode: ${value}`);
-  }
+function buildPlanningPrompt(task: string) {
+  return [
+    'Create a concrete implementation plan for this task.',
+    'Stay read-only, focus on options and tradeoffs, and end with a concise step-by-step plan.',
+    '',
+    task.trim(),
+  ].join('\n');
 }
 
 export const planningSlashCommand: SlashCommand = {
   name: 'plan',
-  description: 'Agent stays read-only and focuses on options and plans.',
+  description: 'Queue a read-only planning turn, or toggle planning mode.',
+  suggestedInput: '[prompt]',
   argumentSuggestions: ARGUMENT_SUGGESTIONS,
   showArgumentSuggestionsOnExactInvocation: true,
-  execute({ store, openCommandArgumentPicker, setPlanningMode, showFooterNotice }, args) {
-    if (args.argv.length > 1) throw new Error(`/${args.invocation} accepts at most one argument`);
+  execute({ store, enqueueSubmission, setPlanningMode, showFooterNotice }, args) {
+    const text = args.argsText.trim();
+    const current = store.getState().planningMode;
 
-    const requested = args.argv[0]?.toLowerCase();
-    if (!requested && args.invocation === 'planning') {
-      openCommandArgumentPicker('planning');
+    if (args.argv.length > 1) {
+      enqueueSubmission(buildPlanningPrompt(text), { planningMode: true });
+      showFooterNotice('Queued planning turn · read-only');
       return;
     }
 
-    const mode = parseMode(requested);
-    const current = store.getState().planningMode;
-    const next = mode === 'status' ? current : mode === 'toggle' ? !current : mode === 'on';
+    let mode: ReturnType<typeof parseToggleMode>;
+    try {
+      mode = parseToggleMode(args.argv[0], args.invocation);
+    } catch {
+      if (!text) throw new Error(`/${args.invocation} accepts a mode or a prompt`);
+      enqueueSubmission(buildPlanningPrompt(text), { planningMode: true });
+      showFooterNotice('Queued planning turn · read-only');
+      return;
+    }
+
+    const next = resolveToggleMode(mode, current);
 
     if (mode !== 'status') setPlanningMode(next);
     showFooterNotice(
