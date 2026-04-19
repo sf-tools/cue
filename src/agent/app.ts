@@ -24,6 +24,7 @@ import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/t
 import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
+import { takeOverEarlyStdin } from './early-stdin';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
 import { startMentionIndex } from './mention-index';
 import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@/render';
@@ -32,6 +33,7 @@ import { renderComposer, moveComposerCursorVertical } from '@/render/components/
 import { renderFooter } from '@/render/components/footer';
 import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
+import type { ReadStream as TtyReadStream } from 'node:tty';
 import { renderQueuedSubmissions } from '@/render/components/queued';
 import { renderHistoryEntry } from '@/render/components/entry';
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
@@ -103,6 +105,7 @@ export class AgentApp {
   private historyNavigationDraft = '';
   private preferredComposerColumn: number | null = null;
   private pendingApprovalResolver: ((decision: ApprovalDecision) => void) | null = null;
+  private stdin: TtyReadStream = process.stdin;
   private bracketedPasteActive = false;
   private bracketedPasteBuffer = '';
   private stdinBuffer = '';
@@ -277,13 +280,17 @@ export class AgentApp {
     this.store.setThinkingMode(preferences.reasoning);
     this.store.setAutoCompactEnabled(preferences.autoCompactEnabled);
 
-    if (process.stdin.isTTY) process.stdin.setRawMode(true);
+    const { stream, buffer } = takeOverEarlyStdin();
+    this.stdin = stream ?? process.stdin;
+
+    if (this.stdin.isTTY) this.stdin.setRawMode(true);
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25l\u001b[?2004h');
-    process.stdin.resume();
-    process.stdin.on('data', this.onStdinData);
+    this.stdin.resume();
+    this.stdin.on('data', this.onStdinData);
     process.stdout.on('resize', this.render);
 
     this.render();
+    for (const chunk of buffer) this.onStdinData(chunk);
   }
 
   cleanup(code = 0) {
@@ -295,10 +302,10 @@ export class AgentApp {
     if (this.renderTimer) clearTimeout(this.renderTimer);
     if (this.footerNoticeTimer) clearTimeout(this.footerNoticeTimer);
     process.stdout.off('resize', this.render);
-    process.stdin.off('data', this.onStdinData);
+    this.stdin.off('data', this.onStdinData);
 
-    if (process.stdin.isTTY) process.stdin.setRawMode(false);
-    process.stdin.pause();
+    if (this.stdin.isTTY) this.stdin.setRawMode(false);
+    this.stdin.pause();
     this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 

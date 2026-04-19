@@ -1,10 +1,12 @@
-import { BUILD_VERSION } from './version';
+import { BUILD_DATE_ISO, BUILD_UNIX_TIME, BUILD_VERSION } from './version';
 import { DEFAULT_MODEL, getOpenAIContextWindow } from './models';
 
 export const APP_NAME = 'Cue Control';
 export const MODEL = DEFAULT_MODEL;
 
-export const APP_VERSION = `v${BUILD_VERSION}`;
+export const APP_VERSION = BUILD_VERSION;
+export const APP_RELEASE_UNIX_TIME = BUILD_UNIX_TIME;
+export const APP_RELEASE_DATE_ISO = BUILD_DATE_ISO;
 export const USER_SHELL = process.env.SHELL || '/bin/sh';
 
 // TODO: dont fallback when no window. throw error instead

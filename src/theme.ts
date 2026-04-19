@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { getEarlyStdinStream } from '@/agent/early-stdin';
 import type { Rgb } from './types';
 
 export type ThemePalette = ReturnType<typeof createTheme>;
@@ -110,7 +111,7 @@ export function createTheme() {
   }
 
   async function queryTerminalBackground(timeoutMs = 60): Promise<Rgb | null> {
-    const input = process.stdin;
+    const input = getEarlyStdinStream() ?? process.stdin;
     const output = process.stdout;
 
     if (!input.isTTY || !output.isTTY) return null;
