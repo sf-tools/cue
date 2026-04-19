@@ -1,7 +1,15 @@
 import { readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import Fuse from 'fuse.js';
 import type { AgentStore } from '@/store';
+
+import {
+  fallbackSearchMentionEntries,
+  getMentionIndexStats,
+  type MentionIndexEntry,
+  MentionIndexState,
+  queryMentionIndex,
+  startMentionIndex
+} from './mention-index';
 
 export type MentionSuggestion = {
   kind: 'mention';
@@ -29,11 +37,7 @@ function splitMentionQuery(query: string, cwd: string) {
   };
 }
 
-type MentionEntry = {
-  label: string;
-  name: string;
-  isDirectory: boolean;
-};
+type MentionEntry = MentionIndexEntry;
 
 function listDirectoryEntries(cwd: string, directory: string) {
   return readdirSync(resolve(cwd, directory || '.'), { withFileTypes: true })
@@ -41,35 +45,27 @@ function listDirectoryEntries(cwd: string, directory: string) {
     .map<MentionEntry>(entry => ({
       label: `${directory}${entry.name}${entry.isDirectory() ? '/' : ''}`,
       name: entry.name,
-      isDirectory: entry.isDirectory()
+      kind: entry.isDirectory() ? 'folder' : 'file',
+      searchPath: `${directory}${entry.name}`
     }));
 }
 
-function compareDirectoryEntries(a: MentionEntry, b: MentionEntry) {
-  return a.label.localeCompare(b.label);
-}
+function mergeEntries(...groups: MentionEntry[][]) {
+  const merged: MentionEntry[] = [];
+  const seen = new Set<string>();
 
-function fuzzyFilterEntries(entries: MentionEntry[], fragment: string) {
-  if (!fragment) return entries.sort(compareDirectoryEntries);
+  for (const group of groups) {
+    for (const entry of group) {
+      if (seen.has(entry.label)) continue;
+      seen.add(entry.label);
+      merged.push(entry);
+    }
+  }
 
-  const fuse = new Fuse(entries, {
-    includeScore: true,
-    ignoreLocation: true,
-    threshold: 0.4,
-    keys: [
-      { name: 'name', weight: 0.8 },
-      { name: 'label', weight: 0.2 }
-    ]
+  return merged.sort((a, b) => {
+    if (a.kind !== b.kind) return a.kind === 'file' ? -1 : 1;
+    return a.label.localeCompare(b.label);
   });
-
-  return fuse
-    .search(fragment)
-    .sort((a, b) => {
-      const scoreDiff = (a.score ?? 0) - (b.score ?? 0);
-      if (scoreDiff !== 0) return scoreDiff;
-      return compareDirectoryEntries(a.item, b.item);
-    })
-    .map(result => result.item);
 }
 
 export function currentMentionQuery(inputChars: string[], cursor: number) {
@@ -80,10 +76,18 @@ export function listMentionSuggestions(inputChars: string[], cursor: number, cwd
   const query = currentMentionQuery(inputChars, cursor);
   if (query === null) return [];
 
+  startMentionIndex(cwd);
+  const stats = getMentionIndexStats(cwd);
   const { directory, fragment } = splitMentionQuery(query, cwd);
 
   try {
-    return fuzzyFilterEntries(listDirectoryEntries(cwd, directory), fragment)
+    const localEntries =
+      directory || !query || stats.state !== MentionIndexState.Ready
+        ? fallbackSearchMentionEntries(listDirectoryEntries(cwd, directory), directory ? fragment : query, 24)
+        : [];
+    const workspaceEntries = query ? queryMentionIndex(query, 24, cwd) : [];
+
+    return mergeEntries(localEntries, workspaceEntries)
       .slice(0, 6)
       .map<MentionSuggestion>(entry => ({ kind: 'mention', label: entry.label }));
   } catch {

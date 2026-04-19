@@ -25,6 +25,7 @@ import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
+import { startMentionIndex } from './mention-index';
 import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@/render';
 import { blankLine, vstack } from '@/render/primitives';
 import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
@@ -269,6 +270,7 @@ export class AgentApp {
   async start() {
     await this.theme.sync();
     await refreshGitBranch(process.cwd());
+    startMentionIndex(process.cwd());
 
     const preferences = await loadCuePreferences();
     this.store.setCurrentModel(preferences.model);
