@@ -19,10 +19,13 @@ import { createWebSearchTool } from './web';
 import { createRipgrepTool } from './ripgrep';
 import { createSubagentTool } from './subagent';
 import { createUndoTool } from './undo';
+
 import type { ToolFactoryOptions } from './types';
 import { createPlanningModeTool } from './planning-mode';
 import { createChoiceSelectorTool } from './choice-selector';
 import { createCiRunsTool, createCiWorkflowsTool } from './ci';
+import { createChangeExplainerTool, createDeploySafetyAdvisorTool, createPrReviewAnalyzerTool } from './review';
+import { createCodebaseQATool, createFailureTriagerTool, createGitLogTool, createStacktraceRootCauseTool } from './diagnose';
 
 import { createTestAnalyzeTool, createTestDetectTool, createTestRunTool, createTestScaffoldTool } from './test';
 import { createGitConflictsTool, createGitIntegrateTool, createGitProgressTool, createGitStatusTool } from './gitops';
@@ -94,6 +97,13 @@ export function createTools(options: ToolFactoryOptions) {
   const listRepositories = createListRepositoriesTool(options);
   const commitSearch = createCommitSearchTool(options);
   const diff = createDiffTool(options);
+  const gitLog = createGitLogTool(options);
+  const codebaseQa = createCodebaseQATool(options);
+  const stacktraceToRootCause = createStacktraceRootCauseTool(options);
+  const failureTriager = createFailureTriagerTool(options);
+  const changeExplainer = createChangeExplainerTool(options);
+  const prReviewAnalyzer = createPrReviewAnalyzerTool(options);
+  const deploySafetyAdvisor = createDeploySafetyAdvisorTool(options);
 
   return {
     read,
@@ -102,6 +112,7 @@ export function createTools(options: ToolFactoryOptions) {
     write,
     edit,
     undo,
+    lsp,
     bash,
     ant,
     choice_selector: choiceSelector,
@@ -123,6 +134,7 @@ export function createTools(options: ToolFactoryOptions) {
     ci_workflows: ciWorkflows,
     ci_runs: ciRuns,
     git_status: gitStatus,
+    git_log: gitLog,
     git_conflicts: gitConflicts,
     git_integrate: gitIntegrate,
     git_progress: gitProgress,
@@ -145,6 +157,11 @@ export function createTools(options: ToolFactoryOptions) {
     notebook_edit: notebookEdit,
     format: formatCode,
     lint: lintCode,
-    lsp
+    codebase_qa: codebaseQa,
+    stacktrace_to_root_cause: stacktraceToRootCause,
+    failure_triager: failureTriager,
+    change_explainer: changeExplainer,
+    pr_review_analyzer: prReviewAnalyzer,
+    deploy_safety_advisor: deploySafetyAdvisor
   };
 }
