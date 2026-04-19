@@ -1,6 +1,6 @@
 # Cue
 
-Cue is a terminal AI coding agent.
+Coding with taste
 
 It runs in your shell, and can inspect and modify your workspace with built-in tools like file read/write/edit, ripgrep, shell commands, and web search.
 
