@@ -14,7 +14,6 @@ export type AgentState = {
   historyEntries: HistoryEntry[];
   queuedSubmissions: string[];
   cursor: number;
-  scrollOffset: number;
   busy: boolean;
   busyStatusText: string | null;
   closed: boolean;
@@ -26,6 +25,9 @@ export type AgentState = {
   lastPromptTokens: number;
   lastOutputTokens: number;
   lastReasoningTokens: number;
+  livePromptTokens: number;
+  liveOutputTokens: number;
+  liveReasoningTokens: number;
   totalCost: number;
   abortController: AbortController | null;
   abortConfirmationPending: boolean;

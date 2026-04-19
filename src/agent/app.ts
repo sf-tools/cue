@@ -1,5 +1,12 @@
 import ora from 'ora';
-import { createOpenAIProviderOptions, cycleThinkingMode, getCompactionTriggerTokens, pricingUsageFromLanguageModelUsage } from '@/config';
+import {
+  createOpenAIProviderOptions,
+  cycleThinkingMode,
+  getCompactionTriggerTokens,
+  loadCuePreferences,
+  pricingUsageFromLanguageModelUsage,
+  saveCuePreferences
+} from '@/config';
 import { createTheme } from '@/theme';
 import { createTools } from '@/tools';
 import { runUserShell } from './shell';
@@ -8,7 +15,7 @@ import { randomUUID } from 'node:crypto';
 import { refreshGitBranch } from '@/git';
 import { createAgentStore } from '@/store';
 import { readFile } from 'node:fs/promises';
-import { streamText, stepCountIs } from 'ai';
+import { streamText, stepCountIs, type ModelMessage } from 'ai';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
 import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope } from '@/types';
@@ -17,9 +24,15 @@ import { compactMessages, canCompactMessages } from './compact';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { acceptComposerSuggestion, listComposerSuggestions } from './composer-suggestions';
-import { createRenderContext, frameWidth, renderHeader, renderScreen, serializeBlock, type Frame } from '@/render';
+import { createRenderContext, frameWidth, renderHeader, serializeBlock } from '@/render';
+import { blankLine, vstack } from '@/render/primitives';
+import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
+import { renderFooter } from '@/render/components/footer';
+import { renderSuggestions } from '@/render/components/suggestions';
+import { renderOutputPreview } from '@/render/components/transcript';
+import { renderQueuedSubmissions } from '@/render/components/queued';
+import { renderHistoryEntry } from '@/render/components/entry';
 import { createFailedToolEntry, createPendingToolEntry, createCompletedToolEntry } from './tool-history';
-import { moveComposerCursorVertical } from '@/render/components/composer';
 
 const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
 const BRACKETED_PASTE_START = '\u001b[200~';
@@ -35,13 +48,40 @@ function bracketedPasteSuffixLength(text: string) {
   return 0;
 }
 
+function sameLines(left: string[], right: string[]) {
+  return left.length === right.length && left.every((line, index) => line === right[index]);
+}
+
+function estimateTokenCount(text: string) {
+  return Math.max(0, Math.ceil(Array.from(text).length / 4));
+}
+
+function estimateValueTokens(value: unknown): number {
+  if (typeof value === 'string') return estimateTokenCount(value);
+  if (Array.isArray(value)) return value.reduce((sum, part) => sum + estimateValueTokens(part), 0);
+  if (value == null) return 0;
+
+  try {
+    return estimateTokenCount(JSON.stringify(value));
+  } catch {
+    return estimateTokenCount(String(value));
+  }
+}
+
+function estimateMessageTokens(messages: ModelMessage[]) {
+  return messages.reduce((sum, message) => sum + estimateValueTokens(message.content), 0);
+}
+
 export class AgentApp {
   private readonly store = createAgentStore();
   private readonly theme = createTheme();
   private readonly spinner = ora({ spinner: 'dots10', color: 'green', isEnabled: false });
   private readonly commandSpinner = ora({ spinner: 'dots3', color: 'yellow', isEnabled: false });
 
-  private renderedLineCount = 0;
+  private transientLineCount = 0;
+  private committedHistoryCount = 0;
+  private headerPrinted = false;
+  private lastTransientLines: string[] = [];
 
   private readonly tools = createTools({
     runUserShell,
@@ -52,7 +92,6 @@ export class AgentApp {
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly rainbowTimer: ReturnType<typeof setInterval>;
   private readonly sessionId = randomUUID();
-  private previousFrame: Frame | null = null;
   private drainingQueuedSubmissions = false;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private footerNoticeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -66,73 +105,84 @@ export class AgentApp {
   private bracketedPasteBuffer = '';
   private stdinBuffer = '';
 
-  private paintFrame(frame: Frame, changedRanges: Array<{ start: number; end: number }>) {
+  private clearTransientBlock() {
+    if (this.transientLineCount <= 0) {
+      this.lastTransientLines = [];
+      return;
+    }
+
     if (!process.stdout.isTTY) {
-      process.stdout.write(frame.lines.join('\n'));
-      this.renderedLineCount = frame.lines.length;
+      this.transientLineCount = 0;
+      this.lastTransientLines = [];
       return;
     }
 
-    if (!this.previousFrame || this.renderedLineCount === 0) {
-      process.stdout.write('\u001b[?25l');
-      process.stdout.write(frame.lines.join('\n'));
-      this.renderedLineCount = frame.lines.length;
-      return;
-    }
-
-    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
+    if (this.transientLineCount > 1) process.stdout.write(`\u001b[${this.transientLineCount - 1}F`);
     else process.stdout.write('\r');
 
-    let currentRow = 0;
-
-    for (const range of changedRanges) {
-      const down = range.start - currentRow;
-      if (down > 0) process.stdout.write(`\u001b[${down}E`);
-      else if (down < 0) process.stdout.write(`\u001b[${-down}F`);
-
-      currentRow = range.start;
-
-      for (let row = range.start; row <= range.end; row += 1) {
-        process.stdout.write('\u001b[2K\r');
-        const line = frame.lines[row] ?? '';
-        if (line) process.stdout.write(line);
-
-        if (row < range.end) {
-          process.stdout.write('\u001b[E');
-          currentRow = row + 1;
-        } else {
-          currentRow = row;
-        }
-      }
+    for (let index = 0; index < this.transientLineCount; index += 1) {
+      process.stdout.write('\u001b[2K\r');
+      if (index < this.transientLineCount - 1) process.stdout.write('\u001b[E');
     }
 
-    if (frame.lines.length > 0) {
-      const lastRow = frame.lines.length - 1;
-      const delta = lastRow - currentRow;
-      if (delta > 0) process.stdout.write(`\u001b[${delta}E`);
-      else if (delta < 0) process.stdout.write(`\u001b[${-delta}F`);
-      process.stdout.write('\r');
-    }
-
-    this.renderedLineCount = frame.lines.length;
+    if (this.transientLineCount > 1) process.stdout.write(`\u001b[${this.transientLineCount - 1}F`);
+    this.transientLineCount = 0;
+    this.lastTransientLines = [];
   }
 
-  private clearRenderedFrame() {
-    if (!process.stdout.isTTY || this.renderedLineCount <= 0) {
-      this.renderedLineCount = 0;
-      return;
+  private drawTransientLines(lines: string[]) {
+    if (sameLines(lines, this.lastTransientLines)) return;
+
+    this.clearTransientBlock();
+    if (lines.length === 0) return;
+
+    process.stdout.write(lines.join('\n'));
+    this.transientLineCount = lines.length;
+    this.lastTransientLines = [...lines];
+  }
+
+  private appendPermanentLines(lines: string[]) {
+    if (lines.length === 0) return;
+    this.clearTransientBlock();
+    process.stdout.write(`${lines.join('\n')}\n`);
+  }
+
+  private flushCommittedHistory(ctx: ReturnType<typeof createRenderContext>) {
+    const lines: string[] = [];
+
+    while (this.committedHistoryCount < this.state.historyEntries.length) {
+      const entry = this.state.historyEntries[this.committedHistoryCount];
+      if (entry.type === 'tool' && entry.status === 'running') break;
+
+      lines.push(...serializeBlock(renderHistoryEntry(entry, ctx)), '');
+      this.committedHistoryCount += 1;
     }
 
-    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
-    else process.stdout.write('\r');
+    this.appendPermanentLines(lines);
+  }
 
-    for (let index = 0; index < this.renderedLineCount; index += 1) {
-      process.stdout.write('\u001b[2K\r');
-      if (index < this.renderedLineCount - 1) process.stdout.write('\u001b[E');
-    }
+  private renderTransientLines(ctx: ReturnType<typeof createRenderContext>, suggestions: ReturnType<AgentApp['normalizeSuggestions']>) {
+    const pendingHistory = this.state.historyEntries.slice(this.committedHistoryCount).flatMap(entry => [...renderHistoryEntry(entry, ctx), blankLine()]);
+    const preview = renderOutputPreview(this.state.liveReasoningText, this.state.liveAssistantText, ctx, this.state.pendingApproval);
+    const queued = renderQueuedSubmissions(this.state.queuedSubmissions, ctx, 8);
+    const composer = renderComposer(
+      {
+        inputChars: this.state.inputChars,
+        pasteRanges: this.state.pasteRanges,
+        cursor: this.state.cursor,
+        slashCommandLength: this.getSlashCommandLength(),
+        showCapabilitiesHint: this.state.historyEntries.length === 0
+      },
+      ctx
+    ).block;
+    const suggestionLines = renderSuggestions(suggestions, this.state.selectedSuggestion, ctx);
+    const footer = renderFooter(this.state, ctx);
 
-    if (this.renderedLineCount > 1) process.stdout.write(`\u001b[${this.renderedLineCount - 1}F`);
-    this.renderedLineCount = 0;
+    const topSections = [pendingHistory, preview, queued].filter(section => section.length > 0);
+    const body = topSections.flatMap((section, index) => (index === 0 ? section : [blankLine(), ...section]));
+    const blocks = body.length > 0 ? [body, [blankLine()], composer, suggestionLines, footer] : [composer, suggestionLines, footer];
+
+    return serializeBlock(vstack(...blocks));
   }
 
   private get state() {
@@ -159,8 +209,13 @@ export class AgentApp {
     await this.theme.sync();
     await refreshGitBranch(process.cwd());
 
+    const preferences = await loadCuePreferences();
+    this.store.setCurrentModel(preferences.model);
+    this.store.setThinkingMode(preferences.reasoning);
+    this.store.setAutoCompactEnabled(preferences.autoCompactEnabled);
+
     if (process.stdin.isTTY) process.stdin.setRawMode(true);
-    if (process.stdout.isTTY) process.stdout.write('\u001b[?2004h');
+    if (process.stdout.isTTY) process.stdout.write('\u001b[?25l\u001b[?2004h');
     process.stdin.resume();
     process.stdin.on('data', this.onStdinData);
     process.stdout.on('resize', this.render);
@@ -181,20 +236,16 @@ export class AgentApp {
 
     if (process.stdin.isTTY) process.stdin.setRawMode(false);
     process.stdin.pause();
-    this.clearRenderedFrame();
+    this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h\u001b[?2004l');
 
-    if (code === 0) {
-      const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
-      const header = serializeBlock(renderHeader(ctx)).join('\n');
-      process.stdout.write(this.hasResumableSession() ? `${header}\n To resume this session: cue --resume=${this.sessionId}\n\n` : `${header}`);
-    }
+    if (code === 0 && this.hasResumableSession()) process.stdout.write(`To resume this session: cue --resume=${this.sessionId}\n`);
 
     process.exit(code);
   }
 
   handleFatalError(error: unknown, code = 1) {
-    this.clearRenderedFrame();
+    this.clearTransientBlock();
     if (process.stdout.isTTY) process.stdout.write('\u001b[?25h');
     process.stderr.write(`${plain(error instanceof Error ? error.stack || error.message : String(error))}\n`);
     this.cleanup(code);
@@ -236,13 +287,14 @@ export class AgentApp {
 
     const suggestions = this.normalizeSuggestions();
     const ctx = createRenderContext(this.theme, this.spinner.frame().trim(), this.commandSpinner.frame().trim());
-    const { frame, diff, nextScrollOffset } = renderScreen(this.state, ctx, suggestions, this.getSlashCommandLength(), this.previousFrame);
 
-    if (nextScrollOffset !== this.state.scrollOffset) this.store.setScrollOffset(nextScrollOffset);
-    if (!diff.changed) return;
+    if (!this.headerPrinted) {
+      this.appendPermanentLines(serializeBlock(renderHeader(ctx)));
+      this.headerPrinted = true;
+    }
 
-    this.paintFrame(frame, diff.changedRanges);
-    this.previousFrame = frame;
+    this.flushCommittedHistory(ctx);
+    this.drawTransientLines(this.renderTransientLines(ctx, suggestions));
     this.lastRenderAt = Date.now();
   };
 
@@ -274,11 +326,7 @@ export class AgentApp {
   }
 
   private hasRainbowPhraseVisible() {
-    if (RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText)) return true;
-
-    return this.state.historyEntries.some(
-      entry => entry.type === 'entry' && entry.kind === EntryKind.Assistant && RAINBOW_PHRASE_PATTERN.test(entry.text)
-    );
+    return RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText);
   }
 
   private showFooterNotice(text: string, durationMs = 2_000) {
@@ -296,20 +344,37 @@ export class AgentApp {
     this.footerNoticeTimer.unref?.();
   }
 
+  private persistPreferences() {
+    void saveCuePreferences({
+      model: this.state.currentModel,
+      reasoning: this.state.thinkingMode,
+      autoCompactEnabled: this.state.autoCompactEnabled
+    });
+  }
+
   private setCurrentModel(model: string) {
     this.store.setCurrentModel(model);
     this.store.resetLastUsage();
+    this.persistPreferences();
     this.render();
   }
 
   private setThinkingMode(thinkingMode: this['state']['thinkingMode']) {
     this.store.setThinkingMode(thinkingMode);
+    this.persistPreferences();
+    this.render();
+  }
+
+  private setAutoCompactEnabled(enabled: boolean) {
+    this.store.setAutoCompactEnabled(enabled);
+    this.persistPreferences();
     this.render();
   }
 
   private cycleThinkingMode() {
     const next = cycleThinkingMode(this.state.thinkingMode, this.state.currentModel);
     this.store.setThinkingMode(next);
+    this.persistPreferences();
     this.render();
     return next;
   }
@@ -452,7 +517,6 @@ export class AgentApp {
 
   private async runShellCommand(cmd: string) {
     const trimmedCommand = cmd.trim();
-    this.persistEntry(EntryKind.Shell, trimmedCommand);
     this.store.setBusyStatusText(trimmedCommand);
     this.store.setBusy(true);
     this.render();
@@ -461,13 +525,7 @@ export class AgentApp {
       const { output, exitCode } = await runUserShell(cmd);
       const trimmed = output.trimEnd();
 
-      this.store.updateLastHistoryEntry(entry =>
-        entry.type === 'entry' && entry.kind === EntryKind.Shell && entry.text === trimmedCommand
-          ? { ...entry, text: `${trimmedCommand} exit ${exitCode}` }
-          : entry
-      );
-      this.render();
-
+      this.persistEntry(EntryKind.Shell, `${trimmedCommand} exit ${exitCode}`);
       if (trimmed) this.persistAnsi(trimmed);
       else if (exitCode === 0) this.persistPlain('(no output)');
     } catch (error: unknown) {
@@ -526,6 +584,7 @@ export class AgentApp {
             compactConversation: options => this.compactConversation(options),
             setCurrentModel: model => this.setCurrentModel(model),
             setThinkingMode: thinkingMode => this.setThinkingMode(thinkingMode),
+            setAutoCompactEnabled: enabled => this.setAutoCompactEnabled(enabled),
             cycleThinkingMode: () => this.cycleThinkingMode(),
             openCommandArgumentPicker: commandName => this.openCommandArgumentPicker(commandName),
             showFooterNotice: (text, durationMs) => this.showFooterNotice(text, durationMs),
@@ -564,12 +623,32 @@ export class AgentApp {
     this.store.setBusy(true);
     this.store.clearLiveAssistantText();
     this.store.clearLiveReasoningText();
+    this.store.resetLiveUsage();
     this.render();
 
     try {
       if (this.shouldAutoCompact()) await this.compactConversation();
 
       this.store.pushMessage({ role: 'user', content: await this.expand(trimmed) });
+
+      const estimatedPromptTokens = estimateMessageTokens(this.state.messages);
+      let completedPromptTokens = 0;
+      let completedOutputTokens = 0;
+      let completedReasoningTokens = 0;
+      let currentStepOutputText = '';
+      let currentStepReasoningText = '';
+
+      const syncLiveUsage = () => {
+        this.store.setLiveUsage({
+          inputTokens: completedPromptTokens > 0 ? completedPromptTokens : estimatedPromptTokens,
+          outputTokens: completedOutputTokens + estimateTokenCount(currentStepOutputText),
+          reasoningTokens: completedReasoningTokens + estimateTokenCount(currentStepReasoningText)
+        });
+      };
+
+      syncLiveUsage();
+      this.render();
+
       const result = streamText({
         model: openai(this.state.currentModel),
         messages: this.state.messages,
@@ -588,11 +667,24 @@ export class AgentApp {
             abortController.signal.throwIfAborted();
             break;
           case 'reasoning-delta':
+            currentStepReasoningText += part.text;
             this.store.appendLiveReasoningText(part.text);
+            syncLiveUsage();
             this.scheduleRender();
             break;
           case 'text-delta':
+            currentStepOutputText += part.text;
             this.store.appendLiveAssistantText(part.text);
+            syncLiveUsage();
+            this.scheduleRender();
+            break;
+          case 'finish-step':
+            completedPromptTokens += part.usage.inputTokens ?? 0;
+            completedOutputTokens += part.usage.outputTokens ?? 0;
+            completedReasoningTokens += part.usage.outputTokenDetails.reasoningTokens ?? part.usage.reasoningTokens ?? 0;
+            currentStepOutputText = '';
+            currentStepReasoningText = '';
+            syncLiveUsage();
             this.scheduleRender();
             break;
           case 'tool-call':
@@ -639,6 +731,7 @@ export class AgentApp {
     } finally {
       this.store.clearLiveAssistantText();
       this.store.clearLiveReasoningText();
+      this.store.resetLiveUsage();
       this.store.setAbortController(null);
       resetAbortState(this.store);
       this.store.setBusy(false);
@@ -774,7 +867,6 @@ export class AgentApp {
         inputChars: this.state.inputChars,
         pasteRanges: this.state.pasteRanges,
         cursor: this.state.cursor,
-        scrollOffset: this.state.scrollOffset,
         slashCommandLength: this.getSlashCommandLength()
       },
       Math.max(1, frameWidth() - 4),
@@ -795,9 +887,45 @@ export class AgentApp {
     const accepted = acceptComposerSuggestion(this.store, suggestions);
     if (!accepted) return false;
 
-    this.store.setScrollOffset(0);
     this.store.resetSelectedSuggestion();
     this.render();
+    return true;
+  }
+
+  private async tryAcceptAndSubmitSlashCommandSuggestion() {
+    const currentSlashCommand = this.getCurrentSlashCommand();
+    if (currentSlashCommand?.type !== 'resolved') return false;
+
+    const suggestions = this.normalizeSuggestions();
+    const selectedSuggestion = suggestions[this.state.selectedSuggestion];
+    if (selectedSuggestion?.kind !== 'slash-command') return false;
+    if (selectedSuggestion.commandName !== currentSlashCommand.command.name) return false;
+
+    if (selectedSuggestion.disabled) {
+      this.showFooterNotice(selectedSuggestion.detail || 'Unavailable');
+      return true;
+    }
+
+    const accepted = acceptComposerSuggestion(this.store, suggestions);
+    if (!accepted) return false;
+
+    const raw = this.state.inputChars.join('');
+    this.clearHistoryNavigation();
+    this.resetPreferredComposerColumn();
+    this.store.resetComposer();
+    this.store.resetSelectedSuggestion();
+    this.render();
+
+    if (!raw.trim()) return true;
+
+    if (this.state.busy || this.state.queuedSubmissions.length > 0 || this.drainingQueuedSubmissions) {
+      this.store.enqueueSubmission(raw);
+      this.render();
+      void this.drainQueuedSubmissions();
+      return true;
+    }
+
+    await this.processSubmission(raw);
     return true;
   }
 
@@ -889,6 +1017,7 @@ export class AgentApp {
     }
 
     if (binding.type === 'submit') {
+      if (await this.tryAcceptAndSubmitSlashCommandSuggestion()) return;
       if (this.getCurrentSlashCommand()?.type !== 'resolved' && this.tryAcceptSuggestion()) return;
       await this.submit();
       return;

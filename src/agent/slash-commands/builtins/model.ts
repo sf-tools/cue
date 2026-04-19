@@ -1,6 +1,5 @@
 import approx from 'approximate-number';
 
-import { EntryKind } from '@/types';
 import { OPENAI_MODEL_OPTIONS, getOpenAIContextWindow, getOpenAIModelDescription, getOpenAIModelDisplayName, normalizeOpenAIModelId } from '@/config';
 import type { SlashCommand } from '../types';
 
@@ -27,10 +26,9 @@ const MODEL_ARGUMENT_SUGGESTIONS = OPENAI_MODEL_OPTIONS.map(option => ({
 export const modelSlashCommand: SlashCommand = {
   name: 'model',
   description: 'Switch the active OpenAI model.',
-  suggestedInput: OPENAI_MODEL_OPTIONS[0]?.id,
   argumentSuggestions: MODEL_ARGUMENT_SUGGESTIONS,
   showArgumentSuggestionsOnExactInvocation: true,
-  execute({ openCommandArgumentPicker, setCurrentModel, persistEntry }, args) {
+  execute({ openCommandArgumentPicker, setCurrentModel, showFooterNotice }, args) {
     if (args.argv.length > 1) throw new Error(`/${args.invocation} accepts at most one argument`);
 
     const requested = args.argv[0];
@@ -43,6 +41,6 @@ export const modelSlashCommand: SlashCommand = {
     if (!model) throw new Error(`unknown /${args.invocation} model: ${requested}`);
 
     setCurrentModel(model.id);
-    persistEntry(EntryKind.Meta, `model set to ${getOpenAIModelDisplayName(model.id)}`);
+    showFooterNotice(`Model set to ${getOpenAIModelDisplayName(model.id)}`);
   }
 };

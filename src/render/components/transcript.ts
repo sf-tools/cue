@@ -1,100 +1,16 @@
 import chalk from 'chalk';
 
-import { EntryKind, type ApprovalRequest, type HistoryEntry } from '@/types';
-import { repeat, widthOf } from '@/text';
-import { LEFT_MARGIN, takeLast, thinPanelize, wrapTextBlock } from '../layout';
+import { EntryKind, type ApprovalRequest } from '@/types';
+import { LEFT_MARGIN, thinPanelize, wrapTextBlock, takeLast } from '../layout';
 import { blankLine, line, span } from '../primitives';
 import { renderHistoryEntry } from './entry';
 
 import type { Block, RenderContext } from '../types';
 
-const RAINBOW_PHRASE_PATTERN = /you'?re absolutely right/i;
-const transcriptBlockCache = new WeakMap<HistoryEntry, Map<number, Block>>();
-
 function clipPreviewText(text: string, ctx: RenderContext, maxLines: number) {
   const maxChars = Math.max(2_000, ctx.width * maxLines * 8);
   if (text.length <= maxChars) return text;
   return `…${text.slice(-maxChars)}`;
-}
-
-function renderTerminalMetaLine(text: string, ctx: RenderContext) {
-  const style = text === '(steered)' ? (value: string) => chalk.italic(ctx.theme.dimmed(value)) : ctx.theme.dimmed;
-  return line(span(LEFT_MARGIN), span(repeat(' ', Math.max(0, ctx.width - widthOf(text)))), span(text, style));
-}
-
-function isDynamicHistoryEntry(entry: HistoryEntry) {
-  if (entry.type === 'tool') return entry.status === 'running';
-  return entry.type === 'entry' && entry.kind === EntryKind.Assistant && RAINBOW_PHRASE_PATTERN.test(entry.text);
-}
-
-function renderCachedHistoryEntry(entry: HistoryEntry, ctx: RenderContext) {
-  if (isDynamicHistoryEntry(entry)) return renderHistoryEntry(entry, ctx);
-
-  const cachedByWidth = transcriptBlockCache.get(entry);
-  const cached = cachedByWidth?.get(ctx.width);
-  if (cached) return cached;
-
-  const block = renderHistoryEntry(entry, ctx);
-  const nextCachedByWidth = cachedByWidth ?? new Map<number, Block>();
-  nextCachedByWidth.set(ctx.width, block);
-  if (!cachedByWidth) transcriptBlockCache.set(entry, nextCachedByWidth);
-  return block;
-}
-
-function renderTranscriptBlocks(entries: HistoryEntry[], ctx: RenderContext): Block[] {
-  const blocks: Block[] = [];
-
-  for (let index = 0; index < entries.length; index += 1) {
-    const entry = entries[index];
-    const next = entries[index + 1];
-
-    if (
-      entry.type === 'entry' &&
-      entry.kind === EntryKind.Assistant &&
-      next?.type === 'entry' &&
-      next.kind === EntryKind.Meta &&
-      ['(aborted)', '(steered)'].includes(next.text)
-    ) {
-      blocks.push([...renderCachedHistoryEntry(entry, ctx), renderTerminalMetaLine(next.text, ctx)]);
-      index += 1;
-      continue;
-    }
-
-    blocks.push(renderCachedHistoryEntry(entry, ctx));
-  }
-
-  return blocks;
-}
-
-export function renderTranscript(entries: HistoryEntry[], ctx: RenderContext, maxLines = Number.POSITIVE_INFINITY): Block {
-  if (!Number.isFinite(maxLines)) return renderTranscriptBlocks(entries, ctx).flatMap(block => [...block, blankLine()]);
-  if (maxLines <= 0) return [];
-
-  const visible: Block[] = [];
-  let used = 0;
-
-  for (let index = entries.length - 1; index >= 0 && used < maxLines; index -= 1) {
-    const entry = entries[index];
-    const previous = entries[index - 1];
-
-    let block: Block;
-
-    if (
-      entry.type === 'entry' &&
-      entry.kind === EntryKind.Meta &&
-      ['(aborted)', '(steered)'].includes(entry.text) &&
-      previous?.type === 'entry' &&
-      previous.kind === EntryKind.Assistant
-    ) {
-      block = [...renderCachedHistoryEntry(previous, ctx), renderTerminalMetaLine(entry.text, ctx)];
-      index -= 1;
-    } else block = renderCachedHistoryEntry(entry, ctx);
-
-    visible.push([...block, blankLine()]);
-    used += block.length + 1;
-  }
-
-  return visible.reverse().flat();
 }
 
 function renderApprovalNotice(request: ApprovalRequest, ctx: RenderContext): Block {

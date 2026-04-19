@@ -4,13 +4,12 @@ import { repeat, widthOf } from '@/text';
 import { thinPanelize } from '../layout';
 import { line, span } from '../primitives';
 
-import type { ComposerRenderResult, RenderContext, StyledLine } from '../types';
+import type { ComposerRenderResult, RenderContext, Segment, StyledLine } from '../types';
 
 export type ComposerState = {
   inputChars: string[];
   pasteRanges: Array<{ start: number; end: number }>;
   cursor: number;
-  scrollOffset: number;
   slashCommandLength?: number;
   showCapabilitiesHint?: boolean;
 };
@@ -159,6 +158,13 @@ function buildCursorMap(state: ComposerState, viewWidth: number) {
   return positions;
 }
 
+function renderComposerPrompt(state: ComposerState, ctx: RenderContext, shellMode: boolean, slashMode: boolean, validSlashCommand: boolean): Segment {
+  if (state.inputChars.length === 0) return span('→', ctx.theme.dimmed);
+  if (shellMode) return span('!', chalk.yellow);
+  if (slashMode) return span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground);
+  return span('→', ctx.theme.foreground);
+}
+
 export function moveComposerCursorVertical(state: ComposerState, viewWidth: number, delta: number, preferredColumn?: number) {
   const { hiddenPrefix, inputState } = adjustComposerState(state);
   const positions = buildCursorMap(inputState, viewWidth);
@@ -196,14 +202,7 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const validSlashCommand = slashMode && (state.slashCommandLength ?? 0) > 0;
   const capabilitiesHint = state.showCapabilitiesHint ? '/ commands · @ files · ! shell' : '';
   const capabilitiesWidth = widthOf(capabilitiesHint);
-  const prompt =
-    state.inputChars.length === 0
-      ? span('→', ctx.theme.dimmed)
-      : shellMode
-        ? span('!', chalk.yellow)
-        : slashMode
-          ? span('/', validSlashCommand ? chalk.cyanBright : ctx.theme.foreground)
-          : span('→', ctx.theme.foreground);
+  const prompt = renderComposerPrompt(state, ctx, shellMode, slashMode, validSlashCommand);
   const promptWidth = widthOf(prompt.text);
   const hintWidth = capabilitiesHint ? capabilitiesWidth + 1 : 0;
   const placeholderFill = (occupiedWidth: number) => repeat(' ', Math.max(0, contentWidth + 1 - occupiedWidth - hintWidth));
@@ -213,7 +212,6 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     const fill = placeholderFill(promptWidth + 1 + widthOf(label));
 
     return {
-      nextScrollOffset: state.scrollOffset,
       block: thinPanelize(
         [
           line(
@@ -238,7 +236,6 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     const fill = placeholderFill(promptWidth + 2 + widthOf(label));
 
     return {
-      nextScrollOffset: 0,
       block: thinPanelize(
         [
           line(
@@ -262,7 +259,6 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
     const fill = placeholderFill(promptWidth + 2);
 
     return {
-      nextScrollOffset: state.scrollOffset,
       block: thinPanelize(
         [
           line(
@@ -290,7 +286,6 @@ export function renderComposer(state: ComposerState, ctx: RenderContext): Compos
   const block = inputLines.map((entry, index) => line(...(index === 0 ? [prompt, span(' '), ...entry.segments] : [span('  '), ...entry.segments])));
 
   return {
-    nextScrollOffset: 0,
     block: thinPanelize(block, { bg: ctx.theme.composerBg(), width: ctx.width })
   };
 }

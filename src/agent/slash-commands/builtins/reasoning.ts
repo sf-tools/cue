@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 
-import { EntryKind } from '@/types';
 import {
   formatThinkingMode,
   getSupportedThinkingModes,
@@ -43,7 +42,7 @@ export const reasoningSlashCommand: SlashCommand = {
   suggestedInput: 'high',
   argumentSuggestions: REASONING_ARGUMENT_SUGGESTIONS,
   showArgumentSuggestionsOnExactInvocation: true,
-  execute({ store, openCommandArgumentPicker, setThinkingMode, persistEntry }, args) {
+  execute({ store, openCommandArgumentPicker, setThinkingMode, showFooterNotice }, args) {
     if (args.argv.length > 1) throw new Error(`/${args.invocation} accepts at most one argument`);
 
     const model = store.getState().currentModel;
@@ -61,6 +60,6 @@ export const reasoningSlashCommand: SlashCommand = {
     if (!getSupportedThinkingModes(model).includes(requested)) throw new Error(`/${args.invocation} mode ${requested} is not supported for ${model}`);
 
     setThinkingMode(requested);
-    persistEntry(EntryKind.Meta, `reasoning set to ${formatThinkingMode(requested)}`);
+    showFooterNotice(`Reasoning set to ${formatThinkingMode(requested)}`);
   }
 };

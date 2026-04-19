@@ -15,6 +15,7 @@ export type SlashCommandContext = {
   compactConversation(options?: { manual?: boolean; force?: boolean }): Promise<boolean>;
   setCurrentModel(model: string): void;
   setThinkingMode(thinkingMode: ThinkingMode): void;
+  setAutoCompactEnabled(enabled: boolean): void;
   cycleThinkingMode(): ThinkingMode;
   openCommandArgumentPicker(commandName: string): void;
   showFooterNotice(text: string, durationMs?: number): void;
@@ -76,6 +77,7 @@ export type SlashCommandSuggestion = {
   replacement: string;
   commandName: string;
   isAlias: boolean;
+  disabled?: boolean;
   labelStyle?: TextStyle;
   suffixStyle?: TextStyle;
   detailStyle?: TextStyle;

@@ -20,17 +20,6 @@ export type RawLine = {
 export type Line = StyledLine | RawLine;
 export type Block = Line[];
 
-export type Frame = {
-  lines: string[];
-};
-
-export type FrameDiff = {
-  changed: boolean;
-  changedRanges: Array<{ start: number; end: number }>;
-  previousLineCount: number;
-  nextLineCount: number;
-};
-
 export type RenderContext = {
   width: number;
   height: number;
@@ -43,5 +32,4 @@ export type RenderContext = {
 
 export type ComposerRenderResult = {
   block: Block;
-  nextScrollOffset: number;
 };

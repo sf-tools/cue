@@ -1,6 +1,5 @@
-export { createRenderContext, frameWidth, renderScreen } from './screen';
-export { diffFrames } from './diff';
+export { createRenderContext, frameWidth } from './screen';
 export { serializeBlock } from './serialize';
 export { renderHeader } from './components/header';
 
-export type { Block, Frame, FrameDiff, Line, RawLine, RenderContext, Segment, Style, StyledLine } from './types';
+export type { Block, Line, RawLine, RenderContext, Segment, Style, StyledLine } from './types';

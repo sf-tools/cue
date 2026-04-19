@@ -107,7 +107,6 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       state.inputChars.length = 0;
       state.pasteRanges.length = 0;
       state.cursor = 0;
-      state.scrollOffset = 0;
       return state;
     },
 
@@ -189,6 +188,20 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setLiveReasoningText(text: string) {
       state.liveReasoningText = text;
+      return state;
+    },
+
+    setLiveUsage(usage: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number }) {
+      state.livePromptTokens = usage.inputTokens ?? 0;
+      state.liveOutputTokens = usage.outputTokens ?? 0;
+      state.liveReasoningTokens = usage.reasoningTokens ?? 0;
+      return state;
+    },
+
+    resetLiveUsage() {
+      state.livePromptTokens = 0;
+      state.liveOutputTokens = 0;
+      state.liveReasoningTokens = 0;
       return state;
     },
 
@@ -280,6 +293,9 @@ export function createAgentStore(initialState: AgentState = createInitialState()
       state.lastPromptTokens = 0;
       state.lastOutputTokens = 0;
       state.lastReasoningTokens = 0;
+      state.livePromptTokens = 0;
+      state.liveOutputTokens = 0;
+      state.liveReasoningTokens = 0;
       return state;
     },
 
@@ -290,11 +306,6 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setCursor(cursor: number) {
       state.cursor = clamp(cursor, 0, state.inputChars.length);
-      return state;
-    },
-
-    setScrollOffset(scrollOffset: number) {
-      state.scrollOffset = Math.max(0, scrollOffset);
       return state;
     },
 
