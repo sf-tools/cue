@@ -8,6 +8,10 @@ import { renderToolHistoryEntry } from './tools';
 
 import type { Block, RenderContext, StyledLine } from '../types';
 
+export type HistoryEntryRenderOptions = {
+  animateAssistant?: boolean;
+};
+
 function renderUserEntry(text: string, ctx: RenderContext): Block {
   return thinPanelize(wrapTextBlock(text, Math.max(1, ctx.width - 2), ctx.theme.foreground), {
     bg: ctx.theme.panelBg(),
@@ -36,20 +40,22 @@ function ampRainbowStyle(position: { index: number; total: number }, now: number
   return (value: string) => chalk.rgb(r, g, b)(value);
 }
 
-function renderAssistantLines(text: string, ctx: RenderContext) {
+function renderAssistantLines(text: string, ctx: RenderContext, animate = false) {
   const width = Math.max(1, ctx.width - 2);
   const lines: StyledLine[] = [];
   const now = Date.now();
 
   RAINBOW_PHRASE_PATTERN.lastIndex = 0;
-  const ranges = Array.from(text.matchAll(RAINBOW_PHRASE_PATTERN)).map(match => {
-    const start = match.index ?? 0;
-    return {
-      start,
-      end: start + match[0].length,
-      total: match[0].replace(/\s/g, '').length
-    };
-  });
+  const ranges = animate
+    ? Array.from(text.matchAll(RAINBOW_PHRASE_PATTERN)).map(match => {
+        const start = match.index ?? 0;
+        return {
+          start,
+          end: start + match[0].length,
+          total: match[0].replace(/\s/g, '').length
+        };
+      })
+    : [];
 
   let segments: StyledLine['segments'] = [];
   let currentWidth = 0;
@@ -90,8 +96,8 @@ function renderAssistantLines(text: string, ctx: RenderContext) {
   return lines;
 }
 
-function renderAssistantEntry(text: string, ctx: RenderContext): Block {
-  return indent(renderAssistantLines(text, ctx), LEFT_MARGIN);
+function renderAssistantEntry(text: string, ctx: RenderContext, animate = false): Block {
+  return indent(renderAssistantLines(text, ctx, animate), LEFT_MARGIN);
 }
 
 function renderReasoningEntry(text: string, ctx: RenderContext): Block {
@@ -172,14 +178,14 @@ function renderCompactedEntry(entry: Extract<HistoryEntry, { type: 'compacted' }
   );
 }
 
-export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext): Block {
+export function renderHistoryEntry(entry: HistoryEntry, ctx: RenderContext, options: HistoryEntryRenderOptions = {}): Block {
   if (entry.type === 'tool') return renderToolHistoryEntry(entry, ctx);
   if (entry.type === 'compacted') return renderCompactedEntry(entry, ctx);
   if (entry.type === 'ansi') return indent(rawBlock(entry.text), LEFT_MARGIN);
   if (entry.type === 'plain') return indent(wrapTextBlock(entry.text, Math.max(1, ctx.width)), LEFT_MARGIN);
 
   if (entry.kind === EntryKind.User) return renderUserEntry(entry.text, ctx);
-  if (entry.kind === EntryKind.Assistant) return renderAssistantEntry(entry.text, ctx);
+  if (entry.kind === EntryKind.Assistant) return renderAssistantEntry(entry.text, ctx, options.animateAssistant);
   if (entry.kind === EntryKind.Reasoning) return renderReasoningEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Shell) return renderShellEntry(entry.text, ctx);
   if (entry.kind === EntryKind.Error) return renderErrorEntry(entry.text, ctx);

@@ -131,9 +131,7 @@ export class AgentApp {
     this.lastTransientLines = [];
   }
 
-  private drawTransientLines(lines: string[]) {
-    if (sameLines(lines, this.lastTransientLines)) return;
-
+  private redrawTransientLines(lines: string[]) {
     this.clearTransientBlock();
     if (lines.length === 0) return;
 
@@ -142,18 +140,76 @@ export class AgentApp {
     this.lastTransientLines = [...lines];
   }
 
+  private patchTransientLines(lines: string[]) {
+    if (!process.stdout.isTTY || this.transientLineCount === 0 || this.lastTransientLines.length !== lines.length) {
+      this.redrawTransientLines(lines);
+      return;
+    }
+
+    const changedRows = lines.flatMap((line, index) => (line === this.lastTransientLines[index] ? [] : [index]));
+    if (changedRows.length === 0) return;
+
+    if (this.transientLineCount > 1) process.stdout.write(`\u001b[${this.transientLineCount - 1}F`);
+    else process.stdout.write('\r');
+
+    let currentRow = 0;
+
+    for (const row of changedRows) {
+      const delta = row - currentRow;
+      if (delta > 0) process.stdout.write(`\u001b[${delta}E`);
+      else if (delta < 0) process.stdout.write(`\u001b[${-delta}F`);
+
+      process.stdout.write('\u001b[2K\r');
+      if (lines[row]) process.stdout.write(lines[row]);
+      currentRow = row;
+    }
+
+    const lastRow = lines.length - 1;
+    const delta = lastRow - currentRow;
+    if (delta > 0) process.stdout.write(`\u001b[${delta}E`);
+    else if (delta < 0) process.stdout.write(`\u001b[${-delta}F`);
+    process.stdout.write('\r');
+
+    this.lastTransientLines = [...lines];
+  }
+
+  private drawTransientLines(lines: string[]) {
+    if (sameLines(lines, this.lastTransientLines)) return;
+
+    if (this.lastTransientLines.length === 0 || this.transientLineCount === 0) {
+      this.redrawTransientLines(lines);
+      return;
+    }
+
+    this.patchTransientLines(lines);
+  }
+
   private appendPermanentLines(lines: string[]) {
     if (lines.length === 0) return;
     this.clearTransientBlock();
     process.stdout.write(`${lines.join('\n')}\n`);
   }
 
+  private getAnimatedAssistantIndex() {
+    for (let index = this.state.historyEntries.length - 1; index >= 0; index -= 1) {
+      const entry = this.state.historyEntries[index];
+      if (entry.type !== 'entry') continue;
+      if (entry.kind === EntryKind.User) return null;
+      if (entry.kind === EntryKind.Assistant) return RAINBOW_PHRASE_PATTERN.test(entry.text) ? index : null;
+    }
+
+    return null;
+  }
+
   private flushCommittedHistory(ctx: ReturnType<typeof createRenderContext>) {
     const lines: string[] = [];
+    const animatedAssistantIndex = this.getAnimatedAssistantIndex();
 
     while (this.committedHistoryCount < this.state.historyEntries.length) {
-      const entry = this.state.historyEntries[this.committedHistoryCount];
+      const index = this.committedHistoryCount;
+      const entry = this.state.historyEntries[index];
       if (entry.type === 'tool' && entry.status === 'running') break;
+      if (index === animatedAssistantIndex) break;
 
       lines.push(...serializeBlock(renderHistoryEntry(entry, ctx)), '');
       this.committedHistoryCount += 1;
@@ -163,9 +219,11 @@ export class AgentApp {
   }
 
   private renderTransientLines(ctx: ReturnType<typeof createRenderContext>, suggestions: ReturnType<AgentApp['normalizeSuggestions']>) {
-    const pendingHistory = this.state.historyEntries
-      .slice(this.committedHistoryCount)
-      .flatMap(entry => [...renderHistoryEntry(entry, ctx), blankLine()]);
+    const animatedAssistantIndex = this.getAnimatedAssistantIndex();
+    const pendingHistory = this.state.historyEntries.slice(this.committedHistoryCount).flatMap((entry, offset) => {
+      const index = this.committedHistoryCount + offset;
+      return [...renderHistoryEntry(entry, ctx, { animateAssistant: index === animatedAssistantIndex }), blankLine()];
+    });
     const preview = renderOutputPreview(this.state.liveReasoningText, this.state.liveAssistantText, ctx, this.state.pendingApproval);
     const queued = renderQueuedSubmissions(this.state.queuedSubmissions, ctx, 8);
     const composer = renderComposer(
@@ -338,7 +396,7 @@ export class AgentApp {
   }
 
   private hasRainbowPhraseVisible() {
-    return RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText);
+    return RAINBOW_PHRASE_PATTERN.test(this.state.liveAssistantText) || this.getAnimatedAssistantIndex() !== null;
   }
 
   private showFooterNotice(text: string, durationMs = 2_000) {
