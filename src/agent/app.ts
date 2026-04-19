@@ -310,6 +310,10 @@ export class AgentApp {
       return;
     }
 
+    if (key.name === 'tab') {
+      if (this.tryAcceptSuggestion()) return;
+    }
+
     if (key.name === 'return') {
       if (this.tryAcceptSuggestion()) return;
       await this.submit();
