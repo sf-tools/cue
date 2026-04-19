@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { once } from 'node:events';
 import { randomUUID } from 'node:crypto';
 
@@ -189,9 +190,8 @@ async function expandPrompt(input: string) {
   for (const match of input.match(/@[^\s]+/g) || []) {
     try {
       const path = match.slice(1);
-      const file = Bun.file(path);
-      if (!(await file.exists())) continue;
-      out += `\n\n<file path="${path}">\n${await file.text()}\n</file>`;
+      const text = await readFile(path, 'utf8');
+      out += `\n\n<file path="${path}">\n${text}\n</file>`;
     } catch {}
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@sf-tools/cue",
-  "version": "0.0.21",
+  "version": "0.0.22",
   "description": "Your next move, on cue.",
   "license": "MIT",
   "type": "module",
@@ -43,6 +43,7 @@
     "isomorphic-git": "^1.37.5",
     "log-update": "^8.0.0",
     "markdown-it": "^14.1.1",
+    "node-pty": "^1.1.0",
     "open-simplex-noise": "^2.5.0",
     "ora": "^9.3.0",
     "prismjs": "^1.30.0",
