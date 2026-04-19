@@ -246,6 +246,11 @@ class WorkspaceMentionIndex {
       });
   }
 
+  async waitForReady() {
+    this.startInBackground();
+    if (this.initPromise) await this.initPromise;
+  }
+
   query(query: string, limit = WORKSPACE_SEARCH_LIMIT) {
     this.startInBackground();
     if (!this.fuse) return [];
@@ -314,6 +319,12 @@ export function getMentionIndexStats(cwd = process.cwd()) {
 
 export function queryMentionIndex(query: string, limit = WORKSPACE_SEARCH_LIMIT, cwd = process.cwd()) {
   return getOrCreateMentionIndex(cwd).query(query, limit);
+}
+
+export async function queryMentionIndexAwait(query: string, limit = WORKSPACE_SEARCH_LIMIT, cwd = process.cwd()) {
+  const index = getOrCreateMentionIndex(cwd);
+  await index.waitForReady();
+  return index.query(query, limit);
 }
 
 export function fallbackSearchMentionEntries(entries: MentionIndexEntry[], query: string, limit: number) {

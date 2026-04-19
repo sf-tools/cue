@@ -1,7 +1,12 @@
 import { createAntTool } from './ant';
+import { createApplyPatchTool } from './apply-patch';
 import { createBashTool } from './bash';
+import { createBashBgTool, createBashKillTool, createBashOutputTool } from './background';
 import { createEditTool } from './edit';
+import { createFindFileTool } from './find-file';
 import { createReadTool } from './read';
+import { createTodoTool } from './todo';
+import { createWebFetchTool } from './web-fetch';
 import { createWriteTool } from './write';
 import { createOracleTool } from './oracle';
 import { createWebSearchTool } from './web';
@@ -54,6 +59,13 @@ export function createTools(options: ToolFactoryOptions) {
   const depsPackages = createDepsPackagesTool(options);
   const symbolRename = createSymbolRenameTool(options);
   const verifyChanges = createVerifyChangesTool(options);
+  const webFetch = createWebFetchTool();
+  const findFile = createFindFileTool();
+  const todoList = createTodoTool();
+  const applyPatch = createApplyPatchTool(options);
+  const bashBg = createBashBgTool(options);
+  const bashOutput = createBashOutputTool();
+  const bashKill = createBashKillTool();
   const oracle = createOracleTool(options, {
     read,
     ripgrep,
@@ -104,6 +116,13 @@ export function createTools(options: ToolFactoryOptions) {
     deps_impact: depsImpact,
     deps_packages: depsPackages,
     symbol_rename: symbolRename,
-    verify_changes: verifyChanges
+    verify_changes: verifyChanges,
+    web_fetch: webFetch,
+    find_file: findFile,
+    todo: todoList,
+    apply_patch: applyPatch,
+    bash_bg: bashBg,
+    bash_output: bashOutput,
+    bash_kill: bashKill
   };
 }
