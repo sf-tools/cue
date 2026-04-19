@@ -15,11 +15,41 @@ function toHex(rgb: Rgb) {
 
 function mix(a: Rgb, b: Rgb, amount: number): Rgb {
   const t = Math.max(0, Math.min(1, amount));
+  const base = 1 - t;
   return {
-    r: clampChannel(a.r + (b.r - a.r) * t),
-    g: clampChannel(a.g + (b.g - a.g) * t),
-    b: clampChannel(a.b + (b.b - a.b) * t)
+    r: clampChannel(a.r * t + b.r * base),
+    g: clampChannel(a.g * t + b.g * base),
+    b: clampChannel(a.b * t + b.b * base)
   };
+}
+
+type TintConfig = {
+  tintHex: string;
+  mixRatio: number;
+  fallbackHex: string;
+  fallbackAnsi256: number;
+};
+
+function parseHexColor(hex: string): Rgb | null {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!match) return null;
+  return {
+    r: Number.parseInt(match[1], 16),
+    g: Number.parseInt(match[2], 16),
+    b: Number.parseInt(match[3], 16)
+  };
+}
+
+function applyCursorTint(backgroundRgb: Rgb | null, config: TintConfig) {
+  if (!backgroundRgb) return config.fallbackHex;
+
+  const tintRgb = parseHexColor(config.tintHex);
+  if (!tintRgb) return config.fallbackHex;
+
+  const luminance = (backgroundRgb.r / 255) * 0.2126 + (backgroundRgb.g / 255) * 0.7152 + (backgroundRgb.b / 255) * 0.0722;
+  const adjustedMixRatio = Math.max(0.5, config.mixRatio - (Math.abs(luminance - 0.5) / 0.5) * 0.18);
+
+  return toHex(mix(backgroundRgb, tintRgb, adjustedMixRatio));
 }
 
 function defaultBackground(isLightTheme: boolean): Rgb {
@@ -148,11 +178,15 @@ export function createTheme() {
     if (hint === null) isLightTheme = relativeLuminance(backgroundRgb) > 0.6;
   }
 
+  const cursorPanelDark = { tintHex: '#555566', mixRatio: 0.82, fallbackHex: '#242428', fallbackAnsi256: 235 };
+  const cursorPanelLight = { tintHex: '#b0b0b0', mixRatio: 0.82, fallbackHex: '#e8e8e8', fallbackAnsi256: 254 };
+  const cursorComposerDark = { tintHex: '#505050', mixRatio: 0.95, fallbackHex: '#151515', fallbackAnsi256: 233 };
+  const cursorComposerLight = { tintHex: '#d0d0d0', mixRatio: 0.9, fallbackHex: '#f2f2f2', fallbackAnsi256: 255 };
+
   return {
     sync,
-    panelBg: () => toHex(mix(backgroundRgb, isLightTheme ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 }, isLightTheme ? 0.04 : 0.06)),
-    composerBg: () =>
-      toHex(mix(backgroundRgb, isLightTheme ? { r: 0, g: 0, b: 0 } : { r: 255, g: 255, b: 255 }, isLightTheme ? 0.06 : 0.08)),
+    panelBg: () => applyCursorTint(backgroundRgb, isLightTheme ? cursorPanelLight : cursorPanelDark),
+    composerBg: () => applyCursorTint(backgroundRgb, isLightTheme ? cursorComposerLight : cursorComposerDark),
     foreground: (text: string) => text,
     dimmed: (text: string) => chalk.dim(text),
     subtle: (text: string) => chalk.dim(text),
