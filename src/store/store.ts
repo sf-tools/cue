@@ -328,6 +328,11 @@ function buildAgentStore(initialState: AgentState) {
       return state;
     },
 
+    replaceState(nextState: AgentState) {
+      Object.assign(state, nextState);
+      return state;
+    },
+
     setCurrentModel(currentModel: string) {
       state.currentModel = currentModel;
       return state;

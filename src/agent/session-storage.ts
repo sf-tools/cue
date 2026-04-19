@@ -1,3 +1,4 @@
+import { readFileSync, readdirSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -118,6 +119,24 @@ function summarizeSnapshotPreview(snapshot: CueSessionSnapshot): string | undefi
   return undefined;
 }
 
+function createSessionListEntry(
+  snapshot: CueSessionSnapshot,
+  targetCwd: string | null,
+): CueSessionListEntry | null {
+  if (!snapshot || snapshot.version !== 1 || !snapshot.sessionId || !snapshot.cwd || !snapshot.savedAt)
+    return null;
+  if (targetCwd && resolve(snapshot.cwd) !== targetCwd) return null;
+
+  const preview = summarizeSnapshotPreview(snapshot);
+  return {
+    sessionId: snapshot.sessionId,
+    cwd: snapshot.cwd,
+    savedAt: snapshot.savedAt,
+    ...(snapshot.title ? { title: snapshot.title } : {}),
+    ...(preview ? { preview } : {}),
+  };
+}
+
 export async function saveCueSessionSnapshot(
   snapshot: CueSessionSnapshot,
   root = DEFAULT_SESSION_DIR,
@@ -159,20 +178,7 @@ export async function listCueSessionSnapshots(
           try {
             const raw = await readFile(join(root, name), 'utf8');
             const parsed = JSON.parse(raw) as CueSessionSnapshot;
-            if (!parsed || parsed.version !== 1 || !parsed.sessionId || !parsed.cwd || !parsed.savedAt)
-              return null;
-            if (targetCwd && resolve(parsed.cwd) !== targetCwd) return null;
-
-            const entry: CueSessionListEntry = {
-              sessionId: parsed.sessionId,
-              cwd: parsed.cwd,
-              savedAt: parsed.savedAt,
-              ...(parsed.title ? { title: parsed.title } : {}),
-              ...(summarizeSnapshotPreview(parsed)
-                ? { preview: summarizeSnapshotPreview(parsed) }
-                : {}),
-            };
-            return entry;
+            return createSessionListEntry(parsed, targetCwd);
           } catch {
             return null;
           }
@@ -180,6 +186,31 @@ export async function listCueSessionSnapshots(
     );
 
     return entries
+      .filter((entry): entry is CueSessionListEntry => entry !== null)
+      .sort((left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt));
+  } catch {
+    return [];
+  }
+}
+
+export function listCueSessionSnapshotsSync(
+  options: { cwd?: string; root?: string } = {},
+): CueSessionListEntry[] {
+  const root = options.root ?? DEFAULT_SESSION_DIR;
+  const targetCwd = options.cwd ? resolve(options.cwd) : null;
+
+  try {
+    return readdirSync(root)
+      .filter(name => name.endsWith('.json'))
+      .map(name => {
+        try {
+          const raw = readFileSync(join(root, name), 'utf8');
+          const parsed = JSON.parse(raw) as CueSessionSnapshot;
+          return createSessionListEntry(parsed, targetCwd);
+        } catch {
+          return null;
+        }
+      })
       .filter((entry): entry is CueSessionListEntry => entry !== null)
       .sort((left, right) => Date.parse(right.savedAt) - Date.parse(left.savedAt));
   } catch {

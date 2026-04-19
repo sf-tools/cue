@@ -28,7 +28,12 @@ import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
 import { buildUndoFileChanges, readOptionalFile, type UndoEntry } from '@/undo';
 import { createFileChange, previewFileChangesForToolCall } from '@/file-changes';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
-import { createSnapshotFromState, saveCueSessionSnapshot } from './session-storage';
+import {
+  createSnapshotFromState,
+  hydrateStateFromSnapshot,
+  loadCueSessionSnapshot,
+  saveCueSessionSnapshot,
+} from './session-storage';
 import { normalizePtyOutput, plain, installSegmentContainingPolyfill } from '@/text';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
 import { renderComposer, moveComposerCursorVertical } from '@/render/components/composer';
@@ -237,16 +242,18 @@ export class AgentApp {
   });
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands, {
     getCurrentThreadShareState: () => this.getCurrentThreadShareState(),
+    getSessionId: () => this.sessionId,
   });
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
   private readonly rainbowTimer: ReturnType<typeof setInterval>;
-  private readonly sessionId: string;
+  private sessionId: string;
   private readonly promptHistory = new PromptHistoryStore();
   private readonly bootFromSnapshot: boolean;
   private lastRequestId: string | null = null;
   private threadTitle: string | null;
   private threadTitleGeneration: Promise<void> | null = null;
+  private threadTitleGenerationToken = 0;
   private sessionSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private drainingQueuedSubmissions = false;
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
@@ -740,16 +747,27 @@ export class AgentApp {
     const context = getThreadTitleContext(this.state.historyEntries);
     if (!context) return;
 
+    const generationToken = ++this.threadTitleGenerationToken;
+    const sessionId = this.sessionId;
+
     this.threadTitleGeneration = (async () => {
       try {
         const title = await this.generateThreadTitle(context);
-        if (!title || this.threadTitle || this.state.closed) return;
+        if (
+          !title ||
+          this.threadTitle ||
+          this.state.closed ||
+          this.sessionId !== sessionId ||
+          this.threadTitleGenerationToken !== generationToken
+        ) {
+          return;
+        }
         this.threadTitle = title;
         this.scheduleSessionSnapshot();
         this.render();
       } catch {
       } finally {
-        this.threadTitleGeneration = null;
+        if (this.threadTitleGenerationToken === generationToken) this.threadTitleGeneration = null;
       }
     })();
   }
@@ -822,6 +840,39 @@ export class AgentApp {
     await this.persistSessionSnapshot();
     const auth = await requireCueCloudAuth();
     return makeCueThreadPrivate(auth, this.sessionId);
+  }
+
+  private async switchToSession(sessionId: string) {
+    if (sessionId === this.sessionId) {
+      this.showFooterNotice(`Already on ${this.threadTitle ?? 'this thread'}`);
+      return;
+    }
+
+    if (this.sessionSaveTimer) {
+      clearTimeout(this.sessionSaveTimer);
+      this.sessionSaveTimer = null;
+    }
+    await this.persistSessionSnapshot();
+
+    const snapshot = await loadCueSessionSnapshot(sessionId);
+    if (!snapshot) throw new Error(`No saved thread found for id '${sessionId}'.`);
+
+    this.threadTitleGenerationToken += 1;
+    this.threadTitleGeneration = null;
+    this.sessionId = snapshot.sessionId;
+    this.threadTitle = snapshot.title?.trim() ? snapshot.title.trim() : null;
+    this.lastRequestId = null;
+    this.historyNavigationIndex = null;
+    this.historyNavigationDraft = '';
+    this.preferredComposerColumn = null;
+    this.undoStack.length = 0;
+    this.sessionFileBaselines.clear();
+    this.store.replaceState(hydrateStateFromSnapshot(snapshot));
+    this.resetRenderedScreen();
+    this.maybeGenerateThreadTitle();
+    this.scheduleSessionSnapshot();
+    this.render();
+    this.showFooterNotice(`Switched to ${this.threadTitle ?? 'Untitled thread'}`);
   }
 
   private scheduleSessionSnapshot() {
@@ -1346,6 +1397,7 @@ export class AgentApp {
             shareCurrentThread: () => this.shareCurrentThread(),
             makeCurrentThreadPrivate: () => this.makeCurrentThreadPrivate(),
             getSessionId: () => this.sessionId,
+            switchToSession: sessionId => this.switchToSession(sessionId),
             getLastRequestId: () => this.lastRequestId,
             getThreadTitle: () => this.threadTitle,
             setThreadTitle: title => this.setThreadTitle(title),

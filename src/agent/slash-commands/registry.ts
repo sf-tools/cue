@@ -6,6 +6,7 @@ import type {
   SlashCommandParseResult,
   SlashCommandQuery,
   SlashCommandSuggestion,
+  SlashCommandSuggestionContext,
 } from './types';
 
 function normalizeInvocation(value: string) {
@@ -25,8 +26,8 @@ function normalizeArgumentSuggestion(suggestion: SlashCommandArgumentSuggestion)
   return typeof suggestion === 'string' ? { value: suggestion } : suggestion;
 }
 
-function getSuggestionContext(context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>) {
-  return context ?? { getCurrentThreadShareState: () => 'unknown' as const };
+function getSuggestionContext(context?: SlashCommandSuggestionContext) {
+  return context ?? { getCurrentThreadShareState: () => 'unknown' as const, getSessionId: () => '' };
 }
 
 export function currentSlashCommandQuery(
@@ -49,7 +50,7 @@ export function currentSlashCommandQuery(
 
 export function createSlashCommandRegistry(
   commands: SlashCommand[],
-  context?: Pick<SlashCommandContext, 'getCurrentThreadShareState'>,
+  context?: SlashCommandSuggestionContext,
 ) {
   const invocations: SlashCommandInvocation[] = [];
   const invocationMap = new Map<string, SlashCommandInvocation>();
@@ -120,7 +121,11 @@ export function createSlashCommandRegistry(
 
       const listArgumentSuggestions = (invocation: string, queryText: string, limit = 6) => {
         const resolved = invocationMap.get(invocation);
-        const values = resolved?.command.argumentSuggestions ?? [];
+        const rawSuggestions = resolved?.command.argumentSuggestions;
+        const values =
+          typeof rawSuggestions === 'function'
+            ? rawSuggestions(suggestionContext)
+            : (rawSuggestions ?? []);
         const normalizedQuery = normalizeInvocation(queryText);
 
         return values
@@ -161,8 +166,7 @@ export function createSlashCommandRegistry(
               suffixStyle: suggestion.suffixStyle,
               detailStyle: suggestion.detailStyle,
             };
-          })
-          .sort(compareSuggestions);
+          });
       };
 
       if (query.type === 'argument') return listArgumentSuggestions(query.invocation, query.query);

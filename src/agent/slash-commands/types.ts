@@ -29,6 +29,7 @@ export type SlashCommandContext = {
   shareCurrentThread(): Promise<{ share: { shareId: string; sharedAt: string; url: string } }>;
   makeCurrentThreadPrivate(): Promise<{ ok: true }>;
   getSessionId(): string;
+  switchToSession(sessionId: string): Promise<void>;
   getLastRequestId(): string | null;
   getThreadTitle(): string | null;
   setThreadTitle(title: string | null): void;
@@ -57,13 +58,20 @@ export type SlashCommandArgumentSuggestion =
       detailStyle?: TextStyle;
     };
 
+export type SlashCommandSuggestionContext = Pick<
+  SlashCommandContext,
+  'getCurrentThreadShareState' | 'getSessionId'
+>;
+
 export type SlashCommand = {
   name: string;
   aliases?: string[];
   specialHiddenAliases?: string[];
   description: string;
   suggestedInput?: string;
-  argumentSuggestions?: SlashCommandArgumentSuggestion[];
+  argumentSuggestions?:
+    | SlashCommandArgumentSuggestion[]
+    | ((context: SlashCommandSuggestionContext) => SlashCommandArgumentSuggestion[]);
   showArgumentSuggestionsOnExactInvocation?: boolean;
   isAvailable?(context: Pick<SlashCommandContext, 'getCurrentThreadShareState'>): boolean;
   unavailableDetail?(context: Pick<SlashCommandContext, 'getCurrentThreadShareState'>): string;

@@ -3,7 +3,6 @@ import { createApplyPatchTool } from './apply-patch';
 import { createBashTool } from './bash';
 import { createBashBgTool, createBashKillTool, createBashOutputTool } from './background';
 import { createEditTool } from './edit';
-import { createFindFileTool } from './find-file';
 import { createFormatTool } from './format';
 import { createGitHistoryTool, createGitStashTool } from './git-local';
 import { createLintTool } from './lint';
@@ -11,7 +10,6 @@ import { createLspTool } from './lsp';
 import { createNotebookEditTool, createNotebookReadTool } from './notebook';
 import { createReadTool } from './read';
 import { createTodoTool } from './todo';
-import { createWebFetchTool } from './web-fetch';
 import { createWorktreeTool } from './worktree';
 import { createWriteTool } from './write';
 import { createOracleTool } from './oracle';
@@ -42,12 +40,7 @@ import {
   createTestRunTool,
   createTestScaffoldTool,
 } from './test';
-import {
-  createGitConflictsTool,
-  createGitIntegrateTool,
-  createGitProgressTool,
-  createGitStatusTool,
-} from './gitops';
+
 import {
   createDepsImpactTool,
   createDepsPackagesTool,
@@ -84,17 +77,11 @@ export function createTools(options: ToolFactoryOptions) {
   const testRun = createTestRunTool(options);
   const ciWorkflows = createCiWorkflowsTool(options);
   const ciRuns = createCiRunsTool(options);
-  const gitStatus = createGitStatusTool(options);
-  const gitConflicts = createGitConflictsTool(options);
-  const gitIntegrate = createGitIntegrateTool(options);
-  const gitProgress = createGitProgressTool(options);
   const depsScan = createDepsScanTool(options);
   const depsImpact = createDepsImpactTool(options);
   const depsPackages = createDepsPackagesTool(options);
   const symbolRename = createSymbolRenameTool(options);
   const verifyChanges = createVerifyChangesTool(options);
-  const webFetch = createWebFetchTool();
-  const findFile = createFindFileTool();
   const todoList = createTodoTool();
   const applyPatch = createApplyPatchTool(options);
   const bashBg = createBashBgTool(options);
@@ -158,18 +145,12 @@ export function createTools(options: ToolFactoryOptions) {
     test_run: testRun,
     ci_workflows: ciWorkflows,
     ci_runs: ciRuns,
-    git_status: gitStatus,
     git_log: gitLog,
-    git_conflicts: gitConflicts,
-    git_integrate: gitIntegrate,
-    git_progress: gitProgress,
     deps_scan: depsScan,
     deps_impact: depsImpact,
     deps_packages: depsPackages,
     symbol_rename: symbolRename,
     verify_changes: verifyChanges,
-    web_fetch: webFetch,
-    find_file: findFile,
     todo: todoList,
     apply_patch: applyPatch,
     bash_bg: bashBg,

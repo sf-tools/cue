@@ -19,6 +19,7 @@ import { shareSlashCommand } from './share';
 import { shellSlashCommand } from './shell';
 import { showThinkingSlashCommand } from './show-thinking';
 import { simplifySlashCommand } from './simplify';
+import { switchSlashCommand } from './switch';
 import { toggleAutoCompactSlashCommand } from './toggle-auto-compact';
 import { toolsSlashCommand } from './tools';
 
@@ -43,6 +44,7 @@ export const builtinSlashCommands = [
   shellSlashCommand,
   showThinkingSlashCommand,
   simplifySlashCommand,
+  switchSlashCommand,
   toggleAutoCompactSlashCommand,
   toolsSlashCommand,
   quitSlashCommand,
