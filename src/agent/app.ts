@@ -39,6 +39,8 @@ export class AgentApp {
   private renderTimer: ReturnType<typeof setTimeout> | null = null;
   private renderScheduled = false;
   private lastRenderAt = 0;
+  private historyNavigationIndex: number | null = null;
+  private historyNavigationDraft = '';
 
   private get state() {
     return this.store.getState();
@@ -306,9 +308,54 @@ export class AgentApp {
     }
   }
 
+  private clearHistoryNavigation() {
+    this.historyNavigationIndex = null;
+    this.historyNavigationDraft = '';
+  }
+
+  private getInputHistory() {
+    return this.state.historyEntries.flatMap(entry => (entry.type === 'entry' && entry.kind === EntryKind.User ? [entry.text] : []));
+  }
+
+  private moveInputHistory(delta: number) {
+    const history = this.getInputHistory();
+    if (history.length === 0) return false;
+
+    if (delta < 0) {
+      if (this.historyNavigationIndex === null) {
+        this.historyNavigationDraft = this.state.inputChars.join('');
+        this.historyNavigationIndex = history.length - 1;
+      } else {
+        this.historyNavigationIndex = Math.max(0, this.historyNavigationIndex - 1);
+      }
+
+      this.store.replaceInput(history[this.historyNavigationIndex]);
+      this.store.resetSelectedSuggestion();
+      this.render();
+      return true;
+    }
+
+    if (this.historyNavigationIndex === null) return false;
+
+    const nextIndex = this.historyNavigationIndex + 1;
+    if (nextIndex >= history.length) {
+      const draft = this.historyNavigationDraft;
+      this.clearHistoryNavigation();
+      this.store.replaceInput(draft);
+    } else {
+      this.historyNavigationIndex = nextIndex;
+      this.store.replaceInput(history[nextIndex]);
+    }
+
+    this.store.resetSelectedSuggestion();
+    this.render();
+    return true;
+  }
+
   private async submit() {
     const raw = this.state.inputChars.join('');
     const trimmed = raw.trim();
+    this.clearHistoryNavigation();
     this.store.resetComposer();
     this.store.resetSelectedSuggestion();
     this.render();
@@ -327,6 +374,7 @@ export class AgentApp {
 
   private insertText(text: string) {
     if (!text) return;
+    this.historyNavigationIndex = null;
     this.store.insertText(text);
 
     if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) {
@@ -363,6 +411,7 @@ export class AgentApp {
     }
 
     if (this.state.inputChars.length === 0 && this.state.selectedSuggestion === 0) return;
+    this.clearHistoryNavigation();
     this.store.resetComposer();
     this.store.resetSelectedSuggestion();
     this.render();
@@ -371,6 +420,8 @@ export class AgentApp {
   private handleDelete(backward: boolean) {
     const changed = backward ? this.store.deleteBackward() : this.store.deleteForward();
     if (!changed) return;
+
+    this.historyNavigationIndex = null;
 
     if (currentMentionQuery(this.state.inputChars, this.state.cursor) === null) this.store.resetSelectedSuggestion();
     this.render();
@@ -407,9 +458,11 @@ export class AgentApp {
     }
 
     switch (binding.type) {
-      case 'moveSuggestion':
-        this.moveSuggestionSelection(binding.delta);
+      case 'moveSuggestion': {
+        if (this.moveSuggestionSelection(binding.delta)) return;
+        this.moveInputHistory(binding.delta);
         return;
+      }
       case 'backspace':
         this.handleDelete(true);
         return;
