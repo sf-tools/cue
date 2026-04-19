@@ -54,7 +54,8 @@ export function renderScreen(
     ctx,
     state.abortConfirmationPending,
     state.abortRequested,
-    state.exitConfirmationPending
+    state.exitConfirmationPending,
+    state.pendingApproval
   );
   const composer = renderComposer({
     inputChars: state.inputChars,

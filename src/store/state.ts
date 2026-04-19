@@ -18,5 +18,9 @@ export const createInitialState = (): AgentState => ({
   abortController: null,
   abortConfirmationPending: false,
   abortRequested: false,
-  exitConfirmationPending: false
+  exitConfirmationPending: false,
+  pendingApproval: null,
+  autoRunEnabled: false,
+  commandApprovalSessionAllowed: false,
+  editApprovalSessionAllowed: false
 });

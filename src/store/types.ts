@@ -1,5 +1,5 @@
 import type { ModelMessage } from 'ai';
-import type { HistoryEntry } from '@/types';
+import type { ApprovalRequest, HistoryEntry } from '@/types';
 
 export type AgentState = {
   messages: ModelMessage[];
@@ -19,4 +19,8 @@ export type AgentState = {
   abortConfirmationPending: boolean;
   abortRequested: boolean;
   exitConfirmationPending: boolean;
+  pendingApproval: ApprovalRequest | null;
+  autoRunEnabled: boolean;
+  commandApprovalSessionAllowed: boolean;
+  editApprovalSessionAllowed: boolean;
 };

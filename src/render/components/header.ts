@@ -11,6 +11,7 @@ export function renderHeader(ctx: RenderContext): Block {
     blankLine(),
     line(span(LEFT_MARGIN), span(APP_NAME, ctx.theme.foreground)),
     line(span(LEFT_MARGIN), span(APP_VERSION, ctx.theme.dimmed)),
+    line(span(LEFT_MARGIN), span('hint: /auto-run to skip all approvals', ctx.theme.subtle)),
     blankLine()
   ];
 }

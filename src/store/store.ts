@@ -1,7 +1,7 @@
 import { createInitialState } from './state';
 
 import type { ModelMessage } from 'ai';
-import type { HistoryEntry } from '@/types';
+import type { ApprovalRequest, ApprovalScope, HistoryEntry } from '@/types';
 import type { AgentState } from './types';
 
 export type AgentStore = ReturnType<typeof createAgentStore>;
@@ -73,6 +73,22 @@ export function createAgentStore(initialState: AgentState = createInitialState()
 
     setExitConfirmationPending(exitConfirmationPending: boolean) {
       state.exitConfirmationPending = exitConfirmationPending;
+      return state;
+    },
+
+    setPendingApproval(pendingApproval: ApprovalRequest | null) {
+      state.pendingApproval = pendingApproval;
+      return state;
+    },
+
+    setAutoRunEnabled(autoRunEnabled: boolean) {
+      state.autoRunEnabled = autoRunEnabled;
+      return state;
+    },
+
+    setApprovalSessionAllowed(scope: ApprovalScope, allowed: boolean) {
+      if (scope === 'command') state.commandApprovalSessionAllowed = allowed;
+      else state.editApprovalSessionAllowed = allowed;
       return state;
     },
 

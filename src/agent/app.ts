@@ -12,7 +12,7 @@ import { streamText, stepCountIs } from 'ai';
 import { createLogUpdate } from 'log-update';
 import { resolveInputBinding } from './keybinds';
 import { calcPrice } from '@pydantic/genai-prices';
-import { EntryKind, type LogUpdate } from '@/types';
+import { EntryKind, type ApprovalDecision, type ApprovalRequest, type ApprovalScope, type LogUpdate } from '@/types';
 import { plain, installSegmentContainingPolyfill } from '@/text';
 import { builtinSlashCommands, createSlashCommandRegistry } from './slash-commands';
 import { handleAbortKeypress, createAbortController, resetAbortState } from './abort';
@@ -32,7 +32,10 @@ export class AgentApp {
     defaultHeight: 30
   }) as LogUpdate;
 
-  private readonly tools = createTools({ runUserShell });
+  private readonly tools = createTools({
+    runUserShell,
+    requestApproval: request => this.requestApproval(request)
+  });
   private readonly slashCommands = createSlashCommandRegistry(builtinSlashCommands);
 
   private readonly spinnerTimer: ReturnType<typeof setInterval>;
@@ -44,6 +47,7 @@ export class AgentApp {
   private lastRenderAt = 0;
   private historyNavigationIndex: number | null = null;
   private historyNavigationDraft = '';
+  private pendingApprovalResolver: ((decision: ApprovalDecision) => void) | null = null;
 
   private get state() {
     return this.store.getState();
@@ -169,6 +173,39 @@ export class AgentApp {
     return this.hasResumableSession();
   }
 
+  private hasSessionApproval(scope: ApprovalScope) {
+    return scope === 'command' ? this.state.commandApprovalSessionAllowed : this.state.editApprovalSessionAllowed;
+  }
+
+  private requestApproval = async (request: ApprovalRequest) => {
+    if (this.state.autoRunEnabled || this.hasSessionApproval(request.scope)) return true;
+    if (this.pendingApprovalResolver) throw new Error('another approval is already pending');
+
+    const decision = await new Promise<ApprovalDecision>(resolve => {
+      this.pendingApprovalResolver = resolve;
+      this.store.setPendingApproval(request);
+      this.render();
+    });
+
+    if (decision === 'allow-session') {
+      this.store.setApprovalSessionAllowed(request.scope, true);
+      this.render();
+    }
+
+    return decision !== 'deny';
+  };
+
+  private resolvePendingApproval(decision: ApprovalDecision) {
+    const resolve = this.pendingApprovalResolver;
+    if (!resolve || !this.state.pendingApproval) return false;
+
+    this.pendingApprovalResolver = null;
+    this.store.setPendingApproval(null);
+    this.render();
+    resolve(decision);
+    return true;
+  }
+
   private persistEntry(kind: EntryKind, text: string) {
     if (!text.trim()) return;
     this.store.pushHistoryEntry({ type: 'entry', kind, text });
@@ -209,6 +246,22 @@ export class AgentApp {
     this.render();
 
     try {
+      const approved = await this.requestApproval({
+        scope: 'command',
+        title: 'Run command',
+        detail: trimmedCommand || cmd
+      });
+
+      if (!approved) {
+        this.store.updateLastHistoryEntry(entry =>
+          entry.type === 'entry' && entry.kind === EntryKind.Shell && entry.text === trimmedCommand
+            ? { ...entry, text: `${trimmedCommand} denied` }
+            : entry
+        );
+        this.render();
+        return;
+      }
+
       const { output, exitCode } = await runUserShell(cmd);
       const trimmed = output.trimEnd();
 
@@ -470,6 +523,19 @@ export class AgentApp {
     return true;
   }
 
+  private handlePendingApprovalBinding(binding: ReturnType<typeof resolveInputBinding>) {
+    if (!this.state.pendingApproval || !binding) return false;
+
+    if (binding.type === 'escape') return this.resolvePendingApproval('deny');
+    if (binding.type !== 'insertText') return true;
+
+    const key = binding.text.trim().toLowerCase();
+    if (key === 'y') return this.resolvePendingApproval('allow-once');
+    if (key === 's') return this.resolvePendingApproval('allow-session');
+    if (key === 'n') return this.resolvePendingApproval('deny');
+    return true;
+  }
+
   private handleEscape() {
     if (this.state.exitConfirmationPending) {
       this.store.setExitConfirmationPending(false);
@@ -518,6 +584,8 @@ export class AgentApp {
       this.cleanup(0);
       return;
     }
+
+    if (this.handlePendingApprovalBinding(binding)) return;
 
     if (binding.type === 'escape') {
       this.handleEscape();

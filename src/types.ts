@@ -36,6 +36,17 @@ export type ShellResult = {
   output: string;
 };
 
+export type ApprovalScope = 'command' | 'edit';
+
+export type ApprovalRequest = {
+  scope: ApprovalScope;
+  title: string;
+  detail: string;
+  body?: string[];
+};
+
+export type ApprovalDecision = 'allow-once' | 'allow-session' | 'deny';
+
 export type Rgb = {
   r: number;
   g: number;

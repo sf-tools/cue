@@ -4,11 +4,15 @@ import { z } from 'zod';
 import { plain } from '@/text';
 import type { ToolFactoryOptions } from './types';
 
-export function createBashTool({ runUserShell }: ToolFactoryOptions) {
+export function createBashTool({ runUserShell, requestApproval }: ToolFactoryOptions) {
   return tool({
     description: 'Run a shell command',
     inputSchema: z.object({ cmd: z.string() }),
     execute: async ({ cmd }) => {
+      if (!(await requestApproval({ scope: 'command', title: 'Run command', detail: cmd.trim() || cmd }))) {
+        throw new Error('command denied by user');
+      }
+
       try {
         const { output, exitCode } = await runUserShell(cmd);
         const trimmed = plain(output).trimEnd();
