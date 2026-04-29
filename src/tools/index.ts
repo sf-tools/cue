@@ -59,6 +59,11 @@ import {
   createSearchGitHubTool,
 } from './librarian';
 
+import { createMapCodebaseTool } from './map-codebase';
+import { createPlanChangeTool } from './plan-change';
+import { createPolicyGuardTool } from './policy-guard';
+import { createIssueToFixPlanTool, createLogTraceToCodeTool } from './issue';
+
 export type { ToolFactoryOptions } from './types';
 
 export function createTools(options: ToolFactoryOptions) {
@@ -116,6 +121,11 @@ export function createTools(options: ToolFactoryOptions) {
   const changeExplainer = createChangeExplainerTool(options);
   const prReviewAnalyzer = createPrReviewAnalyzerTool(options);
   const deploySafetyAdvisor = createDeploySafetyAdvisorTool(options);
+  const mapCodebase = createMapCodebaseTool(options);
+  const planChange = createPlanChangeTool(options);
+  const policyGuard = createPolicyGuardTool(options);
+  const issueToFixPlan = createIssueToFixPlanTool(options);
+  const logTraceToCode = createLogTraceToCodeTool(options);
 
   return {
     read,
@@ -169,5 +179,10 @@ export function createTools(options: ToolFactoryOptions) {
     change_explainer: changeExplainer,
     pr_review_analyzer: prReviewAnalyzer,
     deploy_safety_advisor: deploySafetyAdvisor,
+    map_codebase: mapCodebase,
+    plan_change: planChange,
+    policy_guard: policyGuard,
+    issue_to_fix_plan: issueToFixPlan,
+    log_trace_to_code: logTraceToCode,
   };
 }
