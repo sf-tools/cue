@@ -31,7 +31,7 @@ const COMMAND_RULES: Array<{
   rationale: string;
 }> = [
   {
-    pattern: /\brm\s+-rf?\s+(\/|~|\$HOME|\*\b)/,
+    pattern: /\brm\s+-rf?\s+(\/|~|\$HOME|(?:\*|\.\/*)(?=\s|$))/,
     rule: 'destructive: rm -rf root/home/wildcard',
     severity: 'critical',
     rationale: 'Recursive force delete on root, home, or top-level wildcard wipes data.',
