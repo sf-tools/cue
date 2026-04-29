@@ -152,7 +152,7 @@ async function searchTerm(
   term: string,
   root: string,
 ): Promise<Hit[]> {
-  const cmd = `if command -v rg >/dev/null 2>&1; then command rg --line-number --no-heading --color=never --fixed-strings -i ${shellEscape(term)} ${shellEscape(root)}; else command grep -RIn -- ${shellEscape(term)} ${shellEscape(root)}; fi`;
+  const cmd = `if command -v rg >/dev/null 2>&1; then command rg --line-number --no-heading --color=never --fixed-strings -i -e ${shellEscape(term)} -- ${shellEscape(root)}; else command grep -RIn -e ${shellEscape(term)} -- ${shellEscape(root)}; fi`;
   const { output, exitCode } = await runUserShell(cmd);
   const text = plain(output).trim();
   if (exitCode !== 0 && exitCode !== 1) return [];
@@ -478,4 +478,4 @@ export function createLogTraceToCodeTool({ runUserShell }: ToolFactoryOptions) {
   });
 }
 
-export const _internal = { extractTerms, classifyLogs, buildIssueFixPlan };
+export const _internal = { extractTerms, classifyLogs, buildIssueFixPlan, shellEscape };

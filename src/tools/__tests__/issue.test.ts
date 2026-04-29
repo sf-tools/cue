@@ -3,10 +3,19 @@ import { describe, expect, test } from 'bun:test';
 import { _internal, runIssueToFixPlan, runLogTraceToCode } from '../issue';
 import type { ShellResult } from '@/types';
 
-const { extractTerms, classifyLogs, buildIssueFixPlan } = _internal;
+const { extractTerms, classifyLogs, buildIssueFixPlan, shellEscape } = _internal;
 
 function fakeShell(output: string): (cmd: string) => Promise<ShellResult> {
   return async () => ({ exitCode: 0, output });
+}
+
+function recordingShell(output: string) {
+  const calls: string[] = [];
+  const shell = async (cmd: string): Promise<ShellResult> => {
+    calls.push(cmd);
+    return { exitCode: 0, output };
+  };
+  return { shell, calls };
 }
 
 describe('extractTerms', () => {
@@ -76,6 +85,50 @@ describe('buildIssueFixPlan', () => {
   });
 });
 
+describe('shellEscape', () => {
+  test('wraps plain values in single quotes', () => {
+    expect(shellEscape('hello')).toBe(`'hello'`);
+  });
+
+  test(`escapes embedded single quotes using the standard '\\'' pattern`, () => {
+    expect(shellEscape("it's")).toBe(`'it'\\''s'`);
+  });
+
+  test('round-trips through a shell parser into the original string', () => {
+    const parseShellWord = (escaped: string) => {
+      let out = '';
+      let inQuote = false;
+      for (let i = 0; i < escaped.length; i += 1) {
+        const c = escaped[i]!;
+        if (inQuote) {
+          if (c === "'") inQuote = false;
+          else out += c;
+        } else if (c === "'") {
+          inQuote = true;
+        } else if (c === '\\' && i + 1 < escaped.length) {
+          out += escaped[++i];
+        } else {
+          out += c;
+        }
+      }
+      return out;
+    };
+    const cases = ["it's", "a'b'c", "''", "no quotes", "mix it's a test"];
+    for (const value of cases) {
+      expect(parseShellWord(shellEscape(value))).toBe(value);
+    }
+  });
+});
+
+describe('STOP_WORDS', () => {
+  test('does not contain duplicate entries (regression: when listed twice)', () => {
+    const terms = extractTerms(
+      'when when when checkoutTotals when broken bug issue when when',
+    );
+    expect(terms).not.toContain('when');
+  });
+});
+
 describe('runIssueToFixPlan', () => {
   test('happy path with mocked rg output', async () => {
     const fake = fakeShell(
@@ -97,6 +150,20 @@ describe('runIssueToFixPlan', () => {
     await expect(
       runIssueToFixPlan('  ', { runUserShell: fakeShell('') }),
     ).rejects.toThrow();
+  });
+
+  test('passes search terms via -e and separates the path with -- (no arg injection)', async () => {
+    const { shell, calls } = recordingShell('');
+    await runIssueToFixPlan(
+      'Crash in CheckoutTotals when filtering invoices',
+      { runUserShell: shell, max_files: 2 },
+    );
+    expect(calls.length).toBeGreaterThan(0);
+    for (const cmd of calls) {
+      expect(cmd).toMatch(/rg [^|]*-e '/);
+      expect(cmd).toMatch(/-e '[^']+' -- '/);
+      expect(cmd).toMatch(/grep -RIn -e '/);
+    }
   });
 });
 

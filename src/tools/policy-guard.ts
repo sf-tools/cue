@@ -31,7 +31,7 @@ const COMMAND_RULES: Array<{
   rationale: string;
 }> = [
   {
-    pattern: /\brm\s+-rf?\s+(\/|~|\$HOME|(?:\*|\.\/*)(?=\s|$))/,
+    pattern: /\brm\s+-[a-zA-Z]*r[a-zA-Z]*\s+(?:\/(?=\s|$)|~(?:\/\S*)?|\$HOME\b|\.\/\*|\*(?=\s|$))/,
     rule: 'destructive: rm -rf root/home/wildcard',
     severity: 'critical',
     rationale: 'Recursive force delete on root, home, or top-level wildcard wipes data.',
@@ -129,10 +129,16 @@ const SENSITIVE_FILE_PATTERNS: Array<{
     rationale: '.env typically contains application secrets and credentials.',
   },
   {
-    pattern: /(^|\/)id_(rsa|dsa|ed25519|ecdsa)(\.pub)?$/,
+    pattern: /(^|\/)id_(?:rsa|dsa|ed25519|ecdsa)$/,
     rule: 'secrets: SSH private key',
     severity: 'critical',
     rationale: 'SSH private keys must never be edited or transmitted.',
+  },
+  {
+    pattern: /(^|\/)id_(?:rsa|dsa|ed25519|ecdsa)\.pub$/,
+    rule: 'secrets: SSH public key',
+    severity: 'low',
+    rationale: 'SSH public keys are safe to share but worth flagging during edits.',
   },
   {
     pattern: /\.(pem|key|crt|p12|pfx)$/i,

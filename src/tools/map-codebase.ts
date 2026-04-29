@@ -297,6 +297,20 @@ async function safeStatSize(path: string) {
   }
 }
 
+const STAT_CONCURRENCY = 32;
+
+async function statSizesBatched(paths: string[]): Promise<number[]> {
+  const sizes = new Array<number>(paths.length);
+  for (let start = 0; start < paths.length; start += STAT_CONCURRENCY) {
+    const end = Math.min(start + STAT_CONCURRENCY, paths.length);
+    const batch = await Promise.all(
+      paths.slice(start, end).map(file => safeStatSize(file)),
+    );
+    for (let i = 0; i < batch.length; i += 1) sizes[start + i] = batch[i]!;
+  }
+  return sizes;
+}
+
 const NESTED_TOP_DIRS = new Set(['src', 'lib', 'packages', 'app']);
 
 function topLevelKey(relativePath: string) {
@@ -482,7 +496,7 @@ export async function buildCodebaseMap(
   const langCount = new Map<LanguageId, number>();
   let totalBytes = 0;
 
-  const sizes = await Promise.all(allFiles.map(file => safeStatSize(file)));
+  const sizes = await statSizesBatched(allFiles);
 
   for (let index = 0; index < allFiles.length; index += 1) {
     const file = allFiles[index]!;

@@ -10,6 +10,29 @@ describe('evaluatePolicy', () => {
     expect(result.reasons.some(reason => /destructive/.test(reason.rule))).toBe(true);
   });
 
+  test('blocks rm -rf on top-level wildcard', () => {
+    const result = evaluatePolicy({ action: 'command', target: 'rm -rf *' });
+    expect(result.verdict).toBe('block');
+    expect(result.risk).toBe('critical');
+    expect(result.reasons.some(reason => /wildcard/i.test(reason.rule))).toBe(true);
+  });
+
+  test('blocks rm -rf ./*', () => {
+    const result = evaluatePolicy({ action: 'command', target: 'rm -rf ./*' });
+    expect(result.verdict).toBe('block');
+    expect(result.risk).toBe('critical');
+  });
+
+  test('blocks rm with reordered flags like -fr or -rfv', () => {
+    expect(evaluatePolicy({ action: 'command', target: 'rm -fr /' }).verdict).toBe('block');
+    expect(evaluatePolicy({ action: 'command', target: 'rm -rfv ~' }).verdict).toBe('block');
+  });
+
+  test('does not over-flag rm of a project subdirectory', () => {
+    const result = evaluatePolicy({ action: 'command', target: 'rm -rf src/build' });
+    expect(result.reasons.some(r => /root\/home\/wildcard/.test(r.rule))).toBe(false);
+  });
+
   test('blocks fork bomb', () => {
     const result = evaluatePolicy({ action: 'command', target: ':(){ :|:& };:' });
     expect(result.verdict).toBe('block');
@@ -35,6 +58,25 @@ describe('evaluatePolicy', () => {
     const result = evaluatePolicy({ action: 'edit', target: 'src/.env' });
     expect(result.reasons.some(reason => /\.env/.test(reason.rule))).toBe(true);
     expect(result.risk === 'high' || result.risk === 'medium').toBe(true);
+  });
+
+  test('flags id_rsa as a critical private SSH key', () => {
+    const result = evaluatePolicy({ action: 'edit', target: '~/.ssh/id_rsa' });
+    expect(result.risk).toBe('critical');
+    expect(
+      result.reasons.some(r => /SSH private key/i.test(r.rule)),
+    ).toBe(true);
+    expect(
+      result.reasons.some(r => /SSH public key/i.test(r.rule)),
+    ).toBe(false);
+  });
+
+  test('treats id_rsa.pub as low risk and never as a private key', () => {
+    const result = evaluatePolicy({ action: 'edit', target: '~/.ssh/id_rsa.pub' });
+    expect(
+      result.reasons.some(r => /SSH private key/i.test(r.rule)),
+    ).toBe(false);
+    expect(result.risk).not.toBe('critical');
   });
 
   test('flags secret material in content', () => {
