@@ -21,7 +21,11 @@ import { renderSuggestions } from '@/render/components/suggestions';
 import { renderOutputPreview } from '@/render/components/transcript';
 import { renderQueuedSubmissions } from '@/render/components/queued';
 import { loadCueCloudModel, requireCueCloudAuth } from '@/cloud/openai';
-import { IMAGE_MEDIA_TYPES, parseDroppedImagePaths } from './path-detect';
+import {
+  findImagePathMentions,
+  parseDroppedImagePaths,
+  resolveExistingImagePath,
+} from './path-detect';
 import { readClipboardImage, clipboardHelperHint } from './clipboard-image';
 import { copyTextToClipboard } from './clipboard-text';
 import { buildCodebaseReviewPrompt, isCodebaseReviewShortcut } from '@/review';
@@ -113,6 +117,19 @@ function bracketedPasteSuffixLength(text: string) {
   }
 
   return 0;
+}
+
+function isLikelyBinaryPaste(text: string) {
+  if (text.length < 128) return false;
+  if (/\b(?:PNG|JFIF|Exif|pHYs|iTXtXML:com\.adobe\.xmp)\b/.test(text)) return true;
+
+  let suspicious = 0;
+  for (const ch of text) {
+    const code = ch.charCodeAt(0);
+    if (ch === '\ufffd' || code === 0 || (code < 32 && ch !== '\n' && ch !== '\t')) suspicious += 1;
+  }
+
+  return suspicious / text.length > 0.02;
 }
 
 function sameLines(left: string[], right: string[]) {
@@ -1212,18 +1229,16 @@ export class AgentApp {
 
   private async expand(input: string) {
     let out = input;
-    const imageMentions: Attachment[] = [];
 
     for (const match of input.match(/@[^\s]+/g) || []) {
       const path = match.slice(1);
-      const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
-      if (IMAGE_MEDIA_TYPES[ext]) {
+      const resolved = resolveExistingImagePath(path, process.cwd());
+      if (resolved) {
         try {
-          const attachment = await attachFromPath(path);
-          imageMentions.push(attachment);
+          const attachment = await attachFromPath(resolved.absolutePath);
           out = out.replace(match, attachment.token);
         } catch {
-          // fall through to text-mention behavior
+          // Leave oversized or unreadable images as plain mention text.
         }
         continue;
       }
@@ -1231,6 +1246,16 @@ export class AgentApp {
         const content = await readFile(path, 'utf8');
         out += `\n\n<file path="${path}">\n${content}\n</file>`;
       } catch {}
+    }
+
+    const pathMentions = findImagePathMentions(out, process.cwd());
+    for (const mention of [...pathMentions].reverse()) {
+      try {
+        const attachment = await attachFromPath(mention.absolutePath);
+        out = `${out.slice(0, mention.start)}${attachment.token}${out.slice(mention.end)}`;
+      } catch {
+        // Leave the path as plain text if it can't be attached.
+      }
     }
 
     return out;
@@ -1794,9 +1819,20 @@ export class AgentApp {
     this.render();
   }
 
-  private insertPastedText(text: string) {
+  private async insertPastedText(text: string) {
     const normalized = normalizePtyOutput(text);
     if (!normalized) return;
+
+    if (isLikelyBinaryPaste(normalized)) {
+      const attachment = await this.attachImageFromClipboard();
+      if (!attachment) {
+        this.showFooterNotice(
+          'pasted binary data ignored · use /img, paste an image path, or drag the image file',
+          5_000,
+        );
+      }
+      return;
+    }
 
     if (this.tryAttachDroppedImages(normalized)) return;
 
@@ -2165,7 +2201,7 @@ export class AgentApp {
           this.bracketedPasteBuffer += this.stdinBuffer.slice(0, endIndex);
           this.stdinBuffer = this.stdinBuffer.slice(endIndex + BRACKETED_PASTE_END.length);
           this.bracketedPasteActive = false;
-          this.insertPastedText(this.bracketedPasteBuffer);
+          await this.insertPastedText(this.bracketedPasteBuffer);
           this.bracketedPasteBuffer = '';
           continue;
         }
