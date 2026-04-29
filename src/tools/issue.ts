@@ -64,7 +64,6 @@ const STOP_WORDS = new Set([
   'broken',
   'bug',
   'issue',
-  'when',
 ]);
 
 type Hit = {
