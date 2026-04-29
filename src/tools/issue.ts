@@ -82,7 +82,7 @@ type Cluster = {
 };
 
 function shellEscape(value: string) {
-  return `'${value.replace(/'/g, `"'"'`)}'`;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 function extractTerms(text: string): string[] {
